@@ -342,10 +342,9 @@ void VulkanEngine::draw()
 	vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 	vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-	VkExtent3D extent;
+	VkExtent2D extent;
 	extent.height = _windowExtent.height;
 	extent.width = _windowExtent.width;
-	extent.depth = 1;
 	//< draw_first
 	//> imgui_draw
 	// execute a copy from the draw image into the swapchain
@@ -560,6 +559,7 @@ void VulkanEngine::run()
     // main loop
     while (!bQuit) {
         auto start = std::chrono::system_clock::now();
+        freeze_rendering = false;
 
         // Handle events on queue
         while (SDL_PollEvent(&e) != 0) {
@@ -911,7 +911,7 @@ void VulkanEngine::init_vulkan()
 
 void VulkanEngine::init_swapchain()
 {
-    create_swapchain();
+    create_swapchain(_windowExtent.width, _windowExtent.height);
 
 	//depth image size will match the window
 	VkExtent3D drawImageExtent = {
@@ -988,7 +988,6 @@ void VulkanEngine::create_swapchain(uint32_t width, uint32_t height)
 		.build()
 		.value();
 
-	_swapchainExtent = vkbSwapchain.extent;
 	//store swapchain and its related images
 	_swapchain = vkbSwapchain.swapchain;
 	_swapchainImages = vkbSwapchain.get_images().value();
