@@ -50,6 +50,9 @@ void VulkanEngine::init()
     _window = SDL_CreateWindow("Vulkan Engine", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, _windowExtent.width,
         _windowExtent.height, window_flags);
 
+    SDL_SetWindowGrab(_window, SDL_TRUE);
+    SDL_SetRelativeMouseMode(SDL_TRUE);
+
     init_vulkan();
 
     init_swapchain();
@@ -218,10 +221,11 @@ void VulkanEngine::init_background_pipelines()
 	computePipelineCreateInfo.layout = _gradientPipelineLayout;
 	computePipelineCreateInfo.stage = stageinfo;
 
-	ComputeEffect gradient;
+    ComputeEffect gradient{};
 	gradient.layout = _gradientPipelineLayout;
 	gradient.name = "gradient";
 	gradient.data = {};
+    gradient.pipeline = VK_NULL_HANDLE;
 
 	//default colors
 	gradient.data.data1 = glm::vec4(1, 0, 0, 1);
@@ -555,6 +559,7 @@ void VulkanEngine::run()
 {
     SDL_Event e;
     bool bQuit = false;
+    bool cursorLocked = true;
 
     // main loop
     while (!bQuit) {
@@ -579,8 +584,21 @@ void VulkanEngine::run()
 					freeze_rendering = false;
 				}
             }
-            
-            mainCamera.processSDLEvent(e);
+
+                         
+            // Check if the user has pressed left alt
+            if (e.type == SDL_KEYDOWN && e.key.keysym.scancode == SDL_SCANCODE_LALT)
+            {
+                SDL_SetRelativeMouseMode(cursorLocked ? SDL_FALSE : SDL_TRUE);
+                // Set cursor to the center of the window
+                SDL_WarpMouseInWindow(_window, _windowExtent.width / 2, _windowExtent.height / 2);
+                cursorLocked = !cursorLocked;
+			}
+
+            if (cursorLocked) {
+                mainCamera.processSDLEvent(e);
+            }
+
             ImGui_ImplSDL2_ProcessEvent(&e);
         }
 
@@ -604,7 +622,8 @@ void VulkanEngine::run()
 		ImGui::Text("draws %i", stats.drawcall_count);
         ImGui::End();
 
-		if (ImGui::Begin("background")) {
+        bool collapsedDataWindow = ImGui::Begin("background");
+		if (collapsedDataWindow) {
 
 			ComputeEffect& selected = backgroundEffects[currentBackgroundEffect];
 
@@ -617,8 +636,20 @@ void VulkanEngine::run()
 			ImGui::InputFloat4("data3", (float*)&selected.data.data3);
 			ImGui::InputFloat4("data4", (float*)&selected.data.data4);
 
-			ImGui::End();
 		}
+        ImGui::End();
+
+        ImGui::Begin("Hierarchy");
+
+        // For all pairs in loadedScenes, draw an expandable tree node
+        for (auto& [name, scene] : loadedScenes) {
+
+            if (ImGui::TreeNode(name.c_str())) {
+                render_loaded_gltf(scene);
+                ImGui::TreePop();
+            }
+        }
+        ImGui::End();
 
 		ImGui::Render();
 
@@ -635,6 +666,28 @@ void VulkanEngine::run()
 
         stats.frametime = elapsed.count() / 1000.f;
     }
+}
+
+void VulkanEngine::render_loaded_gltf(std::shared_ptr<LoadedGLTF> gltf) {
+    auto topLevelNodes = gltf->topNodes;
+
+    for (auto& node : topLevelNodes) {
+        recursively_render_node(gltf, node);
+	}
+}
+
+void VulkanEngine::recursively_render_node(std::shared_ptr<LoadedGLTF> gltf, std::shared_ptr<Node> node) {
+    if (node->children.size() > 0) {
+        if (ImGui::TreeNode(gltf->nodeNames[node].c_str())) {
+            for (auto& child : node->children) {
+				recursively_render_node(gltf, child);
+			}
+			ImGui::TreePop();
+		}
+	}
+    else {
+		ImGui::Text(gltf->nodeNames[node].c_str());
+	}
 }
 
 void VulkanEngine::update_scene()

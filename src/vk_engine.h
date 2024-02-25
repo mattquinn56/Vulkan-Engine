@@ -278,4 +278,9 @@ private:
     void init_imgui();
 
     void init_default_data();
+
+    void render_loaded_gltf(std::shared_ptr<LoadedGLTF> scene);
+
+    void recursively_render_node(std::shared_ptr<LoadedGLTF> scene, std::shared_ptr<Node> node);
+
 };

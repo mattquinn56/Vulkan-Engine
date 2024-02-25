@@ -41,6 +41,7 @@ struct LoadedGLTF : public IRenderable {
     // storage for all the data on a given gltf file
     std::unordered_map<std::string, std::shared_ptr<MeshAsset>> meshes;
     std::unordered_map<std::string, std::shared_ptr<Node>> nodes;
+    std::unordered_map<std::shared_ptr<Node>, std::string> nodeNames;
     std::unordered_map<std::string, AllocatedImage> images;
     std::unordered_map<std::string, std::shared_ptr<GLTFMaterial>> materials;
 

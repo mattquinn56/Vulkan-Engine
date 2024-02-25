@@ -390,8 +390,15 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::s
             newNode = std::make_shared<Node>();
         }
 
+
+        // Generate unique node name based off of node.name
+        std::pmr::string nodeName = node.name;
+        while (file.nodeNames.find(newNode) != file.nodeNames.end()) {
+			nodeName = fmt::format("{}_{}", node.name.c_str(), file.nodeNames.size());
+		}
+
+        file.nodeNames[newNode] = nodeName;
         nodes.push_back(newNode);
-        file.nodes[node.name.c_str()];
 
         std::visit(fastgltf::visitor { [&](fastgltf::Node::TransformMatrix matrix) {
                                           memcpy(&newNode->localTransform, matrix.data(), sizeof(matrix));
