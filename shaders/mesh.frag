@@ -6,8 +6,18 @@
 layout (location = 0) in vec3 inNormal;
 layout (location = 1) in vec3 inColor;
 layout (location = 2) in vec2 inUV;
+layout (location = 3) in vec3 inPos;
 
 layout (location = 0) out vec4 outFragColor;
+
+const vec3 sunlightDir = vec3(0.3f,1.f,0.3f);
+
+// temporarily hardcoding the light values
+const vec3 pointLightPos = vec3(10.0f, 10.0f, 0.0f);
+const float pointLightIntensity = 10000.0f;
+const vec3 pointLightColor = vec3(0.7f, .85f, 1.0f);
+const float ambientLightIntensity = 0.f;
+const vec3 ambientLightColor = vec3(1.0f, 1.0f, 1.0f);
 
 struct SHCoefficients {
     vec3 l00, l1m1, l10, l11, l2m2, l2m1, l20, l21, l22;
@@ -48,13 +58,23 @@ vec3 calcIrradiance(vec3 nor) {
 
 void main() 
 {
-	float lightValue = max(dot(inNormal, vec3(0.3f,1.f,0.3f)), 0.1f);
+    // old lighting algorithm
+	//float lightValue = max(dot(inNormal, sunlightDir), 0.1f);
+	//vec3 irradiance = calcIrradiance(inNormal); 
+	//vec3 color = inColor * texture(colorTex, inUV).xyz;
+	//outFragColor = vec4(color * lightValue + color * irradiance.x * vec3(0.2f) ,1.0f);
 
-	vec3 irradiance = calcIrradiance(inNormal); 
+    // new lighting algorithm
+    vec3 color = inColor * texture(colorTex, inUV).xyz;
 
+    vec3 normal = normalize(inNormal);
+    float dist = length(pointLightPos - inPos);
+    vec3 lightDir = normalize(pointLightPos - inPos);
+    float lightAmt = max(dot(normal, lightDir), 0.0);
+    vec3 diffuse = lightAmt * pointLightIntensity * pointLightColor / (dist * dist);
 
-	vec3 color = inColor * texture(colorTex,inUV).xyz;
+    vec3 ambient = ambientLightIntensity * ambientLightColor;
 
-	outFragColor = vec4(color * lightValue + color * irradiance.x * vec3(0.2f) ,1.0f);
+    outFragColor = vec4(color * (diffuse + ambient), 1.0);
 }
 

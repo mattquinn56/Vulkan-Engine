@@ -546,9 +546,9 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd)
         draw(drawCommands.OpaqueSurfaces[r]);
     }
 
-    for (auto& r : drawCommands.TransparentSurfaces) {
-        draw(r);
-    }
+    //for (auto& r : drawCommands.TransparentSurfaces) {
+    //    draw(r);
+    //}
 
     // we delete the draw commands now that we processed them
     drawCommands.OpaqueSurfaces.clear();
