@@ -246,17 +246,17 @@ void VulkanEngine::init_background_pipelines()
 	VK_CHECK(vkCreateComputePipelines(_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &sky.pipeline));
 
 	//add the 2 background effects into the array
-	backgroundEffects.push_back(gradient);
 	backgroundEffects.push_back(sky);
+	backgroundEffects.push_back(gradient);
 
 	//destroy structures properly
 	vkDestroyShaderModule(_device, gradientShader, nullptr);
 	vkDestroyShaderModule(_device, skyShader, nullptr);
 	_mainDeletionQueue.push_function([&]() {
 		vkDestroyPipelineLayout(_device, _gradientPipelineLayout, nullptr);
-		vkDestroyPipeline(_device, sky.pipeline, nullptr);
-		vkDestroyPipeline(_device, gradient.pipeline, nullptr);
-		});
+        vkDestroyPipeline(_device, sky.pipeline, nullptr);
+        vkDestroyPipeline(_device, gradient.pipeline, nullptr);
+    });
 }
 
 
@@ -560,11 +560,11 @@ void VulkanEngine::run()
     SDL_Event e;
     bool bQuit = false;
     bool cursorLocked = true;
+    freeze_rendering = false;
 
     // main loop
     while (!bQuit) {
         auto start = std::chrono::system_clock::now();
-        freeze_rendering = false;
 
         // Handle events on queue
         while (SDL_PollEvent(&e) != 0) {
