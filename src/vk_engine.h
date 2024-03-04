@@ -82,7 +82,6 @@ struct FrameData {
 
 constexpr unsigned int FRAME_OVERLAP = 2;
 
-
 struct DrawContext {
     std::vector<RenderObject> OpaqueSurfaces;
     std::vector<RenderObject> TransparentSurfaces;

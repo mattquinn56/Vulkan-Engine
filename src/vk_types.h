@@ -47,13 +47,17 @@ struct GPUGLTFMaterial {
 
 static_assert(sizeof(GPUGLTFMaterial) == 256);
 
+struct RenderLight {
+    glm::vec4 position; // a is intensity
+    glm::vec4 color; // a is type, 0 is point, 1 is ambient
+};
+
 struct GPUSceneData {
     glm::mat4 view;
     glm::mat4 proj;
     glm::mat4 viewproj;
-    glm::vec4 ambientColor;
-    glm::vec4 sunlightDirection; // w for sun power
-    glm::vec4 sunlightColor;
+    glm::vec4 numLights; // x is num lights
+    RenderLight lights[16];
 };
 
 //> mat_types

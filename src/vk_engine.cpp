@@ -706,6 +706,19 @@ void VulkanEngine::update_scene()
 	sceneData.view = view;
 	sceneData.proj = projection;
 	sceneData.viewproj = projection * view;
+    sceneData.numLights = glm::vec4(2.0, 0.0, 0.0, 1.0);
+
+    // lights are updating every frame - unnecessary currently
+    RenderLight pointLight = RenderLight{};
+    pointLight.position = glm::vec4(0.0, 0.0, 0.0, 10000.0);
+    pointLight.color = glm::vec4(.7, .85, 1.0, 0.0);
+    sceneData.lights[0] = pointLight;
+
+    RenderLight ambientLight = RenderLight{};
+    ambientLight.position = glm::vec4(0.0, 0.0, 0.0, .05);
+    ambientLight.color = glm::vec4(1.0, 1.0, 1.0, 1.0);
+    sceneData.lights[1] = ambientLight;
+
 
 
    // for (int i = 0; i < 16; i++)         {
@@ -1282,7 +1295,7 @@ void GLTFMetallic_Roughness::build_pipelines(VulkanEngine* engine)
 	matrixRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
     DescriptorLayoutBuilder layoutBuilder;
-    layoutBuilder.add_binding(0,VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+    layoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
     layoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 	layoutBuilder.add_binding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 

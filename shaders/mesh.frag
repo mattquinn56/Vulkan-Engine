@@ -10,14 +10,9 @@ layout (location = 3) in vec3 inPos;
 
 layout (location = 0) out vec4 outFragColor;
 
-const vec3 sunlightDir = vec3(0.3f,1.f,0.3f);
-
-// temporarily hardcoding the light values
-const vec3 pointLightPos = vec3(10.0f, 10.0f, 0.0f);
-const float pointLightIntensity = 10000.0f;
-const vec3 pointLightColor = vec3(0.7f, .85f, 1.0f);
-const float ambientLightIntensity = 0.f;
-const vec3 ambientLightColor = vec3(1.0f, 1.0f, 1.0f);
+const vec3 sunlightDir = vec3(0.3f,1.f,0.3f); // used in old lighting algorithm
+const int POINT = 0;
+const int AMBIENT = 1;
 
 struct SHCoefficients {
     vec3 l00, l1m1, l10, l11, l2m2, l2m1, l20, l21, l22;
@@ -56,25 +51,31 @@ vec3 calcIrradiance(vec3 nor) {
     );
 }
 
-void main() 
-{
+void main() {
     // old lighting algorithm
 	//float lightValue = max(dot(inNormal, sunlightDir), 0.1f);
 	//vec3 irradiance = calcIrradiance(inNormal); 
 	//vec3 color = inColor * texture(colorTex, inUV).xyz;
 	//outFragColor = vec4(color * lightValue + color * irradiance.x * vec3(0.2f) ,1.0f);
 
-    // new lighting algorithm
+    // up to 16 lights
+    outFragColor = vec4(0.0, 0.0, 0.0, 1.0);
     vec3 color = inColor * texture(colorTex, inUV).xyz;
-
     vec3 normal = normalize(inNormal);
-    float dist = length(pointLightPos - inPos);
-    vec3 lightDir = normalize(pointLightPos - inPos);
-    float lightAmt = max(dot(normal, lightDir), 0.0);
-    vec3 diffuse = lightAmt * pointLightIntensity * pointLightColor / (dist * dist);
-
-    vec3 ambient = ambientLightIntensity * ambientLightColor;
-
-    outFragColor = vec4(color * (diffuse + ambient), 1.0);
+    int numLights = int(sceneData.numLights.x);
+    for (int i = 0; i < numLights; i++) {
+        RenderLight l = sceneData.lights[i];
+        float power = l.position.a;
+        int type = int(l.color.a);
+	    if (type == POINT) {
+            float dist = length(l.position.xyz - inPos);
+		    vec3 lightDir = normalize(l.position.xyz - inPos);
+		    float lightAmt = max(dot(normal, lightDir), 0.0);
+		    vec3 diffuse = lightAmt * power * l.color.xyz / (dist * dist);
+		    outFragColor.xyz += vec3(color * diffuse);
+	    } else if (type == AMBIENT) {
+		    outFragColor.xyz += vec3(color * power * l.color.xyz);
+	    }
+    }
 }
 
