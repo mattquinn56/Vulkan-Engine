@@ -67,6 +67,7 @@ struct RenderObject {
     Bounds bounds;
     glm::mat4 transform;
     VkDeviceAddress vertexBufferAddress;
+    int vertexCount;
 };
 
 struct FrameData {
@@ -83,6 +84,7 @@ struct FrameData {
 constexpr unsigned int FRAME_OVERLAP = 2;
 
 struct DrawContext {
+    // Only drawing + using RT for opaque surfaces
     std::vector<RenderObject> OpaqueSurfaces;
     std::vector<RenderObject> TransparentSurfaces;
 };
@@ -129,6 +131,14 @@ struct MeshNode : public Node {
 	std::shared_ptr<MeshAsset> mesh;
 
 	virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) override;
+};
+
+struct BlasInput
+{
+    // Data used to build acceleration structure geometry
+    std::vector<VkAccelerationStructureGeometryKHR>       asGeometry;
+    std::vector<VkAccelerationStructureBuildRangeInfoKHR> asBuildOffsetInfo;
+    VkBuildAccelerationStructureFlagsKHR                  flags{ 0 };
 };
 
 class VulkanEngine {
@@ -254,10 +264,11 @@ public:
 private:
     void init_vulkan();
 
+    void init_raytracing();
+
     void init_swapchain();
 
     void create_swapchain(uint32_t width, uint32_t height);
-
 
 	void resize_swapchain();
 
@@ -282,4 +293,7 @@ private:
 
     void recursively_render_node(std::shared_ptr<LoadedGLTF> scene, std::shared_ptr<Node> node);
 
+    BlasInput objectToVkGeometryKHR(const RenderObject object);
+
+    void createBottomLevelAS();
 };

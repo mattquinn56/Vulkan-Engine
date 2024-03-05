@@ -55,6 +55,8 @@ void VulkanEngine::init()
 
     init_vulkan();
 
+    init_raytracing();
+
     init_swapchain();
 
     init_commands();
@@ -830,6 +832,8 @@ GPUMeshBuffers VulkanEngine::uploadMesh(std::span<uint32_t> indices, std::span<V
     const size_t indexBufferSize = indices.size() * sizeof(uint32_t);
 
     GPUMeshBuffers newSurface;
+
+    newSurface.vertexCount = vertices.size();
     
     newSurface.vertexBuffer = create_buffer(vertexBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
         VMA_MEMORY_USAGE_GPU_ONLY);
@@ -923,7 +927,7 @@ void VulkanEngine::init_vulkan()
     vkb::InstanceBuilder builder;
 
     // make the vulkan instance, with basic debug features
-    auto inst_ret = builder.set_app_name("Example Vulkan Application")
+    auto inst_ret = builder.set_app_name("Vulkan Engine")
                         .request_validation_layers(bUseValidationLayers)
                         .use_default_debug_messenger()
                         .require_api_version(1, 3, 0)
@@ -941,9 +945,9 @@ void VulkanEngine::init_vulkan()
 	features13.dynamicRendering = true;
 	features13.synchronization2 = true;
    
-   VkPhysicalDeviceVulkan12Features features12 {};
-   features12.bufferDeviceAddress = true;
-   features12.descriptorIndexing = true; 
+    VkPhysicalDeviceVulkan12Features features12 {};
+    features12.bufferDeviceAddress = true;
+    features12.descriptorIndexing = true; 
 
     // use vkbootstrap to select a gpu.
     // We want a gpu that can write to the SDL surface and supports vulkan 1.2
@@ -973,6 +977,18 @@ void VulkanEngine::init_vulkan()
     allocatorInfo.instance = _instance;
     allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
     vmaCreateAllocator(&allocatorInfo, &_allocator);
+}
+
+void VulkanEngine::init_raytracing() {
+    // Looking at the ray tracing extensions
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
+    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };
+    VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
+
+    // Requesting ray tracing properties
+    VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+    prop2.pNext = &m_rtProperties;
+    vkGetPhysicalDeviceProperties2(_chosenGPU, &prop2);
 }
 
 void VulkanEngine::init_swapchain()
@@ -1396,6 +1412,7 @@ void MeshNode::Draw(const glm::mat4& topMatrix, DrawContext& ctx)
         def.bounds = s.bounds;
         def.transform = nodeMatrix;
         def.vertexBufferAddress = mesh->meshBuffers.vertexBufferAddress;
+        def.vertexCount = mesh->meshBuffers.vertexCount;
 
         if (s.material->data.passType == MaterialPass::Transparent) {
             ctx.TransparentSurfaces.push_back(def);
@@ -1406,4 +1423,75 @@ void MeshNode::Draw(const glm::mat4& topMatrix, DrawContext& ctx)
 
     // recurse down
     Node::Draw(topMatrix, ctx);
+}
+
+
+VkDeviceAddress getBufferDeviceAddress(VkDevice device, VkBuffer buffer) {
+    if (buffer == VK_NULL_HANDLE)
+        return 0ULL;
+
+    VkBufferDeviceAddressInfo info = { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
+    info.buffer = buffer;
+    return vkGetBufferDeviceAddress(device, &info);
+}
+
+
+//--------------------------------------------------------------------------------------------------
+// Convert an OBJ model into the ray tracing geometry used to build the BLAS
+//
+BlasInput VulkanEngine::objectToVkGeometryKHR(const RenderObject object)
+{
+    // BLAS builder requires raw device addresses.
+    VkDeviceAddress vertexAddress = object.vertexBufferAddress;
+    VkDeviceAddress indexAddress = getBufferDeviceAddress(_device, object.indexBuffer);
+
+    uint32_t maxPrimitiveCount = object.indexCount / 3;
+
+    // Describe buffer as array of VertexObj.
+    VkAccelerationStructureGeometryTrianglesDataKHR triangles{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR };
+    triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;  // vec3 vertex position data.
+    triangles.vertexData.deviceAddress = vertexAddress;
+    triangles.vertexStride = sizeof(Vertex);
+    // Describe index data (32-bit unsigned int)
+    triangles.indexType = VK_INDEX_TYPE_UINT32;
+    triangles.indexData.deviceAddress = indexAddress;
+    // Indicate identity transform by setting transformData to null device pointer.
+    //triangles.transformData = {};
+    triangles.maxVertex = object.vertexCount - 1;
+
+    // Identify the above data as containing opaque triangles.
+    VkAccelerationStructureGeometryKHR asGeom{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
+    asGeom.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+    asGeom.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+    asGeom.geometry.triangles = triangles;
+
+    // The entire array will be used to build the BLAS.
+    VkAccelerationStructureBuildRangeInfoKHR offset;
+    offset.firstVertex = 0;
+    offset.primitiveCount = maxPrimitiveCount;
+    offset.primitiveOffset = 0;
+    offset.transformOffset = 0;
+
+    // Our blas is made from only one geometry, but could be made of many geometries
+    BlasInput input;
+    input.asGeometry.emplace_back(asGeom);
+    input.asBuildOffsetInfo.emplace_back(offset);
+
+    return input;
+}
+
+void VulkanEngine::createBottomLevelAS()
+{
+    // BLAS - Storing each primitive in a geometry
+    std::vector<BlasInput> allBlas;
+    allBlas.reserve(drawCommands.OpaqueSurfaces.size());
+    for (const auto& obj : drawCommands.OpaqueSurfaces)
+    {
+        BlasInput blas = objectToVkGeometryKHR(obj);
+
+        // We could add more geometry in each BLAS, but we add only one for now
+        allBlas.emplace_back(blas);
+    }
+    // TODO: Build BLAS
+    //m_rtBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 }
