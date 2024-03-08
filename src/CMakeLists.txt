@@ -1,23 +1,8 @@
+file(GLOB MY_PROJECT_SOURCES "*.cpp")
+file(GLOB MY_PROJECT_HEADERS "*.h")
 
 # Add source to this project's executable.
-add_executable (engine 
-  main.cpp
-  vk_types.h
-  vk_initializers.cpp
-  vk_initializers.h
-  vk_images.h
-  vk_images.cpp 
-  vk_descriptors.h
-  vk_descriptors.cpp
-  vk_pipelines.h
-  vk_pipelines.cpp
-  vk_engine.h
-  vk_engine.cpp
-  vk_loader.h
-  vk_loader.cpp
-  camera.cpp
-  camera.h
-)
+add_executable(engine ${MY_PROJECT_SOURCES} ${MY_PROJECT_HEADERS})
 
 set_property(TARGET engine PROPERTY CXX_STANDARD 20)
 target_compile_definitions(engine PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)

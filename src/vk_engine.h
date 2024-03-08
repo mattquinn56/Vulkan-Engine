@@ -18,9 +18,13 @@
 #include <vk_descriptors.h>
 #include <vk_loader.h>
 #include <vk_pipelines.h>
+
 struct MeshAsset;
+
+class VulkanRayTracer;
+
 namespace fastgltf {
-struct Mesh;
+    struct Mesh;
 }
 
 struct DeletionQueue {
@@ -133,14 +137,6 @@ struct MeshNode : public Node {
 	virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) override;
 };
 
-struct BlasInput
-{
-    // Data used to build acceleration structure geometry
-    std::vector<VkAccelerationStructureGeometryKHR>       asGeometry;
-    std::vector<VkAccelerationStructureBuildRangeInfoKHR> asBuildOffsetInfo;
-    VkBuildAccelerationStructureFlagsKHR                  flags{ 0 };
-};
-
 class VulkanEngine {
 public:
     bool _isInitialized { false };
@@ -169,6 +165,8 @@ public:
     VkDescriptorPool _descriptorPool;
 
     DescriptorAllocator globalDescriptorAllocator;
+
+    VulkanRayTracer* rayTracer;
 
     VkPipeline _gradientPipeline;
     VkPipelineLayout _gradientPipelineLayout;
@@ -261,6 +259,9 @@ public:
 
     bool resize_requested;
     bool freeze_rendering;
+
+    VkDeviceAddress getBufferDeviceAddress(VkDevice device, VkBuffer buffer);\
+
 private:
     void init_vulkan();
 
@@ -292,8 +293,4 @@ private:
     void render_loaded_gltf(std::shared_ptr<LoadedGLTF> scene);
 
     void recursively_render_node(std::shared_ptr<LoadedGLTF> scene, std::shared_ptr<Node> node);
-
-    BlasInput objectToVkGeometryKHR(const RenderObject object);
-
-    void createBottomLevelAS();
 };
