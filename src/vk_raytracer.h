@@ -22,4 +22,6 @@ public:
     BlasInput objectToVkGeometryKHR(const RenderObject object);
 
     void createBottomLevelAS();
+
+    void buildBlas(const std::vector<BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags);
 };

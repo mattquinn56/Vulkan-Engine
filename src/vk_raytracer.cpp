@@ -75,6 +75,10 @@ void VulkanRayTracer::createBottomLevelAS()
         allBlas.emplace_back(blas);
     }
 
-    // TODO: Build BLAS
-    //m_rtBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+    buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+}
+
+void VulkanRayTracer::buildBlas(const std::vector<BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags) {
+    // TODO
+    return;
 }
