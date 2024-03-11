@@ -72,6 +72,8 @@ struct RenderObject {
     glm::mat4 transform;
     VkDeviceAddress vertexBufferAddress;
     int vertexCount;
+
+    uint32_t blasIndex{ 0 };
 };
 
 struct FrameData {
@@ -140,6 +142,9 @@ struct MeshNode : public Node {
 class VulkanEngine {
 public:
     bool _isInitialized { false };
+    std::vector<const char*> _deviceExtensions{ VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, "VK_KHR_deferred_host_operations"};
+    bool createdBLAS{ false };
+    bool createdTLAS{ false };
     int _frameNumber { 0 };
 
     VkExtent2D _windowExtent { 1700, 900 };
@@ -220,6 +225,9 @@ public:
     // initializes everything in the engine
     void init();
 
+    // checks that the needed extensions are available (currently unused)
+    void check_extensions();
+
     // shuts down the engine
     void cleanup();
 
@@ -260,7 +268,7 @@ public:
     bool resize_requested;
     bool freeze_rendering;
 
-    VkDeviceAddress getBufferDeviceAddress(VkDevice device, VkBuffer buffer);\
+    VkDeviceAddress getBufferDeviceAddress(VkDevice device, VkBuffer buffer);
 
 private:
     void init_vulkan();

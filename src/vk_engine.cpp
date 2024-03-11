@@ -22,6 +22,8 @@
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 
+#include <iostream>
+
 constexpr bool bUseValidationLayers = true;
 
 // we want to immediately abort when there is an error. In normal engines this
@@ -56,8 +58,6 @@ void VulkanEngine::init()
 
     init_vulkan();
 
-    init_raytracing();
-
     init_swapchain();
 
     init_commands();
@@ -73,6 +73,8 @@ void VulkanEngine::init()
     init_renderables();
 
     init_imgui();
+
+    init_raytracing();
 
     // everything went fine
     _isInitialized = true;
@@ -661,6 +663,14 @@ void VulkanEngine::run()
 
         update_scene();
 
+        if (!createdBLAS) {
+            rayTracer->createBottomLevelAS();
+            createdBLAS = true;
+        }
+        if (!createdTLAS) {
+            rayTracer->createTopLevelAS();
+            createdTLAS = true;
+        }
 
         draw();
 
@@ -836,14 +846,14 @@ GPUMeshBuffers VulkanEngine::uploadMesh(std::span<uint32_t> indices, std::span<V
 
     newSurface.vertexCount = vertices.size();
     
-    newSurface.vertexBuffer = create_buffer(vertexBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+    newSurface.vertexBuffer = create_buffer(vertexBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
         VMA_MEMORY_USAGE_GPU_ONLY);
 
 
     VkBufferDeviceAddressInfo deviceAdressInfo{.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = newSurface.vertexBuffer.buffer};
     newSurface.vertexBufferAddress = vkGetBufferDeviceAddress(_device, &deviceAdressInfo);
 
-    newSurface.indexBuffer = create_buffer(indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+    newSurface.indexBuffer = create_buffer(indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
         VMA_MEMORY_USAGE_GPU_ONLY);
 
     AllocatedBuffer staging = create_buffer(vertexBufferSize + indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
@@ -923,6 +933,30 @@ void VulkanEngine::destroy_buffer(const AllocatedBuffer& buffer)
     vmaDestroyBuffer(_allocator, buffer.buffer, buffer.allocation);
 }
 
+void VulkanEngine::check_extensions() {
+    uint32_t extensionCount;
+    vkEnumerateDeviceExtensionProperties(_chosenGPU, nullptr, &extensionCount, nullptr);
+    std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+    vkEnumerateDeviceExtensionProperties(_chosenGPU, nullptr, &extensionCount, availableExtensions.data());
+
+    std::vector<bool> hasExtension(availableExtensions.size(), false);
+    for (const auto& extension : availableExtensions) {
+        for (int i = 0; i < _deviceExtensions.size(); i++) {
+            if (strcmp(extension.extensionName, _deviceExtensions[i]) == 0) {
+				hasExtension[i] = true;
+			}
+		}
+    }
+
+    for (int i = 0; i < _deviceExtensions.size(); i++) {
+        if (!hasExtension[i]) {
+			throw std::runtime_error("Missing device extension: " + std::string(_deviceExtensions[i]));
+		}
+	}
+
+    std::cout << "All needed device extensions found" << std::endl;
+}
+
 void VulkanEngine::init_vulkan()
 {
     vkb::InstanceBuilder builder;
@@ -953,12 +987,25 @@ void VulkanEngine::init_vulkan()
     // use vkbootstrap to select a gpu.
     // We want a gpu that can write to the SDL surface and supports vulkan 1.2
     vkb::PhysicalDeviceSelector selector { vkb_inst };
+    for (const auto& extension : _deviceExtensions) {
+		selector.add_required_extension(extension);
+	}
     vkb::PhysicalDevice physicalDevice = selector.set_minimum_version(1, 3).set_required_features_13(features13).set_required_features_12(features12).set_surface(_surface).select().value();
 
     // physicalDevice.features.
     // create the final vulkan device
-
     vkb::DeviceBuilder deviceBuilder { physicalDevice };
+
+    // enable acceleration structure and RT extension
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures{};
+    accelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+    accelerationStructureFeatures.accelerationStructure = VK_TRUE;
+    deviceBuilder.add_pNext(&accelerationStructureFeatures);
+
+    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rayTracingPipelineFeatures{};
+    rayTracingPipelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+    rayTracingPipelineFeatures.rayTracingPipeline = VK_TRUE;
+    deviceBuilder.add_pNext(&rayTracingPipelineFeatures);
 
     vkb::Device vkbDevice = deviceBuilder.build().value();
 

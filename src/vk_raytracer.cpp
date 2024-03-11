@@ -3,27 +3,15 @@
 VulkanRayTracer::VulkanRayTracer(VulkanEngine* engine)
 {
 	VulkanRayTracer::engine = engine;
-}
 
-void VulkanRayTracer::init()
-{
-    // Looking at the ray tracing extensions
-    VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
-    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };
-    VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
-
-    // Requesting ray tracing properties
-    VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
-    prop2.pNext = &m_rtProperties;
-    vkGetPhysicalDeviceProperties2(engine->_chosenGPU, &prop2);
-
-    // Load functions
+    // Load extension functions
     pfnGetAccelerationStructureBuildSizesKHR = reinterpret_cast<PFN_vkGetAccelerationStructureBuildSizesKHR>(vkGetDeviceProcAddr(engine->_device, "vkGetAccelerationStructureBuildSizesKHR"));
     pfnCmdBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(engine->_device, "vkCmdBuildAccelerationStructuresKHR"));
     pfnCmdCopyAccelerationStructureKHR = reinterpret_cast<PFN_vkCmdCopyAccelerationStructureKHR>(vkGetDeviceProcAddr(engine->_device, "vkCmdCopyAccelerationStructureKHR"));
     pfnCmdWriteAccelerationStructuresPropertiesKHR = reinterpret_cast<PFN_vkCmdWriteAccelerationStructuresPropertiesKHR>(vkGetDeviceProcAddr(engine->_device, "vkCmdWriteAccelerationStructuresPropertiesKHR"));
     pfnCreateAccelerationStructureKHR = reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(vkGetDeviceProcAddr(engine->_device, "vkCreateAccelerationStructureKHR"));
     pfnDestroyAccelerationStructureKHR = reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(vkGetDeviceProcAddr(engine->_device, "vkDestroyAccelerationStructureKHR"));
+    pfnGetAccelerationStructureDeviceAddressKHR = reinterpret_cast<PFN_vkGetAccelerationStructureDeviceAddressKHR>(vkGetDeviceProcAddr(engine->_device, "vkGetAccelerationStructureDeviceAddressKHR"));
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -75,9 +63,10 @@ void VulkanRayTracer::createBottomLevelAS()
     // BLAS - Storing each primitive in a geometry
     std::vector<BlasInput> allBlas;
     allBlas.reserve(engine->drawCommands.OpaqueSurfaces.size());
-    for (const auto& obj : engine->drawCommands.OpaqueSurfaces)
+    for (auto& obj : engine->drawCommands.OpaqueSurfaces)
     {
         BlasInput blas = objectToVkGeometryKHR(obj);
+        obj.blasIndex = static_cast<uint32_t>(allBlas.size());
 
         // We could add more geometry in each BLAS, but we add only one for now
         allBlas.emplace_back(blas);
@@ -92,7 +81,7 @@ AccelKHR VulkanRayTracer::createAcceleration(VkAccelerationStructureCreateInfoKH
     AccelKHR resultAccel;
     // Allocating the buffer to hold the acceleration structure
     resultAccel.buffer = engine->create_buffer(accel_.size, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
-        | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_AUTO);
+        | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
     // Setting the buffer
     accel_.buffer = resultAccel.buffer.buffer;
     // Create the acceleration structure
@@ -230,7 +219,7 @@ void VulkanRayTracer::buildBlas(const std::vector<BlasInput>& input, VkBuildAcce
 
     // Allocate the scratch buffers holding the temporary data of the acceleration structure builder
     AllocatedBuffer scratchBuffer = engine->create_buffer(maxScratchSize, 
-        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO);
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
     VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, scratchBuffer.buffer };
     VkDeviceAddress           scratchAddress = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
 
@@ -281,5 +270,53 @@ void VulkanRayTracer::buildBlas(const std::vector<BlasInput>& input, VkBuildAcce
     vkDestroyQueryPool(engine->_device, queryPool, nullptr);
     engine->destroy_buffer(scratchBuffer);
 
+    return;
+}
+
+void VulkanRayTracer::createTopLevelAS()
+{
+    std::vector<VkAccelerationStructureInstanceKHR> tlas;
+    tlas.reserve(engine->drawCommands.OpaqueSurfaces.size());
+    for (const RenderObject& inst : engine->drawCommands.OpaqueSurfaces)
+    {
+        VkAccelerationStructureInstanceKHR rayInst{};
+        rayInst.transform = toTransformMatrixKHR(inst.transform);  // Position of the instance
+        rayInst.instanceCustomIndex = inst.blasIndex;                               // gl_InstanceCustomIndexEXT
+        rayInst.accelerationStructureReference = getBlasDeviceAddress(inst.blasIndex);
+        rayInst.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+        rayInst.mask = 0xFF;       //  Only be hit if rayMask & instance.mask != 0
+        rayInst.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
+        tlas.emplace_back(rayInst);
+    }
+    buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR, false, false);
+}
+
+
+// Convert a Mat4x4 to the matrix required by acceleration structures
+VkTransformMatrixKHR VulkanRayTracer::toTransformMatrixKHR(glm::mat4 matrix)
+{
+    // VkTransformMatrixKHR uses a row-major memory layout, while glm::mat4
+    // uses a column-major memory layout. We transpose the matrix so we can
+    // memcpy the matrix's data directly.
+    glm::mat4            temp = glm::transpose(matrix);
+    VkTransformMatrixKHR out_matrix;
+    memcpy(&out_matrix, &temp, sizeof(VkTransformMatrixKHR));
+    return out_matrix;
+}
+
+//--------------------------------------------------------------------------------------------------
+// Return the device address of a Blas previously created.
+//
+VkDeviceAddress VulkanRayTracer::getBlasDeviceAddress(uint32_t blasId)
+{
+    assert(size_t(blasId) < m_blas.size());
+    VkAccelerationStructureDeviceAddressInfoKHR addressInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
+    addressInfo.accelerationStructure = m_blas[blasId].accel;
+    return pfnGetAccelerationStructureDeviceAddressKHR(engine->_device, &addressInfo);
+}
+
+void VulkanRayTracer::buildTlas(const std::vector<VkAccelerationStructureInstanceKHR>& instances,
+    VkBuildAccelerationStructureFlagsKHR flags, bool update, bool motion)
+{
     return;
 }
