@@ -75,4 +75,7 @@ public:
 
     void buildTlas(const std::vector<VkAccelerationStructureInstanceKHR>& instances,
         VkBuildAccelerationStructureFlagsKHR flags, bool update, bool motion);
+
+    void cmdCreateTlas(VkCommandBuffer cmdBuf, uint32_t countInstance, VkDeviceAddress instBufferAddr,
+        AllocatedBuffer& scratchBuffer, VkBuildAccelerationStructureFlagsKHR flags, bool update, bool motion);
 };

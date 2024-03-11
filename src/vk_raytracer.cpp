@@ -63,7 +63,7 @@ void VulkanRayTracer::createBottomLevelAS()
     // BLAS - Storing each primitive in a geometry
     std::vector<BlasInput> allBlas;
     allBlas.reserve(engine->drawCommands.OpaqueSurfaces.size());
-    for (auto& obj : engine->drawCommands.OpaqueSurfaces)
+    for (RenderObject& obj : engine->drawCommands.OpaqueSurfaces)
     {
         BlasInput blas = objectToVkGeometryKHR(obj);
         obj.blasIndex = static_cast<uint32_t>(allBlas.size());
@@ -318,5 +318,87 @@ VkDeviceAddress VulkanRayTracer::getBlasDeviceAddress(uint32_t blasId)
 void VulkanRayTracer::buildTlas(const std::vector<VkAccelerationStructureInstanceKHR>& instances,
     VkBuildAccelerationStructureFlagsKHR flags, bool update, bool motion)
 {
-    return;
+    // Cannot call buildTlas twice except to update.
+    assert(m_tlas.accel == VK_NULL_HANDLE || update);
+    uint32_t countInstance = static_cast<uint32_t>(instances.size());
+
+    // Create a buffer holding the actual instance data (matrices++) for use by the AS builder
+    AllocatedBuffer instancesBuffer;  // Buffer of instances containing the matrices and BLAS ids
+    VkDeviceSize size = sizeof(VkAccelerationStructureInstanceKHR) * instances.size();
+    instancesBuffer = engine->create_buffer(size, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | 
+        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, instancesBuffer.buffer };
+    VkDeviceAddress           instBufferAddr = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
+
+    // Make sure the copy of the instance buffer are copied before triggering the acceleration structure build
+    VkMemoryBarrier barrier{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+
+    // Creating the TLAS
+    AllocatedBuffer scratchBuffer;
+
+    // Executing and destroying temporary data
+    engine->immediate_submit([&](VkCommandBuffer cmd) {
+        // should become necessary if we move buffer creation to the GPU
+        //vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0, 1, &barrier, 0, nullptr, 0, nullptr);
+        cmdCreateTlas(cmd, countInstance, instBufferAddr, scratchBuffer, flags, update, motion);
+    });
+    engine->destroy_buffer(scratchBuffer);
+    engine->destroy_buffer(instancesBuffer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Low level of Tlas creation - see buildTlas
+//
+void VulkanRayTracer::cmdCreateTlas(VkCommandBuffer cmdBuf, uint32_t countInstance, VkDeviceAddress instBufferAddr,
+    AllocatedBuffer& scratchBuffer, VkBuildAccelerationStructureFlagsKHR flags, bool update, bool motion)
+{
+    // Wraps a device pointer to the above uploaded instances.
+    VkAccelerationStructureGeometryInstancesDataKHR instancesVk{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR };
+    instancesVk.data.deviceAddress = instBufferAddr;
+
+    // Put the above into a VkAccelerationStructureGeometryKHR. We need to put the instances struct in a union and label it as instance data.
+    VkAccelerationStructureGeometryKHR topASGeometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
+    topASGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+    topASGeometry.geometry.instances = instancesVk;
+
+    // Find sizes
+    VkAccelerationStructureBuildGeometryInfoKHR buildInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
+    buildInfo.flags = flags;
+    buildInfo.geometryCount = 1;
+    buildInfo.pGeometries = &topASGeometry;
+    buildInfo.ppGeometries = nullptr;
+    buildInfo.mode = update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+    buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+    buildInfo.srcAccelerationStructure = VK_NULL_HANDLE;
+
+    VkAccelerationStructureBuildSizesInfoKHR sizeInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
+    pfnGetAccelerationStructureBuildSizesKHR(engine->_device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo,
+        &countInstance, &sizeInfo);
+
+    VkAccelerationStructureCreateInfoKHR createInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR };
+    createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+    createInfo.size = sizeInfo.accelerationStructureSize;
+
+    m_tlas = createAcceleration(createInfo);
+
+    // Allocate the scratch memory
+    scratchBuffer = engine->create_buffer(sizeInfo.buildScratchSize,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+    VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, scratchBuffer.buffer };
+    VkDeviceAddress           scratchAddress = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
+
+    // Update build information
+    buildInfo.srcAccelerationStructure = VK_NULL_HANDLE;
+    buildInfo.dstAccelerationStructure = m_tlas.accel;
+    buildInfo.scratchData.deviceAddress = scratchAddress;
+
+    // Build Offsets info: n instances
+    VkAccelerationStructureBuildRangeInfoKHR        buildOffsetInfo{ countInstance, 0, 0, 0 };
+    const VkAccelerationStructureBuildRangeInfoKHR* pBuildOffsetInfo = &buildOffsetInfo;
+
+    // Build the TLAS
+    pfnCmdBuildAccelerationStructuresKHR(cmdBuf, 1, &buildInfo, &pBuildOffsetInfo);
 }
