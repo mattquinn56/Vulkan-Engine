@@ -326,7 +326,7 @@ void VulkanRayTracer::buildTlas(const std::vector<VkAccelerationStructureInstanc
     AllocatedBuffer instancesBuffer;  // Buffer of instances containing the matrices and BLAS ids
     VkDeviceSize size = sizeof(VkAccelerationStructureInstanceKHR) * instances.size();
     instancesBuffer = engine->create_buffer(size, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | 
-        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VMA_MEMORY_USAGE_CPU_TO_GPU);
+        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VMA_MEMORY_USAGE_GPU_ONLY);
     VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, instancesBuffer.buffer };
     VkDeviceAddress           instBufferAddr = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
 
