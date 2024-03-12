@@ -78,4 +78,13 @@ public:
 
     void cmdCreateTlas(VkCommandBuffer cmdBuf, uint32_t countInstance, VkDeviceAddress instBufferAddr,
         AllocatedBuffer& scratchBuffer, VkBuildAccelerationStructureFlagsKHR flags, bool update, bool motion);
+
+    // Descriptor Set
+    void createRtDescriptorSet();
+    DescriptorLayoutBuilder     m_rtDescLayoutBuilder;
+    DescriptorAllocator         m_rtDescAllocator;
+    DescriptorWriter            m_rtDescWriter;
+    VkDescriptorPool            m_rtDescPool;
+    VkDescriptorSetLayout       m_rtDescSetLayout;
+    VkDescriptorSet             m_rtDescSet;
 };

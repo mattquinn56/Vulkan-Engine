@@ -402,3 +402,38 @@ void VulkanRayTracer::cmdCreateTlas(VkCommandBuffer cmdBuf, uint32_t countInstan
     // Build the TLAS
     pfnCmdBuildAccelerationStructuresKHR(cmdBuf, 1, &buildInfo, &pBuildOffsetInfo);
 }
+
+//--------------------------------------------------------------------------------------------------
+// This descriptor set holds the Acceleration structure and the output image
+//
+void VulkanRayTracer::createRtDescriptorSet()
+{
+    m_rtDescLayoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);  // TLAS
+    m_rtDescLayoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);  // Output image
+
+    std::vector<DescriptorAllocator::PoolSizeRatio> rt_pool_sizes = {
+        { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
+    };
+    m_rtDescAllocator.init_pool(engine->_device, 1, rt_pool_sizes);
+    m_rtDescPool = m_rtDescAllocator.pool;
+    m_rtDescSetLayout = m_rtDescLayoutBuilder.build(engine->_device, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+
+    VkDescriptorSetAllocateInfo allocateInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
+    allocateInfo.descriptorPool = m_rtDescPool;
+    allocateInfo.descriptorSetCount = 1;
+    allocateInfo.pSetLayouts = &m_rtDescSetLayout;
+    vkAllocateDescriptorSets(engine->_device, &allocateInfo, &m_rtDescSet);
+
+
+    VkAccelerationStructureKHR tlas = m_tlas.accel;
+    VkWriteDescriptorSetAccelerationStructureKHR descASInfo{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
+    descASInfo.accelerationStructureCount = 1;
+    descASInfo.pAccelerationStructures = &tlas;
+
+    m_rtDescWriter.clear();
+    m_rtDescWriter.write_buffer(0, 0, 0, 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
+    m_rtDescWriter.writes[0].pNext = &descASInfo;
+    m_rtDescWriter.write_image(1, engine->_blackImage.imageView, {}, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    m_rtDescWriter.update_set(engine->_device, m_rtDescSet);
+}
