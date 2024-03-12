@@ -73,6 +73,16 @@ void VulkanRayTracer::createBottomLevelAS()
     }
 
     buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+
+
+    // cleanup
+    engine->_mainDeletionQueue.push_function([=]() {
+        for (auto& blas : m_blas)
+		{
+            pfnDestroyAccelerationStructureKHR(engine->_device, blas.accel, nullptr);
+			engine->destroy_buffer(blas.buffer);
+		}
+	});
 }
 
 
@@ -289,6 +299,12 @@ void VulkanRayTracer::createTopLevelAS()
         tlas.emplace_back(rayInst);
     }
     buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR, false, false);
+
+    // cleanup
+    engine->_mainDeletionQueue.push_function([=]() {
+        pfnDestroyAccelerationStructureKHR(engine->_device, m_tlas.accel, nullptr);
+		engine->destroy_buffer(m_tlas.buffer);
+    });
 }
 
 
@@ -408,6 +424,7 @@ void VulkanRayTracer::cmdCreateTlas(VkCommandBuffer cmdBuf, uint32_t countInstan
 //
 void VulkanRayTracer::createRtDescriptorSet()
 {
+    DescriptorLayoutBuilder m_rtDescLayoutBuilder;
     m_rtDescLayoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);  // TLAS
     m_rtDescLayoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);  // Output image
 
@@ -436,6 +453,13 @@ void VulkanRayTracer::createRtDescriptorSet()
     m_rtDescWriter.writes[0].pNext = &descASInfo;
     m_rtDescWriter.write_image(1, engine->_drawImage.imageView, {}, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     m_rtDescWriter.update_set(engine->_device, m_rtDescSet);
+
+    // add all to deletion queue
+    engine->_mainDeletionQueue.push_function([=]() {
+        vkDestroyDescriptorPool(engine->_device, m_rtDescPool, nullptr);
+        vkDestroyDescriptorSetLayout(engine->_device, m_rtDescSetLayout, nullptr);
+        m_rtDescAllocator.destroy_pool(engine->_device);
+	});
 }
 
 //--------------------------------------------------------------------------------------------------

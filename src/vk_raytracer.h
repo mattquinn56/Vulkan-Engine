@@ -81,7 +81,6 @@ public:
 
     // Descriptor Set
     void createRtDescriptorSet();
-    DescriptorLayoutBuilder     m_rtDescLayoutBuilder;
     DescriptorAllocator         m_rtDescAllocator;
     DescriptorWriter            m_rtDescWriter;
     VkDescriptorPool            m_rtDescPool;
