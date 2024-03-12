@@ -434,6 +434,25 @@ void VulkanRayTracer::createRtDescriptorSet()
     m_rtDescWriter.clear();
     m_rtDescWriter.write_buffer(0, 0, 0, 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
     m_rtDescWriter.writes[0].pNext = &descASInfo;
-    m_rtDescWriter.write_image(1, engine->_blackImage.imageView, {}, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    m_rtDescWriter.write_image(1, engine->_drawImage.imageView, {}, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     m_rtDescWriter.update_set(engine->_device, m_rtDescSet);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Writes the output image to the descriptor set
+// - Required when changing resolution
+//
+void VulkanRayTracer::updateRtDescriptorSet()
+{
+    // update drawimage manually (without use of descriptor writer) to avoid updating the acceleration structure
+    VkDescriptorImageInfo info{ {}, engine->_drawImage.imageView, VK_IMAGE_LAYOUT_GENERAL };
+
+    VkWriteDescriptorSet wds{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+    wds.dstSet = m_rtDescSet;
+    wds.descriptorCount = 1;
+    wds.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    wds.pImageInfo = &info;
+    wds.dstBinding = 1;
+
+    vkUpdateDescriptorSets(engine->_device, 1, &wds, 0, nullptr);
 }

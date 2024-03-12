@@ -143,8 +143,7 @@ class VulkanEngine {
 public:
     bool _isInitialized { false };
     std::vector<const char*> _deviceExtensions{ VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, "VK_KHR_deferred_host_operations"};
-    bool createdBLAS{ false };
-    bool createdTLAS{ false };
+    bool createdAS{ false };
     int _frameNumber { 0 };
 
     VkExtent2D _windowExtent { 1700, 900 };

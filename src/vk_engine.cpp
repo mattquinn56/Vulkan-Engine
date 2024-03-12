@@ -611,6 +611,9 @@ void VulkanEngine::run()
 
 		if (resize_requested) {
 			resize_swapchain();
+            if (createdAS) {
+                rayTracer->updateRtDescriptorSet();
+            }
 		}
 
         // imgui new frame
@@ -663,13 +666,11 @@ void VulkanEngine::run()
 
         update_scene();
 
-        if (!createdBLAS) {
+        if (!createdAS) {
             rayTracer->createBottomLevelAS();
-            createdBLAS = true;
-        }
-        if (!createdTLAS) {
             rayTracer->createTopLevelAS();
-            createdTLAS = true;
+            rayTracer->createRtDescriptorSet();
+            createdAS = true;
         }
 
         draw();
@@ -853,7 +854,7 @@ GPUMeshBuffers VulkanEngine::uploadMesh(std::span<uint32_t> indices, std::span<V
     VkBufferDeviceAddressInfo deviceAdressInfo{.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = newSurface.vertexBuffer.buffer};
     newSurface.vertexBufferAddress = vkGetBufferDeviceAddress(_device, &deviceAdressInfo);
 
-    newSurface.indexBuffer = create_buffer(indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+    newSurface.indexBuffer = create_buffer(indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
         VMA_MEMORY_USAGE_GPU_ONLY);
 
     AllocatedBuffer staging = create_buffer(vertexBufferSize + indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
