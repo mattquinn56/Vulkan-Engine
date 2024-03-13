@@ -88,4 +88,12 @@ public:
     VkDescriptorSet             m_rtDescSet;
 
     void updateRtDescriptorSet();
+
+    // Ray tracing pipeline
+    void createRtPipeline();
+
+    std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
+    VkPipelineLayout m_rtPipelineLayout;
+    VkPipeline m_rtPipeline;
+
 };

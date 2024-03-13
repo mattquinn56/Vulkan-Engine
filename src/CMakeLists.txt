@@ -15,4 +15,4 @@ target_precompile_headers(engine PUBLIC <optional> <vector> <memory> <string> <v
 add_custom_command(TARGET engine POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_RUNTIME_DLLS:engine> $<TARGET_FILE_DIR:engine>
   COMMAND_EXPAND_LISTS
-  )
+)
