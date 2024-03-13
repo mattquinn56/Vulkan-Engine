@@ -3,8 +3,10 @@
 #
 cmake_minimum_required (VERSION 3.8)
 
-project ("vulkan_guide")
+set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+  CACHE STRING "Vcpkg toolchain file")
 
+project ("vulkan_guide")
 
 find_package(Vulkan REQUIRED)
 
@@ -15,7 +17,8 @@ set (CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 
 add_subdirectory(src)
 
-find_program(GLSL_VALIDATOR glslangValidator HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/Bin/ $ENV{VULKAN_SDK}/Bin32/)
+#find_program(GLSL_VALIDATOR glslangValidator HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/Bin/ $ENV{VULKAN_SDK}/Bin32
+find_program(GLSL_VALIDATOR glslangValidator HINTS "C:\glslang\build\StandAlone\Release")
 
 
 
@@ -24,6 +27,9 @@ file(GLOB_RECURSE GLSL_SOURCE_FILES
     "${PROJECT_SOURCE_DIR}/shaders/*.frag"
     "${PROJECT_SOURCE_DIR}/shaders/*.vert"
     "${PROJECT_SOURCE_DIR}/shaders/*.comp"
+    "${PROJECT_SOURCE_DIR}/shaders/*.rchit"
+    "${PROJECT_SOURCE_DIR}/shaders/*.rmiss"
+    "${PROJECT_SOURCE_DIR}/shaders/*.rgen"
     )
 
 foreach(GLSL ${GLSL_SOURCE_FILES})
@@ -31,9 +37,18 @@ foreach(GLSL ${GLSL_SOURCE_FILES})
   get_filename_component(FILE_NAME ${GLSL} NAME)
   set(SPIRV "${PROJECT_SOURCE_DIR}/shaders/${FILE_NAME}.spv")
   message(STATUS ${GLSL})
+
+  # Determine shader type to apply appropriate glslangValidator flags
+  get_filename_component(SHADER_EXT ${GLSL} EXT)
+  set(GLSLANG_VALIDATOR_FLAGS "-V")
+  if(SHADER_EXT STREQUAL ".rchit" OR SHADER_EXT STREQUAL ".rmiss" OR SHADER_EXT STREQUAL ".rgen")
+    # For ray tracing shaders, specify SPIR-V 1.4 and enable necessary extensions
+    list(APPEND GLSLANG_VALIDATOR_FLAGS "-S" "raygen" "--target-env" "vulkan1.2" "-D" "GL_EXT_ray_tracing" "--spirv-val")
+  endif()
+
   add_custom_command(
     OUTPUT ${SPIRV}
-    COMMAND ${GLSL_VALIDATOR} -V ${GLSL} -o ${SPIRV}
+    COMMAND ${GLSL_VALIDATOR} ${GLSLANG_VALIDATOR_FLAGS} ${GLSL} -o ${SPIRV}
     DEPENDS ${GLSL})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach(GLSL)
