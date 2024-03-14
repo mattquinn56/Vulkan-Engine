@@ -17,11 +17,6 @@ set (CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 
 add_subdirectory(src)
 
-#find_program(GLSL_VALIDATOR glslangValidator HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/Bin/ $ENV{VULKAN_SDK}/Bin32
-find_program(GLSL_VALIDATOR glslangValidator HINTS "C:\glslang\build\StandAlone\Release")
-
-
-
 
 file(GLOB_RECURSE GLSL_SOURCE_FILES
     "${PROJECT_SOURCE_DIR}/shaders/*.frag"
@@ -40,15 +35,10 @@ foreach(GLSL ${GLSL_SOURCE_FILES})
 
   # Determine shader type to apply appropriate glslangValidator flags
   get_filename_component(SHADER_EXT ${GLSL} EXT)
-  set(GLSLANG_VALIDATOR_FLAGS "-V")
-  if(SHADER_EXT STREQUAL ".rchit" OR SHADER_EXT STREQUAL ".rmiss" OR SHADER_EXT STREQUAL ".rgen")
-    # For ray tracing shaders, specify SPIR-V 1.4 and enable necessary extensions
-    list(APPEND GLSLANG_VALIDATOR_FLAGS "-S" "raygen" "--target-env" "vulkan1.2" "-D" "GL_EXT_ray_tracing" "--spirv-val")
-  endif()
 
   add_custom_command(
     OUTPUT ${SPIRV}
-    COMMAND ${GLSL_VALIDATOR} ${GLSLANG_VALIDATOR_FLAGS} ${GLSL} -o ${SPIRV}
+    COMMAND glslc  --target-env=vulkan1.2 ${GLSL} -o ${SPIRV}
     DEPENDS ${GLSL})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach(GLSL)
