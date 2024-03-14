@@ -42,7 +42,7 @@ VulkanEngine& VulkanEngine::Get()
 
 void VulkanEngine::init()
 {
-    glslang::InitializeProcess();
+    //glslang::InitializeProcess();
 
     // only one engine initialization is allowed with the application.
     assert(loadedEngine == nullptr);
@@ -161,7 +161,7 @@ void VulkanEngine::init_default_data() {
 
 void VulkanEngine::cleanup()
 {
-    glslang::FinalizeProcess();
+    //glslang::FinalizeProcess()/;
 
     if (_isInitialized) {
 
