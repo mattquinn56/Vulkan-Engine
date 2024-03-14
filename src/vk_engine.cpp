@@ -670,6 +670,7 @@ void VulkanEngine::run()
             rayTracer->createBottomLevelAS();
             rayTracer->createTopLevelAS();
             rayTracer->createRtDescriptorSet();
+            rayTracer->createRtPipeline();
             createdAS = true;
         }
 

@@ -39,6 +39,7 @@ public:
     PFN_vkCreateAccelerationStructureKHR pfnCreateAccelerationStructureKHR;
     PFN_vkDestroyAccelerationStructureKHR pfnDestroyAccelerationStructureKHR;
     PFN_vkGetAccelerationStructureDeviceAddressKHR pfnGetAccelerationStructureDeviceAddressKHR;
+    PFN_vkCreateRayTracingPipelinesKHR pfnCreateRayTracingPipelinesKHR;
 
     std::vector<AccelKHR> m_blas;  // Bottom-level acceleration structure
     AccelKHR              m_tlas;  // Top-level acceleration structure
@@ -96,4 +97,15 @@ public:
     VkPipelineLayout m_rtPipelineLayout;
     VkPipeline m_rtPipeline;
 
+    // Push constant structure for the ray tracer
+    struct PushConstantRay
+    {
+        glm::vec4  clearColor;
+        glm::vec3  lightPosition;
+        float lightIntensity;
+        int   lightType;
+    };
+
+    // Push constant for ray tracer
+    PushConstantRay m_pcRay{};
 };
