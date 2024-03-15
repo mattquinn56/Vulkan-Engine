@@ -41,6 +41,7 @@ public:
     PFN_vkGetAccelerationStructureDeviceAddressKHR pfnGetAccelerationStructureDeviceAddressKHR;
     PFN_vkCreateRayTracingPipelinesKHR pfnCreateRayTracingPipelinesKHR;
     PFN_vkGetRayTracingShaderGroupHandlesKHR pfnGetRayTracingShaderGroupHandlesKHR;
+    PFN_vkCmdTraceRaysKHR pfnCmdTraceRaysKHR;
 
     std::vector<AccelKHR> m_blas;  // Bottom-level acceleration structure
     AccelKHR              m_tlas;  // Top-level acceleration structure
@@ -122,4 +123,8 @@ public:
     VkStridedDeviceAddressRegionKHR m_missRegion{};
     VkStridedDeviceAddressRegionKHR m_hitRegion{};
     VkStridedDeviceAddressRegionKHR m_callRegion{};
+
+    //-------------------- Ray Tracing Computation --------------------//
+
+    void raytrace(const VkCommandBuffer& cmdBuf);
 };

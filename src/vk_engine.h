@@ -142,9 +142,10 @@ struct MeshNode : public Node {
 class VulkanEngine {
 public:
     bool _isInitialized { false };
-    std::vector<const char*> _deviceExtensions{ VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, "VK_KHR_deferred_host_operations"};
+    std::vector<const char*> _deviceExtensions{ VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME };
     bool createdAS{ false };
     int _frameNumber { 0 };
+    bool useRaytracer = true;
 
     VkExtent2D _windowExtent { 1700, 900 };
 
@@ -186,6 +187,7 @@ public:
     VmaAllocator _allocator; // vma lib allocator
 
 	VkDescriptorSetLayout _gpuSceneDataDescriptorLayout;
+    VkDescriptorSet globalDescriptor;
 
     GLTFMetallic_Roughness metalRoughMaterial;
 

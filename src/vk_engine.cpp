@@ -345,7 +345,13 @@ void VulkanEngine::draw()
 	vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
     vkutil::transition_image(cmd, _depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
-	draw_main(cmd);
+	
+    // Rendering Scene
+    if (useRaytracer) {
+        rayTracer->raytrace(cmd);
+    } else {
+        draw_main(cmd);
+    }
 
 	//transtion the draw image and the swapchain image into their correct transfer layouts
 	vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -486,7 +492,7 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd)
     *sceneUniformData = sceneData;
 
     //create a descriptor set that binds that buffer and update it
-    VkDescriptorSet globalDescriptor = get_current_frame()._frameDescriptors.allocate(_device, _gpuSceneDataDescriptorLayout);
+    globalDescriptor = get_current_frame()._frameDescriptors.allocate(_device, _gpuSceneDataDescriptorLayout);
 
 	DescriptorWriter writer;
 	writer.write_buffer(0, gpuSceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
@@ -624,6 +630,8 @@ void VulkanEngine::run()
 
         ImGui::Begin("Stats");
 
+        ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
+
 		ImGui::Text("frametime %f ms", stats.frametime);
 		ImGui::Text("drawtime %f ms", stats.mesh_draw_time);
 		ImGui::Text("triangles %i", stats.triangle_count);
@@ -726,13 +734,13 @@ void VulkanEngine::update_scene()
 
     // lights are updating every frame - unnecessary currently
     RenderLight pointLight = RenderLight{};
-    pointLight.position = glm::vec4(-15.0, 0.0, -70.0, 5000.0);
-    pointLight.color = glm::vec4(.7, .85, 1.0, 0.0);
+    pointLight.position = glm::vec4(-15.0, 0.0, -70.0, 5000.0); // a is intensity
+    pointLight.color = glm::vec4(.7, .85, 1.0, 0.0); // a is type, 0 is point, 1 is ambient
     sceneData.lights[0] = pointLight;
 
     RenderLight ambientLight = RenderLight{};
-    ambientLight.position = glm::vec4(0.0, 0.0, 0.0, .05);
-    ambientLight.color = glm::vec4(1.0, 1.0, 1.0, 1.0);
+    ambientLight.position = glm::vec4(0.0, 0.0, 0.0, .05); // a is intensity
+    ambientLight.color = glm::vec4(1.0, 1.0, 1.0, 1.0); // a is type, 0 is point, 1 is ambient
     sceneData.lights[1] = ambientLight;
 
 

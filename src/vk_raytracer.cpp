@@ -14,6 +14,7 @@ VulkanRayTracer::VulkanRayTracer(VulkanEngine* engine)
     pfnGetAccelerationStructureDeviceAddressKHR = reinterpret_cast<PFN_vkGetAccelerationStructureDeviceAddressKHR>(vkGetDeviceProcAddr(engine->_device, "vkGetAccelerationStructureDeviceAddressKHR"));
     pfnCreateRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(vkGetDeviceProcAddr(engine->_device, "vkCreateRayTracingPipelinesKHR"));
     pfnGetRayTracingShaderGroupHandlesKHR = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(vkGetDeviceProcAddr(engine->_device, "vkGetRayTracingShaderGroupHandlesKHR"));
+    pfnCmdTraceRaysKHR = reinterpret_cast<PFN_vkCmdTraceRaysKHR>(vkGetDeviceProcAddr(engine->_device, "vkCmdTraceRaysKHR"));
 
     // Requesting ray tracing properties
     VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
@@ -557,7 +558,7 @@ void VulkanRayTracer::createRtPipeline()
 
     // Descriptor sets: one specific to ray tracing, and one shared with the rasterization pipeline
     std::vector<VkDescriptorSetLayout> rtDescSetLayouts = { m_rtDescSetLayout,
-        engine->_gpuSceneDataDescriptorLayout, engine->metalRoughMaterial.materialLayout };
+        engine->_gpuSceneDataDescriptorLayout };
     pipelineLayoutCreateInfo.setLayoutCount = static_cast<uint32_t>(rtDescSetLayouts.size());
     pipelineLayoutCreateInfo.pSetLayouts = rtDescSetLayouts.data();
 
@@ -666,4 +667,26 @@ void VulkanRayTracer::createRtShaderBindingTable()
     // Cleanup
     vmaUnmapMemory(engine->_allocator, m_rtSBTBuffer.allocation);
     engine->destroy_buffer(m_rtSBTBuffer);
+}
+
+//--------------------------------------------------------------------------------------------------
+// Ray Tracing the scene
+//
+void VulkanRayTracer::raytrace(const VkCommandBuffer& cmdBuf)
+{
+    // Initializing push constant values
+    m_pcRay.clearColor = glm::vec4(1, 1, 1, 1.00f);;
+    m_pcRay.lightPosition = { engine->sceneData.lights[0].position.x, engine->sceneData.lights[0].position.y, engine->sceneData.lights[0].position.z };
+    m_pcRay.lightIntensity = engine->sceneData.lights[0].position.a;
+    m_pcRay.lightType = 0;
+
+    std::vector<VkDescriptorSet> descSets{ m_rtDescSet, engine->globalDescriptor };
+    vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
+    vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipelineLayout, 0,
+        (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
+    vkCmdPushConstants(cmdBuf, m_rtPipelineLayout,
+        VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+        0, sizeof(PushConstantRay), &m_pcRay);
+
+    pfnCmdTraceRaysKHR(cmdBuf, &m_rgenRegion, &m_missRegion, &m_hitRegion, &m_callRegion, engine->_windowExtent.width, engine->_windowExtent.height, 1);
 }
