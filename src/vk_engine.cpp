@@ -671,6 +671,7 @@ void VulkanEngine::run()
             rayTracer->createTopLevelAS();
             rayTracer->createRtDescriptorSet();
             rayTracer->createRtPipeline();
+            rayTracer->createRtShaderBindingTable();
             createdAS = true;
         }
 
@@ -725,7 +726,7 @@ void VulkanEngine::update_scene()
 
     // lights are updating every frame - unnecessary currently
     RenderLight pointLight = RenderLight{};
-    pointLight.position = glm::vec4(0.0, 0.0, 0.0, 10000.0);
+    pointLight.position = glm::vec4(-15.0, 0.0, -70.0, 5000.0);
     pointLight.color = glm::vec4(.7, .85, 1.0, 0.0);
     sceneData.lights[0] = pointLight;
 

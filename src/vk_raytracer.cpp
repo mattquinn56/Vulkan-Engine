@@ -13,6 +13,12 @@ VulkanRayTracer::VulkanRayTracer(VulkanEngine* engine)
     pfnDestroyAccelerationStructureKHR = reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(vkGetDeviceProcAddr(engine->_device, "vkDestroyAccelerationStructureKHR"));
     pfnGetAccelerationStructureDeviceAddressKHR = reinterpret_cast<PFN_vkGetAccelerationStructureDeviceAddressKHR>(vkGetDeviceProcAddr(engine->_device, "vkGetAccelerationStructureDeviceAddressKHR"));
     pfnCreateRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(vkGetDeviceProcAddr(engine->_device, "vkCreateRayTracingPipelinesKHR"));
+    pfnGetRayTracingShaderGroupHandlesKHR = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(vkGetDeviceProcAddr(engine->_device, "vkGetRayTracingShaderGroupHandlesKHR"));
+
+    // Requesting ray tracing properties
+    VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+    prop2.pNext = &m_rtProperties;
+    vkGetPhysicalDeviceProperties2(engine->_chosenGPU, &prop2);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -580,4 +586,84 @@ void VulkanRayTracer::createRtPipeline()
         vkDestroyPipeline(engine->_device, m_rtPipeline, nullptr);
         vkDestroyPipelineLayout(engine->_device, m_rtPipelineLayout, nullptr);
     });
+}
+
+template <class integral>
+constexpr integral align_up(integral x, size_t a) noexcept
+{
+    return integral((x + (integral(a) - 1)) & ~integral(a - 1));
+}
+
+//--------------------------------------------------------------------------------------------------
+// The Shader Binding Table (SBT)
+// - getting all shader handles and write them in a SBT buffer
+// - Besides exception, this could be always done like this
+//
+void VulkanRayTracer::createRtShaderBindingTable()
+{
+    uint32_t missCount{ 1 };
+    uint32_t hitCount{ 1 };
+    auto handleCount = 1 + missCount + hitCount;
+    uint32_t handleSize = m_rtProperties.shaderGroupHandleSize;
+
+    // The SBT (buffer) need to have starting groups to be aligned and handles in the group to be aligned.
+    uint32_t handleSizeAligned = align_up(handleSize, m_rtProperties.shaderGroupHandleAlignment);
+
+    m_rgenRegion.stride = align_up(handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
+    m_rgenRegion.size = m_rgenRegion.stride;  // The size member of pRayGenShaderBindingTable must be equal to its stride member
+    m_missRegion.stride = handleSizeAligned;
+    m_missRegion.size = align_up(missCount * handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
+    m_hitRegion.stride = handleSizeAligned;
+    m_hitRegion.size = align_up(hitCount * handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
+
+    // Get the shader group handles
+    uint32_t dataSize = handleCount * handleSize;
+    std::vector<uint8_t> handles(dataSize);
+    VK_CHECK(pfnGetRayTracingShaderGroupHandlesKHR(engine->_device, m_rtPipeline, 0, handleCount, dataSize, handles.data()));
+
+    // Allocate a buffer for storing the SBT.
+    VkDeviceSize sbtSize = m_rgenRegion.size + m_missRegion.size + m_hitRegion.size + m_callRegion.size;
+    m_rtSBTBuffer = engine->create_buffer(sbtSize,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+        | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR, VMA_MEMORY_USAGE_CPU_ONLY);
+
+    // Find the SBT addresses of each group
+    VkBufferDeviceAddressInfo info{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_rtSBTBuffer.buffer };
+    VkDeviceAddress sbtAddress = vkGetBufferDeviceAddress(engine->_device, &info);
+    m_rgenRegion.deviceAddress = sbtAddress;
+    m_missRegion.deviceAddress = sbtAddress + m_rgenRegion.size;
+    m_hitRegion.deviceAddress = sbtAddress + m_rgenRegion.size + m_missRegion.size;
+
+    // Helper to retrieve the handle data
+    auto getHandle = [&](int i) { return handles.data() + i * handleSize; };
+
+    // Map the SBT buffer and write in the handles.
+    uint8_t* pSBTBuffer;
+    vmaMapMemory(engine->_allocator, m_rtSBTBuffer.allocation, (void**)&pSBTBuffer);
+    uint8_t* pData{ nullptr };
+    uint32_t handleIdx{ 0 };
+
+    // Raygen
+    pData = pSBTBuffer;
+    memcpy(pData, getHandle(handleIdx++), handleSize);
+
+    // Miss
+    pData = pSBTBuffer + m_rgenRegion.size;
+    for (uint32_t c = 0; c < missCount; c++)
+    {
+        memcpy(pData, getHandle(handleIdx++), handleSize);
+        pData += m_missRegion.stride;
+    }
+
+    // Hit
+    pData = pSBTBuffer + m_rgenRegion.size + m_missRegion.size;
+    for (uint32_t c = 0; c < hitCount; c++)
+    {
+        memcpy(pData, getHandle(handleIdx++), handleSize);
+        pData += m_hitRegion.stride;
+    }
+
+    // Cleanup
+    vmaUnmapMemory(engine->_allocator, m_rtSBTBuffer.allocation);
+    engine->destroy_buffer(m_rtSBTBuffer);
 }

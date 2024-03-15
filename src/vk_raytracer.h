@@ -40,13 +40,15 @@ public:
     PFN_vkDestroyAccelerationStructureKHR pfnDestroyAccelerationStructureKHR;
     PFN_vkGetAccelerationStructureDeviceAddressKHR pfnGetAccelerationStructureDeviceAddressKHR;
     PFN_vkCreateRayTracingPipelinesKHR pfnCreateRayTracingPipelinesKHR;
+    PFN_vkGetRayTracingShaderGroupHandlesKHR pfnGetRayTracingShaderGroupHandlesKHR;
 
     std::vector<AccelKHR> m_blas;  // Bottom-level acceleration structure
     AccelKHR              m_tlas;  // Top-level acceleration structure
 
     VulkanRayTracer(VulkanEngine* engine);
+    VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
 
-    // BLAS Creation
+    //-------------------- BLAS Creation --------------------//
 
     BlasInput objectToVkGeometryKHR(const RenderObject object);
 
@@ -66,7 +68,7 @@ public:
 
     bool hasFlag(VkFlags item, VkFlags flag) { return (item & flag) == flag; }
 
-    // TLAS Creation
+    //-------------------- TLAS Creation --------------------//
 
     void createTopLevelAS();
 
@@ -80,7 +82,8 @@ public:
     void cmdCreateTlas(VkCommandBuffer cmdBuf, uint32_t countInstance, VkDeviceAddress instBufferAddr,
         AllocatedBuffer& scratchBuffer, VkBuildAccelerationStructureFlagsKHR flags, bool update, bool motion);
 
-    // Descriptor Set
+    //-------------------- Ray Tracing Descriptor Set Creation --------------------//
+
     void createRtDescriptorSet();
     DescriptorAllocator         m_rtDescAllocator;
     DescriptorWriter            m_rtDescWriter;
@@ -90,7 +93,8 @@ public:
 
     void updateRtDescriptorSet();
 
-    // Ray tracing pipeline
+    //-------------------- Ray Tracing Pipeline Creation --------------------//
+
     void createRtPipeline();
 
     std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
@@ -108,4 +112,14 @@ public:
 
     // Push constant for ray tracer
     PushConstantRay m_pcRay{};
+
+    //-------------------- Binding Table Creation --------------------//
+
+    void createRtShaderBindingTable();
+
+    AllocatedBuffer m_rtSBTBuffer;
+    VkStridedDeviceAddressRegionKHR m_rgenRegion{};
+    VkStridedDeviceAddressRegionKHR m_missRegion{};
+    VkStridedDeviceAddressRegionKHR m_hitRegion{};
+    VkStridedDeviceAddressRegionKHR m_callRegion{};
 };
