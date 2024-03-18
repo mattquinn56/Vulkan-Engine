@@ -12,7 +12,7 @@ layout(set = 0, binding = 0) uniform SceneData {
     RenderLight lights[16];
 } sceneData;
 
-layout(set = 1, binding = 0) uniform GLTFMaterialData{   
+layout(set = 1, binding = 0) uniform GLTFMaterialData {   
 	vec4 colorFactors;
 	vec4 metal_rough_factors;
 } materialData;

@@ -457,6 +457,29 @@ bool is_visible(const RenderObject& obj, const glm::mat4& viewproj) {
 }
 //< visfn
 
+void VulkanEngine::update_global_descriptor()
+{
+
+    //allocate a new uniform buffer for the scene data
+    AllocatedBuffer gpuSceneDataBuffer = create_buffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+    //add it to the deletion queue of this frame so it gets deleted once its been used
+    get_current_frame()._deletionQueue.push_function([=, this]() {
+        destroy_buffer(gpuSceneDataBuffer);
+        });
+
+    //write the buffer
+    GPUSceneData* sceneUniformData = (GPUSceneData*)gpuSceneDataBuffer.allocation->GetMappedData();
+    *sceneUniformData = sceneData;
+
+    //create a descriptor set that binds that buffer and update it
+    globalDescriptor = get_current_frame()._frameDescriptors.allocate(_device, _gpuSceneDataDescriptorLayout);
+
+    DescriptorWriter writer;
+    writer.write_buffer(0, gpuSceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+    writer.update_set(_device, globalDescriptor);
+}
+
 void VulkanEngine::draw_geometry(VkCommandBuffer cmd)
 {
     std::vector<uint32_t> opaque_draws;
@@ -479,24 +502,7 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd)
         }
     });
 
-    //allocate a new uniform buffer for the scene data
-    AllocatedBuffer gpuSceneDataBuffer =  create_buffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-
-    //add it to the deletion queue of this frame so it gets deleted once its been used
-    get_current_frame()._deletionQueue.push_function([=,this](){
-        destroy_buffer(gpuSceneDataBuffer);
-    });
-
-    //write the buffer
-    GPUSceneData* sceneUniformData = (GPUSceneData*)gpuSceneDataBuffer.allocation->GetMappedData();
-    *sceneUniformData = sceneData;
-
-    //create a descriptor set that binds that buffer and update it
-    globalDescriptor = get_current_frame()._frameDescriptors.allocate(_device, _gpuSceneDataDescriptorLayout);
-
-	DescriptorWriter writer;
-	writer.write_buffer(0, gpuSceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-	writer.update_set(_device, globalDescriptor);
+    update_global_descriptor();
 
     MaterialPipeline* lastPipeline = nullptr;
     MaterialInstance* lastMaterial = nullptr;
@@ -1314,7 +1320,7 @@ void VulkanEngine::init_descriptors()
     {
         DescriptorLayoutBuilder builder;
         builder.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-        _gpuSceneDataDescriptorLayout = builder.build(_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+        _gpuSceneDataDescriptorLayout = builder.build(_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR) ;
     }
 
     _mainDeletionQueue.push_function([&]() {

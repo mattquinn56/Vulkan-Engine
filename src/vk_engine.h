@@ -239,6 +239,7 @@ public:
 
 	void render_nodes();
 
+    void update_global_descriptor();
     void draw_geometry(VkCommandBuffer cmd);
 
     // run main loop

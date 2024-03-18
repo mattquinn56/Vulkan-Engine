@@ -679,11 +679,13 @@ void VulkanRayTracer::raytrace(const VkCommandBuffer& cmdBuf)
     m_pcRay.lightPosition = { engine->sceneData.lights[0].position.x, engine->sceneData.lights[0].position.y, engine->sceneData.lights[0].position.z };
     m_pcRay.lightIntensity = engine->sceneData.lights[0].position.a;
     m_pcRay.lightType = 0;
+    engine->update_global_descriptor();
 
     std::vector<VkDescriptorSet> descSets{ m_rtDescSet, engine->globalDescriptor };
     vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
     vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipelineLayout, 0,
         (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
+
     vkCmdPushConstants(cmdBuf, m_rtPipelineLayout,
         VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
         0, sizeof(PushConstantRay), &m_pcRay);
