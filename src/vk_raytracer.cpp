@@ -99,7 +99,7 @@ AccelKHR VulkanRayTracer::createAcceleration(VkAccelerationStructureCreateInfoKH
     AccelKHR resultAccel;
     // Allocating the buffer to hold the acceleration structure
     resultAccel.buffer = engine->create_buffer(accel_.size, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
-        | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+        | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
     // Setting the buffer
     accel_.buffer = resultAccel.buffer.buffer;
     // Create the acceleration structure
@@ -237,7 +237,7 @@ void VulkanRayTracer::buildBlas(const std::vector<BlasInput>& input, VkBuildAcce
 
     // Allocate the scratch buffers holding the temporary data of the acceleration structure builder
     AllocatedBuffer scratchBuffer = engine->create_buffer(maxScratchSize, 
-        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
     VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, scratchBuffer.buffer };
     VkDeviceAddress           scratchAddress = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
 
@@ -285,8 +285,11 @@ void VulkanRayTracer::buildBlas(const std::vector<BlasInput>& input, VkBuildAcce
     }
 
     // Clean up
-    vkDestroyQueryPool(engine->_device, queryPool, nullptr);
-    engine->destroy_buffer(scratchBuffer);
+
+    engine->_mainDeletionQueue.push_function([=]() {
+        vkDestroyQueryPool(engine->_device, queryPool, nullptr);
+        engine->destroy_buffer(scratchBuffer);
+    });
 
     return;
 }
@@ -365,11 +368,14 @@ void VulkanRayTracer::buildTlas(const std::vector<VkAccelerationStructureInstanc
     // Executing and destroying temporary data
     engine->immediate_submit([&](VkCommandBuffer cmd) {
         // should become necessary if we move buffer creation to the GPU
-        //vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0, 1, &barrier, 0, nullptr, 0, nullptr);
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0, 1, &barrier, 0, nullptr, 0, nullptr);
         cmdCreateTlas(cmd, countInstance, instBufferAddr, scratchBuffer, flags, update, motion);
     });
-    engine->destroy_buffer(scratchBuffer);
-    engine->destroy_buffer(instancesBuffer);
+
+    engine->_mainDeletionQueue.push_function([=]() {
+        engine->destroy_buffer(scratchBuffer);
+        engine->destroy_buffer(instancesBuffer);
+    });
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -409,7 +415,7 @@ void VulkanRayTracer::cmdCreateTlas(VkCommandBuffer cmdBuf, uint32_t countInstan
 
     // Allocate the scratch memory
     scratchBuffer = engine->create_buffer(sizeInfo.buildScratchSize,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 
     VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, scratchBuffer.buffer };
     VkDeviceAddress           scratchAddress = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
@@ -665,8 +671,10 @@ void VulkanRayTracer::createRtShaderBindingTable()
     }
 
     // Cleanup
-    vmaUnmapMemory(engine->_allocator, m_rtSBTBuffer.allocation);
-    engine->destroy_buffer(m_rtSBTBuffer);
+    engine->_mainDeletionQueue.push_function([&]() {
+        vmaUnmapMemory(engine->_allocator, m_rtSBTBuffer.allocation);
+        engine->destroy_buffer(m_rtSBTBuffer);
+    });
 }
 
 //--------------------------------------------------------------------------------------------------
