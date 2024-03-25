@@ -51,6 +51,8 @@ public:
 
     //-------------------- BLAS Creation --------------------//
 
+    AllocatedBuffer create_buffer_rt(VkDeviceSize size, const void* data, VkBufferUsageFlags usage, const VmaMemoryUsage memUsage);
+
     BlasInput objectToVkGeometryKHR(const RenderObject object);
 
     void createBottomLevelAS();

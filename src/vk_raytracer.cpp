@@ -23,6 +23,42 @@ VulkanRayTracer::VulkanRayTracer(VulkanEngine* engine)
 }
 
 //--------------------------------------------------------------------------------------------------
+// Creates a buffer to transfer data from CPU memory to GPU memory
+//
+AllocatedBuffer VulkanRayTracer::create_buffer_rt(VkDeviceSize size, const void* data, VkBufferUsageFlags usage, const VmaMemoryUsage memUsage) {
+
+    AllocatedBuffer resultBuffer = engine->create_buffer(size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, memUsage);
+
+    // Create a staging buffer
+    VkBufferCreateInfo bufferInfo = {};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = size;
+    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+    VmaAllocationCreateInfo allocInfo = {};
+    allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+    VkBuffer stagingBuffer;
+    VmaAllocation stagingAllocation;
+    vmaCreateBuffer(engine->_allocator, &bufferInfo, &allocInfo, &stagingBuffer, &stagingAllocation, nullptr);
+
+    // Map the buffer and copy the data
+    void* mappedData;
+    vmaMapMemory(engine->_allocator, stagingAllocation, &mappedData);
+    memcpy(mappedData, data, size);
+    vmaUnmapMemory(engine->_allocator, stagingAllocation);
+
+    // Record command to transfer data from staging buffer to the destination buffer
+    VkBufferCopy copyRegion = {};
+    copyRegion.srcOffset = 0; // Assuming data starts at the beginning of the staging buffer
+    copyRegion.dstOffset = 0;
+    copyRegion.size = size;
+    engine->immediate_submit([&](VkCommandBuffer cmd) { vkCmdCopyBuffer(cmd, stagingBuffer, resultBuffer.buffer, 1, &copyRegion); });
+
+    return resultBuffer;
+}
+
+//--------------------------------------------------------------------------------------------------
 // Convert an OBJ model into the ray tracing geometry used to build the BLAS
 //
 BlasInput VulkanRayTracer::objectToVkGeometryKHR(const RenderObject object)
@@ -239,7 +275,7 @@ void VulkanRayTracer::buildBlas(const std::vector<BlasInput>& input, VkBuildAcce
     AllocatedBuffer scratchBuffer = engine->create_buffer(maxScratchSize, 
         VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
     VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, scratchBuffer.buffer };
-    VkDeviceAddress           scratchAddress = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
+    VkDeviceAddress scratchAddress = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
 
     // Allocate a query pool for storing the needed size for every BLAS compaction.
     VkQueryPool queryPool{ VK_NULL_HANDLE };
@@ -285,11 +321,8 @@ void VulkanRayTracer::buildBlas(const std::vector<BlasInput>& input, VkBuildAcce
     }
 
     // Clean up
-
-    engine->_mainDeletionQueue.push_function([=]() {
-        vkDestroyQueryPool(engine->_device, queryPool, nullptr);
-        engine->destroy_buffer(scratchBuffer);
-    });
+    vkDestroyQueryPool(engine->_device, queryPool, nullptr);
+    engine->destroy_buffer(scratchBuffer);
 
     return;
 }
@@ -325,7 +358,7 @@ VkTransformMatrixKHR VulkanRayTracer::toTransformMatrixKHR(glm::mat4 matrix)
     // VkTransformMatrixKHR uses a row-major memory layout, while glm::mat4
     // uses a column-major memory layout. We transpose the matrix so we can
     // memcpy the matrix's data directly.
-    glm::mat4            temp = glm::transpose(matrix);
+    glm::mat4 temp = glm::transpose(matrix);
     VkTransformMatrixKHR out_matrix;
     memcpy(&out_matrix, &temp, sizeof(VkTransformMatrixKHR));
     return out_matrix;
@@ -352,7 +385,7 @@ void VulkanRayTracer::buildTlas(const std::vector<VkAccelerationStructureInstanc
     // Create a buffer holding the actual instance data (matrices++) for use by the AS builder
     AllocatedBuffer instancesBuffer;  // Buffer of instances containing the matrices and BLAS ids
     VkDeviceSize size = sizeof(VkAccelerationStructureInstanceKHR) * instances.size();
-    instancesBuffer = engine->create_buffer(size, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | 
+    instancesBuffer = create_buffer_rt(size, instances.data(), VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
         VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VMA_MEMORY_USAGE_GPU_ONLY);
     VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, instancesBuffer.buffer };
     VkDeviceAddress           instBufferAddr = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
@@ -367,15 +400,15 @@ void VulkanRayTracer::buildTlas(const std::vector<VkAccelerationStructureInstanc
 
     // Executing and destroying temporary data
     engine->immediate_submit([&](VkCommandBuffer cmd) {
-        // should become necessary if we move buffer creation to the GPU
         vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0, 1, &barrier, 0, nullptr, 0, nullptr);
+    });
+
+    engine->immediate_submit([&](VkCommandBuffer cmd) {
         cmdCreateTlas(cmd, countInstance, instBufferAddr, scratchBuffer, flags, update, motion);
     });
 
-    engine->_mainDeletionQueue.push_function([=]() {
-        engine->destroy_buffer(scratchBuffer);
-        engine->destroy_buffer(instancesBuffer);
-    });
+    engine->destroy_buffer(scratchBuffer);
+    engine->destroy_buffer(instancesBuffer);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -454,7 +487,7 @@ void VulkanRayTracer::createRtDescriptorSet()
     allocateInfo.descriptorPool = m_rtDescPool;
     allocateInfo.descriptorSetCount = 1;
     allocateInfo.pSetLayouts = &m_rtDescSetLayout;
-    vkAllocateDescriptorSets(engine->_device, &allocateInfo, &m_rtDescSet);
+    VK_CHECK(vkAllocateDescriptorSets(engine->_device, &allocateInfo, &m_rtDescSet));
 
 
     VkAccelerationStructureKHR tlas = m_tlas.accel;
@@ -465,6 +498,7 @@ void VulkanRayTracer::createRtDescriptorSet()
     m_rtDescWriter.clear();
     m_rtDescWriter.write_buffer(0, 0, 0, 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
     m_rtDescWriter.writes[0].pNext = &descASInfo;
+    m_rtDescWriter.writes[0].pBufferInfo = nullptr;
     m_rtDescWriter.write_image(1, engine->_drawImage.imageView, {}, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     m_rtDescWriter.update_set(engine->_device, m_rtDescSet);
 
@@ -583,7 +617,7 @@ void VulkanRayTracer::createRtPipeline()
     rayPipelineInfo.maxPipelineRayRecursionDepth = 1;  // Ray depth
     rayPipelineInfo.layout = m_rtPipelineLayout;
 
-    VK_CHECK(pfnCreateRayTracingPipelinesKHR(engine->_device, {}, {}, 1, & rayPipelineInfo, nullptr, & m_rtPipeline));
+    VK_CHECK(pfnCreateRayTracingPipelinesKHR(engine->_device, {}, {}, 1, &rayPipelineInfo, nullptr, & m_rtPipeline));
 
     for (auto& s : stages) {
         vkDestroyShaderModule(engine->_device, s.module, nullptr);

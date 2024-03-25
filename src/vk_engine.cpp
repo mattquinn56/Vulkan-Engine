@@ -566,10 +566,6 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd)
     //for (auto& r : drawCommands.TransparentSurfaces) {
     //    draw(r);
     //}
-
-    // we delete the draw commands now that we processed them
-    drawCommands.OpaqueSurfaces.clear();
-    drawCommands.TransparentSurfaces.clear();
 }
 
 void VulkanEngine::run()
@@ -749,12 +745,14 @@ void VulkanEngine::update_scene()
     ambientLight.color = glm::vec4(1.0, 1.0, 1.0, 1.0); // a is type, 0 is point, 1 is ambient
     sceneData.lights[1] = ambientLight;
 
+    drawCommands.OpaqueSurfaces.clear();
+    drawCommands.TransparentSurfaces.clear();
+    loadedScenes["structure"]->Draw(glm::mat4{ 1.f }, drawCommands);
 
-
-   // for (int i = 0; i < 16; i++)         {
-        loadedScenes["structure"]->Draw(glm::mat4{ 1.f }, drawCommands);
-    //}
-	
+    // temp: only keep one
+    // RenderObject x = drawCommands.OpaqueSurfaces[0];
+    // drawCommands.OpaqueSurfaces.clear();
+    // drawCommands.OpaqueSurfaces.push_back(x);
 }
 
 AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
@@ -1320,7 +1318,7 @@ void VulkanEngine::init_descriptors()
     {
         DescriptorLayoutBuilder builder;
         builder.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-        _gpuSceneDataDescriptorLayout = builder.build(_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR) ;
+        _gpuSceneDataDescriptorLayout = builder.build(_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR ) ;
     }
 
     _mainDeletionQueue.push_function([&]() {
