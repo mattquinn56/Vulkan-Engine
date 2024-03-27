@@ -15,3 +15,24 @@ struct hitPayload
 {
   vec3 hitValue;
 };
+
+struct Vertex
+{
+	vec3 position;
+	float uv_x;
+	vec3 normal;
+	float uv_y;
+	vec4 color;
+}; 
+
+struct PaddedIndex
+{
+	ivec3 index;
+	int pad;
+}; 
+
+// Push constant structure for the ray tracer
+struct PushConstantRay
+{
+  vec4 clearColor;
+};

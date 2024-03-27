@@ -466,18 +466,36 @@ void VulkanEngine::update_global_descriptor()
     //add it to the deletion queue of this frame so it gets deleted once its been used
     get_current_frame()._deletionQueue.push_function([=, this]() {
         destroy_buffer(gpuSceneDataBuffer);
-        });
+    });
 
     //write the buffer
     GPUSceneData* sceneUniformData = (GPUSceneData*)gpuSceneDataBuffer.allocation->GetMappedData();
     *sceneUniformData = sceneData;
 
     //create a descriptor set that binds that buffer and update it
-    globalDescriptor = get_current_frame()._frameDescriptors.allocate(_device, _gpuSceneDataDescriptorLayout);
+    _globalDescriptor = get_current_frame()._frameDescriptors.allocate(_device, _gpuSceneDataDescriptorLayout);
 
-    DescriptorWriter writer;
-    writer.write_buffer(0, gpuSceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-    writer.update_set(_device, globalDescriptor);
+    {
+        DescriptorWriter writer;
+        writer.write_buffer(0, gpuSceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        writer.update_set(_device, _globalDescriptor);
+    }
+
+    // do the same for objDesc set
+    m_bObjDesc = create_buffer_data(drawCommands.m_objDesc.size(), drawCommands.m_objDesc.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+    //add it to the deletion queue of this frame so it gets deleted once its been used
+    //get_current_frame()._deletionQueue.push_function([=, this]() {
+        //destroy_buffer(m_bObjDesc);
+    //});
+
+    _objDescSet = get_current_frame()._frameDescriptors.allocate(_device, _objDescLayout);
+
+    {
+        DescriptorWriter writer;
+        writer.write_buffer(0, m_bObjDesc.buffer, VK_WHOLE_SIZE, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+        writer.update_set(_device, _objDescSet);
+    }
 }
 
 void VulkanEngine::draw_geometry(VkCommandBuffer cmd)
@@ -516,7 +534,7 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd)
                 lastPipeline = r.material->pipeline;
                 vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, r.material->pipeline->pipeline);
                 vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,r.material->pipeline->layout, 0, 1,
-                    &globalDescriptor, 0, nullptr);
+                    &_globalDescriptor, 0, nullptr);
 
 				VkViewport viewport = {};
 				viewport.x = 0;
@@ -746,6 +764,7 @@ void VulkanEngine::update_scene()
     sceneData.lights[1] = ambientLight;
 
     drawCommands.OpaqueSurfaces.clear();
+    drawCommands.m_objDesc.clear();
     drawCommands.TransparentSurfaces.clear();
     loadedScenes["structure"]->Draw(glm::mat4{ 1.f }, drawCommands);
 
@@ -999,13 +1018,16 @@ void VulkanEngine::init_vulkan()
     features12.bufferDeviceAddress = true;
     features12.descriptorIndexing = true; 
 
+    VkPhysicalDeviceFeatures features {};
+    features.shaderInt64 = VK_TRUE; // Enable 64-bit integers in shaders
+
     // use vkbootstrap to select a gpu.
     // We want a gpu that can write to the SDL surface and supports vulkan 1.2
     vkb::PhysicalDeviceSelector selector { vkb_inst };
     for (const auto& extension : _deviceExtensions) {
 		selector.add_required_extension(extension);
 	}
-    vkb::PhysicalDevice physicalDevice = selector.set_minimum_version(1, 3).set_required_features_13(features13).set_required_features_12(features12).set_surface(_surface).select().value();
+    vkb::PhysicalDevice physicalDevice = selector.set_minimum_version(1, 3).set_required_features_13(features13).set_required_features_12(features12).set_required_features(features).set_surface(_surface).select().value();
 
     // physicalDevice.features.
     // create the final vulkan device
@@ -1318,12 +1340,18 @@ void VulkanEngine::init_descriptors()
     {
         DescriptorLayoutBuilder builder;
         builder.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-        _gpuSceneDataDescriptorLayout = builder.build(_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR ) ;
+        _gpuSceneDataDescriptorLayout = builder.build(_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR) ;
+    }
+    {
+        DescriptorLayoutBuilder builder;
+        builder.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+        _objDescLayout = builder.build(_device, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
     }
 
     _mainDeletionQueue.push_function([&]() {
         vkDestroyDescriptorSetLayout(_device, _drawImageDescriptorLayout, nullptr);
         vkDestroyDescriptorSetLayout(_device, _gpuSceneDataDescriptorLayout, nullptr);
+        vkDestroyDescriptorSetLayout(_device, _objDescLayout, nullptr);
     });
 
     _drawImageDescriptors = globalDescriptorAllocator.allocate(_device, _drawImageDescriptorLayout);
@@ -1455,6 +1483,43 @@ MaterialInstance GLTFMetallic_Roughness::write_material(VkDevice device, Materia
 
     return matData;
 }
+
+// function to make buffers available on device
+AllocatedBuffer VulkanEngine::allocateAndBindBuffer(VkBuffer buffer, VmaMemoryUsage memoryUsage) {
+    if (_allocator == VK_NULL_HANDLE || buffer == VK_NULL_HANDLE) {
+        throw std::runtime_error("Invalid allocator or buffer handle");
+    }
+
+    // Get the buffer memory requirements
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(_device, buffer, &memRequirements);
+
+    // Create the allocation information structure
+    VmaAllocationCreateInfo allocInfo = {};
+    allocInfo.usage = memoryUsage; // Use CPU to GPU memory
+
+    // Allocate memory for the buffer
+    VmaAllocation allocation;
+    VmaAllocationInfo allocationInfo;
+    if (vmaAllocateMemoryForBuffer(_allocator, buffer, &allocInfo, &allocation, &allocationInfo) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate memory for buffer");
+    }
+
+    // Bind the buffer memory
+    if (vmaBindBufferMemory(_allocator, allocation, buffer) != VK_SUCCESS) {
+        vmaFreeMemory(_allocator, allocation);
+        throw std::runtime_error("Failed to bind buffer memory");
+    }
+
+    // Create an AllocatedBuffer struct to hold the buffer and its memory allocation
+    AllocatedBuffer allocatedBuffer;
+    allocatedBuffer.buffer = buffer;
+    allocatedBuffer.allocation = allocation;
+    allocatedBuffer.info = allocationInfo;
+
+    return allocatedBuffer;
+}
+
 void MeshNode::Draw(const glm::mat4& topMatrix, DrawContext& ctx)
 {
     glm::mat4 nodeMatrix = topMatrix * worldTransform;
@@ -1467,13 +1532,19 @@ void MeshNode::Draw(const glm::mat4& topMatrix, DrawContext& ctx)
         def.material = &s.material->data;
         def.bounds = s.bounds;
         def.transform = nodeMatrix;
+        def.vertexBuffer = mesh->meshBuffers.vertexBuffer.buffer;
         def.vertexBufferAddress = mesh->meshBuffers.vertexBufferAddress;
         def.vertexCount = mesh->meshBuffers.vertexCount;
+
+        ObjDesc od;
+        od.vertexAddress = mesh->meshBuffers.vertexBufferAddress;
+        od.indexAddress = engine->getBufferDeviceAddress(engine->_device, mesh->meshBuffers.indexBuffer.buffer);
 
         if (s.material->data.passType == MaterialPass::Transparent) {
             ctx.TransparentSurfaces.push_back(def);
         } else {
             ctx.OpaqueSurfaces.push_back(def);
+            ctx.m_objDesc.push_back(od);
         }
     }
 
@@ -1488,4 +1559,42 @@ VkDeviceAddress VulkanEngine::getBufferDeviceAddress(VkDevice device, VkBuffer b
     VkBufferDeviceAddressInfo info = { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
     info.buffer = buffer;
     return vkGetBufferDeviceAddress(device, &info);
+}
+
+
+
+//--------------------------------------------------------------------------------------------------
+// Creates a buffer with data mapped in
+//
+AllocatedBuffer VulkanEngine::create_buffer_data(VkDeviceSize size, const void* data, VkBufferUsageFlags usage, const VmaMemoryUsage memUsage) {
+
+    AllocatedBuffer resultBuffer = create_buffer(size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, memUsage);
+
+    // Create a staging buffer
+    VkBufferCreateInfo bufferInfo = {};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = size;
+    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+    VmaAllocationCreateInfo allocInfo = {};
+    allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+    VkBuffer stagingBuffer;
+    VmaAllocation stagingAllocation;
+    vmaCreateBuffer(_allocator, &bufferInfo, &allocInfo, &stagingBuffer, &stagingAllocation, nullptr);
+
+    // Map the buffer and copy the data
+    void* mappedData;
+    vmaMapMemory(_allocator, stagingAllocation, &mappedData);
+    memcpy(mappedData, data, size);
+    vmaUnmapMemory(_allocator, stagingAllocation);
+
+    // Record command to transfer data from staging buffer to the destination buffer
+    VkBufferCopy copyRegion = {};
+    copyRegion.srcOffset = 0; // Assuming data starts at the beginning of the staging buffer
+    copyRegion.dstOffset = 0;
+    copyRegion.size = size;
+    immediate_submit([&](VkCommandBuffer cmd) { vkCmdCopyBuffer(cmd, stagingBuffer, resultBuffer.buffer, 1, &copyRegion); });
+
+    return resultBuffer;
 }

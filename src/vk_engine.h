@@ -70,6 +70,7 @@ struct RenderObject {
     MaterialInstance* material;
     Bounds bounds;
     glm::mat4 transform;
+    VkBuffer vertexBuffer;
     VkDeviceAddress vertexBufferAddress;
     int vertexCount;
 
@@ -89,9 +90,16 @@ struct FrameData {
 
 constexpr unsigned int FRAME_OVERLAP = 2;
 
+struct ObjDesc {
+    // a buffer with these object will be passed to the ray tracing closest hit shader `m_bObjDesc`
+    uint64_t vertexAddress; // Address of the Vertex buffer
+    uint64_t indexAddress; // Address of the index buffer
+};
+
 struct DrawContext {
     // Only drawing + using RT for opaque surfaces
     std::vector<RenderObject> OpaqueSurfaces;
+    std::vector<ObjDesc> m_objDesc; // Model description for device access, opaque surfaces
     std::vector<RenderObject> TransparentSurfaces;
 };
 
@@ -142,7 +150,11 @@ struct MeshNode : public Node {
 class VulkanEngine {
 public:
     bool _isInitialized { false };
-    std::vector<const char*> _deviceExtensions{ VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME };
+    std::vector<const char*> _deviceExtensions{ 
+        VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, 
+        VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, 
+        VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME 
+    };
     bool createdAS{ false };
     int _frameNumber { 0 };
     bool useRaytracer = true;
@@ -160,6 +172,7 @@ public:
     uint32_t _graphicsQueueFamily;
 
     AllocatedBuffer _defaultGLTFMaterialData;
+    AllocatedBuffer m_bObjDesc;
 
     FrameData _frames[FRAME_OVERLAP];
 
@@ -187,7 +200,10 @@ public:
     VmaAllocator _allocator; // vma lib allocator
 
 	VkDescriptorSetLayout _gpuSceneDataDescriptorLayout;
-    VkDescriptorSet globalDescriptor;
+    VkDescriptorSet _globalDescriptor;
+
+    VkDescriptorSetLayout _objDescLayout;
+    VkDescriptorSet _objDescSet;
 
     GLTFMetallic_Roughness metalRoughMaterial;
 
@@ -271,6 +287,10 @@ public:
     bool freeze_rendering;
 
     VkDeviceAddress getBufferDeviceAddress(VkDevice device, VkBuffer buffer);
+
+    AllocatedBuffer create_buffer_data(VkDeviceSize size, const void* data, VkBufferUsageFlags usage, const VmaMemoryUsage memUsage);
+
+    AllocatedBuffer allocateAndBindBuffer(VkBuffer buffer, VmaMemoryUsage memoryUsage);
 
 private:
     void init_vulkan();

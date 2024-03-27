@@ -112,10 +112,16 @@ class IRenderable {
     virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) = 0;
 };
 
+// to declare that the engine class will exist
+class VulkanEngine;
+
 // implementation of a drawable scene node.
 // the scene node can hold children and will also keep a transform to propagate
 // to them
 struct Node : public IRenderable {
+
+    // pointer to main engine
+    VulkanEngine* engine;
 
     // parent pointer must be a weak pointer to avoid circular dependencies
     std::weak_ptr<Node> parent;

@@ -389,6 +389,7 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::s
         } else {
             newNode = std::make_shared<Node>();
         }
+        newNode->engine = engine;
 
 
         // Generate unique node name based off of node.name

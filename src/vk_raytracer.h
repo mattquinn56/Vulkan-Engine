@@ -16,6 +16,11 @@ struct AccelKHR
     AllocatedBuffer            buffer;
 };
 
+struct PaddedIndex {
+    glm::ivec3 index; // Original index data
+    int pad;   // Padding to ensure 16-byte alignment
+};
+
 struct BuildAccelerationStructure
 {
     VkAccelerationStructureBuildGeometryInfoKHR buildInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
@@ -43,6 +48,8 @@ public:
     PFN_vkGetRayTracingShaderGroupHandlesKHR pfnGetRayTracingShaderGroupHandlesKHR;
     PFN_vkCmdTraceRaysKHR pfnCmdTraceRaysKHR;
 
+    VkPhysicalDeviceAccelerationStructurePropertiesKHR accelerationStructureProperties;
+
     std::vector<AccelKHR> m_blas;  // Bottom-level acceleration structure
     AccelKHR              m_tlas;  // Top-level acceleration structure
 
@@ -51,7 +58,7 @@ public:
 
     //-------------------- BLAS Creation --------------------//
 
-    AllocatedBuffer create_buffer_rt(VkDeviceSize size, const void* data, VkBufferUsageFlags usage, const VmaMemoryUsage memUsage);
+    VkBuffer createAlignedIndexBuffer(const VkBuffer& oldIndexBuffer, uint32_t indexCount);
 
     BlasInput objectToVkGeometryKHR(const RenderObject object);
 
@@ -107,10 +114,7 @@ public:
     // Push constant structure for the ray tracer
     struct PushConstantRay
     {
-        glm::vec4  clearColor;
-        glm::vec3  lightPosition;
-        float lightIntensity;
-        int   lightType;
+        glm::vec4 clearColor;
     };
 
     // Push constant for ray tracer

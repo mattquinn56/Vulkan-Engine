@@ -20,43 +20,63 @@ VulkanRayTracer::VulkanRayTracer(VulkanEngine* engine)
     VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
     prop2.pNext = &m_rtProperties;
     vkGetPhysicalDeviceProperties2(engine->_chosenGPU, &prop2);
+
+    // Requesting acceleration structure properties
+    // Initialize the structure to query acceleration structure properties
+    accelerationStructureProperties = {};
+    accelerationStructureProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
+
+    // Initialize the base physical device properties structure and chain the acceleration structure properties structure
+    VkPhysicalDeviceProperties2 deviceProperties2 = {};
+    deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    deviceProperties2.pNext = &accelerationStructureProperties;
+
+    // Query the physical device properties, including the acceleration structure properties
+    vkGetPhysicalDeviceProperties2(engine->_chosenGPU, &deviceProperties2);
 }
 
-//--------------------------------------------------------------------------------------------------
-// Creates a buffer to transfer data from CPU memory to GPU memory
-//
-AllocatedBuffer VulkanRayTracer::create_buffer_rt(VkDeviceSize size, const void* data, VkBufferUsageFlags usage, const VmaMemoryUsage memUsage) {
+/*
+VkBuffer VulkanRayTracer::createAlignedIndexBuffer(const VkBuffer& oldIndexBuffer, uint32_t indexCount) {
+    size_t oldBufferSize = indexCount * sizeof(glm::ivec3);
+    size_t newBufferSize = indexCount * sizeof(PaddedIndex);
 
-    AllocatedBuffer resultBuffer = engine->create_buffer(size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, memUsage);
+    // Create the padded index buffer
+    AllocatedBuffer paddedIndexBuffer = engine->create_buffer(newBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 
-    // Create a staging buffer
-    VkBufferCreateInfo bufferInfo = {};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = size;
-    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    // Create a staging buffer for reading the old index data
+    AllocatedBuffer stagingBuffer = engine->create_buffer(oldBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
 
-    VmaAllocationCreateInfo allocInfo = {};
-    allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+    // Copy data from the old index buffer to the staging buffer
+    VkBufferCopy copyRegion{};
+    copyRegion.srcOffset = 0; // Optional
+    copyRegion.dstOffset = 0; // Optional
+    copyRegion.size = oldBufferSize;
+    engine->immediate_submit([&](VkCommandBuffer cmd) { vkCmdCopyBuffer(cmd, oldIndexBuffer, stagingBuffer.buffer, 1, &copyRegion); });
 
-    VkBuffer stagingBuffer;
-    VmaAllocation stagingAllocation;
-    vmaCreateBuffer(engine->_allocator, &bufferInfo, &allocInfo, &stagingBuffer, &stagingAllocation, nullptr);
+    // Map the staging buffer to read its data
+    glm::ivec3* mappedStagingBufferData = nullptr;
+    vmaMapMemory(engine->_allocator, stagingBuffer.allocation, reinterpret_cast<void**>(&mappedStagingBufferData));
 
-    // Map the buffer and copy the data
-    void* mappedData;
-    vmaMapMemory(engine->_allocator, stagingAllocation, &mappedData);
-    memcpy(mappedData, data, size);
-    vmaUnmapMemory(engine->_allocator, stagingAllocation);
+    // Map the new buffer to write data
+    PaddedIndex* newBufferData = nullptr;
+    vmaMapMemory(engine->_allocator, paddedIndexBuffer.allocation, reinterpret_cast<void**>(&newBufferData));
 
-    // Record command to transfer data from staging buffer to the destination buffer
-    VkBufferCopy copyRegion = {};
-    copyRegion.srcOffset = 0; // Assuming data starts at the beginning of the staging buffer
-    copyRegion.dstOffset = 0;
-    copyRegion.size = size;
-    engine->immediate_submit([&](VkCommandBuffer cmd) { vkCmdCopyBuffer(cmd, stagingBuffer, resultBuffer.buffer, 1, &copyRegion); });
+    // Copy data from the staging buffer to the new padded buffer, adding padding
+    for (uint32_t i = 0; i < indexCount; ++i) {
+        glm::ivec3 x = mappedStagingBufferData[i];
+        newBufferData[i].index = x;
+        newBufferData[i].pad = 0; // Padding can be set to 0
+    }
 
-    return resultBuffer;
-}
+    // Unmap the staging buffer and the new padded index buffer
+    vmaUnmapMemory(engine->_allocator, stagingBuffer.allocation);
+    vmaUnmapMemory(engine->_allocator, paddedIndexBuffer.allocation);
+
+    // Clean up the staging buffer if necessary
+    vmaDestroyBuffer(engine->_allocator, stagingBuffer.buffer, stagingBuffer.allocation);
+
+    return paddedIndexBuffer.buffer;
+}*/
 
 //--------------------------------------------------------------------------------------------------
 // Convert an OBJ model into the ray tracing geometry used to build the BLAS
@@ -65,6 +85,8 @@ BlasInput VulkanRayTracer::objectToVkGeometryKHR(const RenderObject object)
 {
     // BLAS builder requires raw device addresses.
     VkDeviceAddress vertexAddress = object.vertexBufferAddress;
+
+    // Create a new, aligned index buffer before getting its device address
     VkDeviceAddress indexAddress = engine->getBufferDeviceAddress(engine->_device, object.indexBuffer);
 
     uint32_t maxPrimitiveCount = object.indexCount / 3;
@@ -166,7 +188,9 @@ void VulkanRayTracer::cmdCreateBlas(VkCommandBuffer cmdBuf, std::vector<uint32_t
 
         // BuildInfo #2 part
         buildAs[idx].buildInfo.dstAccelerationStructure = buildAs[idx].as.accel;  // Setting where the build lands
-        buildAs[idx].buildInfo.scratchData.deviceAddress = scratchAddress;  // All build are using the same scratch buffer
+        uint64_t alignment = accelerationStructureProperties.minAccelerationStructureScratchOffsetAlignment; // aligh address
+        uint64_t alignedAddress = (scratchAddress + alignment - 1) & ~(alignment - 1);
+        buildAs[idx].buildInfo.scratchData.deviceAddress = alignedAddress;  // All build are using the same scratch buffer
 
         // Building the bottom-level-acceleration-structure
         pfnCmdBuildAccelerationStructuresKHR(cmdBuf, 1, &buildAs[idx].buildInfo, &buildAs[idx].rangeInfo);
@@ -385,7 +409,7 @@ void VulkanRayTracer::buildTlas(const std::vector<VkAccelerationStructureInstanc
     // Create a buffer holding the actual instance data (matrices++) for use by the AS builder
     AllocatedBuffer instancesBuffer;  // Buffer of instances containing the matrices and BLAS ids
     VkDeviceSize size = sizeof(VkAccelerationStructureInstanceKHR) * instances.size();
-    instancesBuffer = create_buffer_rt(size, instances.data(), VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+    instancesBuffer = engine->create_buffer_data(size, instances.data(), VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
         VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VMA_MEMORY_USAGE_GPU_ONLY);
     VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, instancesBuffer.buffer };
     VkDeviceAddress           instBufferAddr = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
@@ -456,7 +480,9 @@ void VulkanRayTracer::cmdCreateTlas(VkCommandBuffer cmdBuf, uint32_t countInstan
     // Update build information
     buildInfo.srcAccelerationStructure = VK_NULL_HANDLE;
     buildInfo.dstAccelerationStructure = m_tlas.accel;
-    buildInfo.scratchData.deviceAddress = scratchAddress;
+    uint64_t alignment = accelerationStructureProperties.minAccelerationStructureScratchOffsetAlignment; // aligh address
+    uint64_t alignedAddress = (scratchAddress + alignment - 1) & ~(alignment - 1);
+    buildInfo.scratchData.deviceAddress = alignedAddress;
 
     // Build Offsets info: n instances
     VkAccelerationStructureBuildRangeInfoKHR        buildOffsetInfo{ countInstance, 0, 0, 0 };
@@ -488,7 +514,6 @@ void VulkanRayTracer::createRtDescriptorSet()
     allocateInfo.descriptorSetCount = 1;
     allocateInfo.pSetLayouts = &m_rtDescSetLayout;
     VK_CHECK(vkAllocateDescriptorSets(engine->_device, &allocateInfo, &m_rtDescSet));
-
 
     VkAccelerationStructureKHR tlas = m_tlas.accel;
     VkWriteDescriptorSetAccelerationStructureKHR descASInfo{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
@@ -598,7 +623,7 @@ void VulkanRayTracer::createRtPipeline()
 
     // Descriptor sets: one specific to ray tracing, and one shared with the rasterization pipeline
     std::vector<VkDescriptorSetLayout> rtDescSetLayouts = { m_rtDescSetLayout,
-        engine->_gpuSceneDataDescriptorLayout };
+        engine->_gpuSceneDataDescriptorLayout, engine->_objDescLayout };
     pipelineLayoutCreateInfo.setLayoutCount = static_cast<uint32_t>(rtDescSetLayouts.size());
     pipelineLayoutCreateInfo.pSetLayouts = rtDescSetLayouts.data();
 
@@ -717,13 +742,10 @@ void VulkanRayTracer::createRtShaderBindingTable()
 void VulkanRayTracer::raytrace(const VkCommandBuffer& cmdBuf)
 {
     // Initializing push constant values
-    m_pcRay.clearColor = glm::vec4(1, 1, 1, 1.00f);;
-    m_pcRay.lightPosition = { engine->sceneData.lights[0].position.x, engine->sceneData.lights[0].position.y, engine->sceneData.lights[0].position.z };
-    m_pcRay.lightIntensity = engine->sceneData.lights[0].position.a;
-    m_pcRay.lightType = 0;
+    m_pcRay.clearColor = glm::vec4(.8, .8, .8, 1.00f);
     engine->update_global_descriptor();
 
-    std::vector<VkDescriptorSet> descSets{ m_rtDescSet, engine->globalDescriptor };
+    std::vector<VkDescriptorSet> descSets{ m_rtDescSet, engine->_globalDescriptor, engine->_objDescSet };
     vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
     vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipelineLayout, 0,
         (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
