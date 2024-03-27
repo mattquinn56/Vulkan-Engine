@@ -91,7 +91,7 @@ struct FrameData {
 constexpr unsigned int FRAME_OVERLAP = 2;
 
 struct ObjDesc {
-    // a buffer with these object will be passed to the ray tracing closest hit shader `m_bObjDesc`
+    // a buffer with a vector of these objects `m_bObjDesc` will be passed to the ray tracing closest hit shader
     uint64_t vertexAddress; // Address of the Vertex buffer
     uint64_t indexAddress; // Address of the index buffer
 };

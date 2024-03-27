@@ -482,7 +482,7 @@ void VulkanEngine::update_global_descriptor()
     }
 
     // do the same for objDesc set
-    m_bObjDesc = create_buffer_data(drawCommands.m_objDesc.size(), drawCommands.m_objDesc.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    m_bObjDesc = create_buffer_data(sizeof(ObjDesc) * drawCommands.m_objDesc.size(), drawCommands.m_objDesc.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
     //add it to the deletion queue of this frame so it gets deleted once its been used
     //get_current_frame()._deletionQueue.push_function([=, this]() {
@@ -768,10 +768,17 @@ void VulkanEngine::update_scene()
     drawCommands.TransparentSurfaces.clear();
     loadedScenes["structure"]->Draw(glm::mat4{ 1.f }, drawCommands);
 
+    /*
     // temp: only keep one
-    // RenderObject x = drawCommands.OpaqueSurfaces[0];
-    // drawCommands.OpaqueSurfaces.clear();
-    // drawCommands.OpaqueSurfaces.push_back(x);
+    RenderObject x = drawCommands.OpaqueSurfaces[0];
+    drawCommands.OpaqueSurfaces.clear();
+    drawCommands.OpaqueSurfaces.push_back(x);
+
+    // do the same for m_objDesc
+    ObjDesc objDesc = drawCommands.m_objDesc[0];
+    drawCommands.m_objDesc.clear();
+    drawCommands.m_objDesc.push_back(objDesc);
+    */
 }
 
 AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)

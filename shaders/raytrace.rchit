@@ -9,15 +9,15 @@
 
 // Information of a obj model when referenced in a shader
 struct ObjDesc {
-    uint64_t vertexAddress;         // Address of the vertex buffer
-    uint64_t indexAddress;          // Address of the index buffer
+    uint64_t vertexAddress; // Address of the vertex buffer
+    uint64_t indexAddress; // Address of the index buffer
 };
 
 layout(location = 0) rayPayloadInEXT hitPayload prd;
 hitAttributeEXT vec2 attribs;
 
 layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; };
-layout(buffer_reference, scalar) buffer Indices { ivec3 i[]; };
+layout(buffer_reference, scalar) buffer Indices { int i[]; };
 layout(set = 2, binding = 0, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
 
 layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
@@ -30,14 +30,12 @@ void main()
     Vertices vertices = Vertices(objResource.vertexAddress);
   
     // Indices of the triangle
-    ivec3 ind = indices.i[gl_PrimitiveID];
-    //PaddedIndex p_ind = indices.i[gl_PrimitiveID];
-    //ivec3 ind = p_ind.index;
+    int ind_init = indices.i[gl_PrimitiveID * 3];
   
     // Vertex of the triangle
-    Vertex v0 = vertices.v[ind.x];
-    Vertex v1 = vertices.v[ind.y];
-    Vertex v2 = vertices.v[ind.z];
+    Vertex v0 = vertices.v[ind_init];
+    Vertex v1 = vertices.v[ind_init + 1];
+    Vertex v2 = vertices.v[ind_init + 2];
 
     const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
 
@@ -74,6 +72,6 @@ void main()
 		prd.hitValue += vec3(color * intensity * lcolor);
 	}
     
-    //prd.hitValue = nrm; // this will crash your computer currently, but should work
-    prd.hitValue = vec3(0.4, 0.3, 0.2);
+    prd.hitValue = worldNrm; // this will crash your computer currently, but should work
+    //prd.hitValue = vec3(0.4, 0.3, 0.2);
 }

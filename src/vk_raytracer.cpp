@@ -35,49 +35,6 @@ VulkanRayTracer::VulkanRayTracer(VulkanEngine* engine)
     vkGetPhysicalDeviceProperties2(engine->_chosenGPU, &deviceProperties2);
 }
 
-/*
-VkBuffer VulkanRayTracer::createAlignedIndexBuffer(const VkBuffer& oldIndexBuffer, uint32_t indexCount) {
-    size_t oldBufferSize = indexCount * sizeof(glm::ivec3);
-    size_t newBufferSize = indexCount * sizeof(PaddedIndex);
-
-    // Create the padded index buffer
-    AllocatedBuffer paddedIndexBuffer = engine->create_buffer(newBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
-
-    // Create a staging buffer for reading the old index data
-    AllocatedBuffer stagingBuffer = engine->create_buffer(oldBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-
-    // Copy data from the old index buffer to the staging buffer
-    VkBufferCopy copyRegion{};
-    copyRegion.srcOffset = 0; // Optional
-    copyRegion.dstOffset = 0; // Optional
-    copyRegion.size = oldBufferSize;
-    engine->immediate_submit([&](VkCommandBuffer cmd) { vkCmdCopyBuffer(cmd, oldIndexBuffer, stagingBuffer.buffer, 1, &copyRegion); });
-
-    // Map the staging buffer to read its data
-    glm::ivec3* mappedStagingBufferData = nullptr;
-    vmaMapMemory(engine->_allocator, stagingBuffer.allocation, reinterpret_cast<void**>(&mappedStagingBufferData));
-
-    // Map the new buffer to write data
-    PaddedIndex* newBufferData = nullptr;
-    vmaMapMemory(engine->_allocator, paddedIndexBuffer.allocation, reinterpret_cast<void**>(&newBufferData));
-
-    // Copy data from the staging buffer to the new padded buffer, adding padding
-    for (uint32_t i = 0; i < indexCount; ++i) {
-        glm::ivec3 x = mappedStagingBufferData[i];
-        newBufferData[i].index = x;
-        newBufferData[i].pad = 0; // Padding can be set to 0
-    }
-
-    // Unmap the staging buffer and the new padded index buffer
-    vmaUnmapMemory(engine->_allocator, stagingBuffer.allocation);
-    vmaUnmapMemory(engine->_allocator, paddedIndexBuffer.allocation);
-
-    // Clean up the staging buffer if necessary
-    vmaDestroyBuffer(engine->_allocator, stagingBuffer.buffer, stagingBuffer.allocation);
-
-    return paddedIndexBuffer.buffer;
-}*/
-
 //--------------------------------------------------------------------------------------------------
 // Convert an OBJ model into the ray tracing geometry used to build the BLAS
 //

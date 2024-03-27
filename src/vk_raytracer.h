@@ -58,8 +58,6 @@ public:
 
     //-------------------- BLAS Creation --------------------//
 
-    VkBuffer createAlignedIndexBuffer(const VkBuffer& oldIndexBuffer, uint32_t indexCount);
-
     BlasInput objectToVkGeometryKHR(const RenderObject object);
 
     void createBottomLevelAS();
