@@ -80,10 +80,10 @@ void VulkanEngine::init()
     _isInitialized = true;
 
     mainCamera.velocity = glm::vec3(0.f);
-    mainCamera.position = glm::vec3(30.f, -00.f, -085.f);
+    mainCamera.position = glm::vec3(2, 4, 2);
 
-    mainCamera.pitch = 0;
-    mainCamera.yaw = 0;
+    mainCamera.pitch = 30;
+    mainCamera.yaw = 30;
 }
 
 void VulkanEngine::init_default_data() {
@@ -300,14 +300,14 @@ void VulkanEngine::draw_main(VkCommandBuffer cmd)
 
 void VulkanEngine::draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView)
 {
-	VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(targetImageView, nullptr, VK_IMAGE_LAYOUT_GENERAL);
+	/*VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(targetImageView, nullptr, VK_IMAGE_LAYOUT_GENERAL);
 	VkRenderingInfo renderInfo = vkinit::rendering_info(_windowExtent, &colorAttachment, nullptr);
 
 	vkCmdBeginRendering(cmd, &renderInfo);
 
-	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);*/
 
-	vkCmdEndRendering(cmd);
+	//vkCmdEndRendering(cmd);     
 }
 
 void VulkanEngine::draw()
@@ -1246,7 +1246,7 @@ void VulkanEngine::init_sync_structures()
 
 void VulkanEngine::init_renderables()
 {
-    std::string structurePath = { "..\\..\\assets\\cubey.glb" };
+    std::string structurePath = { "..\\..\\assets\\structure.glb" };
     auto structureFile = loadGltf(this,structurePath);
 
     assert(structureFile.has_value());
