@@ -300,14 +300,14 @@ void VulkanEngine::draw_main(VkCommandBuffer cmd)
 
 void VulkanEngine::draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView)
 {
-	/*VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(targetImageView, nullptr, VK_IMAGE_LAYOUT_GENERAL);
+	VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(targetImageView, nullptr, VK_IMAGE_LAYOUT_GENERAL);
 	VkRenderingInfo renderInfo = vkinit::rendering_info(_windowExtent, &colorAttachment, nullptr);
 
 	vkCmdBeginRendering(cmd, &renderInfo);
 
-	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);*/
+	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
-	//vkCmdEndRendering(cmd);     
+	vkCmdEndRendering(cmd);     
 }
 
 void VulkanEngine::draw()
@@ -651,6 +651,7 @@ void VulkanEngine::run()
         ImGui::Begin("Stats");
 
         ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
+        ImGui::Checkbox("Debug setting", &debugSetting);  // Used for anything
 
 		ImGui::Text("frametime %f ms", stats.frametime);
 		ImGui::Text("drawtime %f ms", stats.mesh_draw_time);

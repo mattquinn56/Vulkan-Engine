@@ -77,5 +77,6 @@ void main() {
 		    outFragColor.xyz += vec3(color * power * l.color.xyz);
 	    }
     }
+    outFragColor.xyz = normal;
 }
 

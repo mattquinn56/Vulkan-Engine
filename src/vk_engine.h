@@ -158,6 +158,7 @@ public:
     bool createdAS{ false };
     int _frameNumber { 0 };
     bool useRaytracer = true;
+    bool debugSetting = false;
 
     VkExtent2D _windowExtent { 1700, 900 };
 

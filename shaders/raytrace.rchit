@@ -45,9 +45,35 @@ void main()
 
     // Computing the normal at hit position
     const vec3 nrm = v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z;
-    const vec3 worldNrm = normalize(vec3(nrm * gl_WorldToObjectEXT));  // Transforming the normal to world space
-    
-    prd.hitValue = worldNrm; // this will crash your computer currently, but should work
+    const vec3 worldNrm = normalize(vec3(gl_ObjectToWorldEXT * vec4(nrm, 0.0)));  // Transforming the normal to world space
 
+    // Lighting loop
+    prd.hitValue = vec3(0.0, 0.0, 0.0);
+    int numLights = int(sceneData.numLights.x);
+
+    // insert for loop
+    for (int i = 0; i < numLights; i++) {
+
+        // Unpack light info
+        RenderLight l = sceneData.lights[i];
+        vec3 lpos = l.position.xyz;
+        float intensity = l.position.a;
+        vec3 lcolor = l.color.xyz;
+        int type = int(l.color.a); // 0 is point, 1 is ambient (directional for now)
+        vec3 color = vec3(.5, .5, .5); // replace with material color
+
+        // Calculate by type
+        if (type == 0) {
+            float dist = length(lpos - worldPos);
+		    vec3 lightDir = normalize(lpos - worldPos);
+		    float lightAmt = max(dot(nrm, lightDir), 0.0);
+		    vec3 diffuse = lightAmt * intensity * lcolor / (dist * dist);
+		    prd.hitValue += vec3(color * diffuse);
+	    } else if (type == 1) {
+		    prd.hitValue += vec3(color * intensity * lcolor);
+	    }
+    }
+    
+    prd.hitValue = worldNrm;
 }
 
