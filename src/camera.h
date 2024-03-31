@@ -10,6 +10,11 @@ public:
     // horizontal rotation
     float yaw { 0.f };
 
+    float normalSpeed = 1.0f;
+    float fastSpeed = 3.0f;
+    float slowSpeed = 0.025f;
+    float currentSpeed = normalSpeed;
+
     glm::mat4 getViewMatrix() const;
     glm::mat4 getRotationMatrix() const;
 

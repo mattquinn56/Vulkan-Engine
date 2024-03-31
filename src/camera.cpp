@@ -26,22 +26,34 @@ glm::mat4 Camera::getRotationMatrix() const
 void Camera::processSDLEvent(SDL_Event& e)
 {
     if (e.type == SDL_KEYDOWN) {
-        if (e.key.keysym.sym == SDLK_w) { velocity.z = -1; }
-        if (e.key.keysym.sym == SDLK_s) { velocity.z = 1; }
-        if (e.key.keysym.sym == SDLK_a) { velocity.x = -1; }
-        if (e.key.keysym.sym == SDLK_d) { velocity.x = 1; }
+        if (e.key.keysym.sym == SDLK_LSHIFT || e.key.keysym.sym == SDLK_RSHIFT) {
+            currentSpeed = fastSpeed;
+        }
+        else if (e.key.keysym.sym == SDLK_LCTRL || e.key.keysym.sym == SDLK_RCTRL) {
+            currentSpeed = slowSpeed;
+        }
+
+        if (e.key.keysym.sym == SDLK_w) { velocity.z = -currentSpeed; }
+        if (e.key.keysym.sym == SDLK_s) { velocity.z = currentSpeed; }
+        if (e.key.keysym.sym == SDLK_a) { velocity.x = -currentSpeed; }
+        if (e.key.keysym.sym == SDLK_d) { velocity.x = currentSpeed; }
     }
 
     if (e.type == SDL_KEYUP) {
-        if (e.key.keysym.sym == SDLK_w) { velocity.z = 0; }
-        if (e.key.keysym.sym == SDLK_s) { velocity.z = 0; }
-        if (e.key.keysym.sym == SDLK_a) { velocity.x = 0; }
-        if (e.key.keysym.sym == SDLK_d) { velocity.x = 0; }
+        if (e.key.keysym.sym == SDLK_LSHIFT || e.key.keysym.sym == SDLK_RSHIFT) {
+            currentSpeed = normalSpeed;
+        }
+        else if (e.key.keysym.sym == SDLK_LCTRL || e.key.keysym.sym == SDLK_RCTRL) {
+            currentSpeed = normalSpeed;
+        }
+
+        if (e.key.keysym.sym == SDLK_w || e.key.keysym.sym == SDLK_s) { velocity.z = 0; }
+        if (e.key.keysym.sym == SDLK_a || e.key.keysym.sym == SDLK_d) { velocity.x = 0; }
     }
 
     if (e.type == SDL_MOUSEMOTION) {
-        yaw += (float)e.motion.xrel / 200.f;
-        pitch -= (float)e.motion.yrel / 200.f;
+        yaw += static_cast<float>(e.motion.xrel) / 200.0f;
+        pitch -= static_cast<float>(e.motion.yrel) / 200.0f;
     }
 }
 
