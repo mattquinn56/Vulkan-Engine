@@ -10,9 +10,9 @@ layout (location = 3) in vec3 inPos;
 
 layout (location = 0) out vec4 outFragColor;
 
-const vec3 sunlightDir = vec3(0.3f,1.f,0.3f); // used in old lighting algorithm
 const int POINT = 0;
 const int AMBIENT = 1;
+const int DIRECTIONAL = 2;
 
 struct SHCoefficients {
     vec3 l00, l1m1, l10, l11, l2m2, l2m1, l20, l21, l22;
@@ -52,11 +52,6 @@ vec3 calcIrradiance(vec3 nor) {
 }
 
 void main() {
-    // old lighting algorithm
-	//float lightValue = max(dot(inNormal, sunlightDir), 0.1f);
-	//vec3 irradiance = calcIrradiance(inNormal); 
-	//vec3 color = inColor * texture(colorTex, inUV).xyz;
-	//outFragColor = vec4(color * lightValue + color * irradiance.x * vec3(0.2f) ,1.0f);
 
     // up to 16 lights
     outFragColor = vec4(0.0, 0.0, 0.0, 1.0);
@@ -75,8 +70,12 @@ void main() {
 		    outFragColor.xyz += vec3(color * diffuse);
 	    } else if (type == AMBIENT) {
 		    outFragColor.xyz += vec3(color * power * l.color.xyz);
+	    } else if (type == DIRECTIONAL) {
+		    vec3 lightDir = normalize(l.position.xyz);
+		    float lightAmt = max(dot(normal, lightDir), 0.0);
+		    vec3 diffuse = lightAmt * power * l.color.xyz;
+		    outFragColor.xyz += vec3(color * diffuse);
 	    }
     }
-    outFragColor.xyz = normal;
 }
 

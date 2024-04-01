@@ -16,9 +16,14 @@ struct AccelKHR
     AllocatedBuffer            buffer;
 };
 
-struct PaddedIndex {
-    glm::ivec3 index; // Original index data
-    int pad;   // Padding to ensure 16-byte alignment
+struct MaterialRT
+{
+    glm::vec4 colorFactors;
+    glm::vec4 metal_rough_factors;
+    AllocatedImage colorImage;
+    VkSampler colorSampler;
+    AllocatedImage metalRoughImage;
+    VkSampler metalRoughSampler;
 };
 
 struct BuildAccelerationStructure

@@ -7,6 +7,10 @@
 #extension GL_EXT_buffer_reference2 : require
 #include "raycommon.glsl"
 
+const int POINT = 0;
+const int AMBIENT = 1;
+const int DIRECTIONAL = 2;
+
 // Information of a obj model when referenced in a shader
 struct ObjDesc {
     uint64_t vertexAddress; // Address of the vertex buffer
@@ -59,21 +63,24 @@ void main()
         vec3 lpos = l.position.xyz;
         float intensity = l.position.a;
         vec3 lcolor = l.color.xyz;
-        int type = int(l.color.a); // 0 is point, 1 is ambient (directional for now)
-        vec3 color = vec3(.5, .5, .5); // replace with material color
+        int type = int(l.color.a);
+        vec3 color = vec3(.5, .5, .5); // replace with texture color
 
         // Calculate by type
-        if (type == 0) {
+        if (type == POINT) {
             float dist = length(lpos - worldPos);
 		    vec3 lightDir = normalize(lpos - worldPos);
 		    float lightAmt = max(dot(nrm, lightDir), 0.0);
 		    vec3 diffuse = lightAmt * intensity * lcolor / (dist * dist);
 		    prd.hitValue += vec3(color * diffuse);
-	    } else if (type == 1) {
+	    } else if (type == AMBIENT) {
 		    prd.hitValue += vec3(color * intensity * lcolor);
+	    } else if (type == DIRECTIONAL) {
+		    vec3 lightDir = normalize(lpos);
+		    float lightAmt = max(dot(nrm, lightDir), 0.0);
+		    vec3 diffuse = lightAmt * intensity * lcolor;
+		    prd.hitValue += vec3(color * diffuse);
 	    }
     }
-    
-    prd.hitValue = worldNrm;
 }
 

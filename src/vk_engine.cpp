@@ -754,14 +754,19 @@ void VulkanEngine::update_scene()
     sceneData.numLights = glm::vec4(2.0, 0.0, 0.0, 1.0);
 
     // lights are updating every frame - unnecessary currently
-    RenderLight pointLight = RenderLight{};
-    pointLight.position = glm::vec4(-15.0, 0.0, -70.0, 5000.0); // a is intensity
-    pointLight.color = glm::vec4(.7, .85, 1.0, 0.0); // a is type, 0 is point, 1 is ambient
-    sceneData.lights[0] = pointLight;
+    //RenderLight pointLight = RenderLight{};
+    //pointLight.position = glm::vec4(-15.0, 0.0, -70.0, 5000.0);
+    //pointLight.color = glm::vec4(.7, .85, 1.0, 0.0);
+    //sceneData.lights[0] = pointLight;
+
+    RenderLight dirLight = RenderLight{};
+    dirLight.position = glm::vec4(1.0, 1.0, 1.0, .95);
+    dirLight.color = glm::vec4(1.0, 1.0, 1.0, 2.0);
+    sceneData.lights[0] = dirLight;
 
     RenderLight ambientLight = RenderLight{};
-    ambientLight.position = glm::vec4(0.0, 0.0, 0.0, .05); // a is intensity
-    ambientLight.color = glm::vec4(1.0, 1.0, 1.0, 1.0); // a is type, 0 is point, 1 is ambient
+    ambientLight.position = glm::vec4(0.0, 0.0, 0.0, .05);
+    ambientLight.color = glm::vec4(1.0, 1.0, 1.0, 1.0);
     sceneData.lights[1] = ambientLight;
 
     drawCommands.OpaqueSurfaces.clear();

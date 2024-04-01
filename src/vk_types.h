@@ -48,8 +48,8 @@ struct GPUGLTFMaterial {
 static_assert(sizeof(GPUGLTFMaterial) == 256);
 
 struct RenderLight {
-    glm::vec4 position; // a is intensity
-    glm::vec4 color; // a is type, 0 is point, 1 is ambient
+    glm::vec4 position; // alpha channel is intensity, type of 0 indicates position, type of 2 indicates direction
+    glm::vec4 color; // alpha is type, 0 is point, 1 is ambient (no pos data used), 2 is directional (pos data is direction)
 };
 
 struct GPUSceneData {

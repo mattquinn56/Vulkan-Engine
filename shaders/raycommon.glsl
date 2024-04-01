@@ -23,13 +23,17 @@ struct Vertex
 	vec3 normal;
 	float uv_y;
 	vec4 color;
-}; 
+};
 
-struct PaddedIndex
+struct MaterialRT
 {
-	ivec3 index;
-	int pad;
-}; 
+    vec4 colorFactors;
+    vec4 metal_rough_factors;
+	sampler2D colorImage; 
+	int colorSampler;
+	sampler2D metalRoughImage;
+	int metalRoughSampler;
+};
 
 // Push constant structure for the ray tracer
 struct PushConstantRay
