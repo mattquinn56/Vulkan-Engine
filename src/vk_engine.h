@@ -94,7 +94,7 @@ struct ObjDesc {
     // a buffer with a vector of these objects `m_bObjDesc` will be passed to the ray tracing closest hit shader
     uint64_t vertexAddress; // Address of the Vertex buffer
     uint64_t indexAddress; // Address of the index buffer
-    uint64_t materialAddress; // Address of the material buffer
+    //uint64_t materialAddress; // Address of the material buffer
 };
 
 struct DrawContext {
