@@ -70,11 +70,11 @@ void VulkanEngine::init()
 
     init_default_data();
 
+    init_raytracing();
+
     init_renderables();
 
     init_imgui();
-
-    init_raytracing();
 
     // everything went fine
     _isInitialized = true;
@@ -1252,7 +1252,7 @@ void VulkanEngine::init_sync_structures()
 
 void VulkanEngine::init_renderables()
 {
-    std::string structurePath = { "..\\..\\assets\\empire_state_building.glb" };
+    std::string structurePath = { "..\\..\\assets\\structure.glb" };
     auto structureFile = loadGltf(this,structurePath);
 
     assert(structureFile.has_value());
@@ -1552,6 +1552,7 @@ void MeshNode::Draw(const glm::mat4& topMatrix, DrawContext& ctx)
         ObjDesc od;
         od.vertexAddress = mesh->meshBuffers.vertexBufferAddress;
         od.indexAddress = engine->getBufferDeviceAddress(engine->_device, mesh->meshBuffers.indexBuffer.buffer);
+        od.materialAddress = s.material->materialAddressRT;
 
         if (s.material->data.passType == MaterialPass::Transparent) {
             ctx.TransparentSurfaces.push_back(def);

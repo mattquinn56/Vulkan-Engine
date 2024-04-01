@@ -3,6 +3,7 @@
 #include <vk_loader.h>
 
 #include "vk_engine.h"
+#include "vk_raytracer.h"
 #include "vk_initializers.h"
 #include "vk_types.h"
 #include <glm/gtx/quaternion.hpp>
@@ -270,6 +271,14 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::s
         }
         // build material
         newMat->data = engine->metalRoughMaterial.write_material(engine->_device, passType, materialResources, file.descriptorPool);
+        
+        // add onto ray tracer material vector
+        VulkanRayTracer::MaterialRT rtMat;
+        rtMat.colorFactors = constants.colorFactors;
+        rtMat.metal_rough_factors = constants.metal_rough_factors;
+        rtMat.colorSamplerID = materialResources.colorSampler;
+        rtMat.metalRoughSamplerID = materialResources.metalRoughSampler;
+        newMat->materialAddressRT = engine->rayTracer->uploadMaterial(rtMat);
 
         data_index++;
     }

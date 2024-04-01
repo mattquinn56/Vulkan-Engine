@@ -29,10 +29,8 @@ struct MaterialRT
 {
     vec4 colorFactors;
     vec4 metal_rough_factors;
-	sampler2D colorImage; 
-	int colorSampler;
-	sampler2D metalRoughImage;
-	int metalRoughSampler;
+	int colorSamplerID;
+	int metalRoughSamplerID;
 };
 
 // Push constant structure for the ray tracer

@@ -15,6 +15,7 @@ const int DIRECTIONAL = 2;
 struct ObjDesc {
     uint64_t vertexAddress; // Address of the vertex buffer
     uint64_t indexAddress; // Address of the index buffer
+    uint64_t materialAddress; // Address of the material buffer
 };
 
 layout(location = 0) rayPayloadInEXT hitPayload prd;
@@ -22,6 +23,7 @@ hitAttributeEXT vec2 attribs;
 
 layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; };
 layout(buffer_reference, scalar) buffer Indices { ivec3 i[]; };
+layout(buffer_reference, scalar) buffer Material { MaterialRT m; };
 layout(set = 2, binding = 0, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
 
 layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
@@ -32,6 +34,8 @@ void main()
     ObjDesc objResource = objDesc.i[gl_InstanceCustomIndexEXT];
     Indices indices = Indices(objResource.indexAddress);
     Vertices vertices = Vertices(objResource.vertexAddress);
+    Material material = Material(objResource.materialAddress);
+    MaterialRT mat = material.m;
   
     // Indices of the triangle
     ivec3 ind_init = indices.i[gl_PrimitiveID];
@@ -82,5 +86,6 @@ void main()
 		    prd.hitValue += vec3(color * diffuse);
 	    }
     }
+    prd.hitValue = mat.metal_rough_factors.xyz;
 }
 

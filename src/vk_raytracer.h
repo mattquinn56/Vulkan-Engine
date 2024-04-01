@@ -16,16 +16,6 @@ struct AccelKHR
     AllocatedBuffer            buffer;
 };
 
-struct MaterialRT
-{
-    glm::vec4 colorFactors;
-    glm::vec4 metal_rough_factors;
-    AllocatedImage colorImage;
-    VkSampler colorSampler;
-    AllocatedImage metalRoughImage;
-    VkSampler metalRoughSampler;
-};
-
 struct BuildAccelerationStructure
 {
     VkAccelerationStructureBuildGeometryInfoKHR buildInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
@@ -132,6 +122,18 @@ public:
     VkStridedDeviceAddressRegionKHR m_missRegion{};
     VkStridedDeviceAddressRegionKHR m_hitRegion{};
     VkStridedDeviceAddressRegionKHR m_callRegion{};
+
+    //-------------------- Material Creation --------------------//
+
+    struct MaterialRT
+    {
+        glm::vec4 colorFactors;
+        glm::vec4 metal_rough_factors;
+        VkSampler colorSamplerID;
+        VkSampler metalRoughSamplerID;
+    };
+
+    VkDeviceAddress uploadMaterial(MaterialRT mat);
 
     //-------------------- Ray Tracing Computation --------------------//
 

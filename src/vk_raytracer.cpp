@@ -694,6 +694,17 @@ void VulkanRayTracer::createRtShaderBindingTable()
 }
 
 //--------------------------------------------------------------------------------------------------
+// Upload custom material structure to be referred to by the ray tracer
+//
+VkDeviceAddress VulkanRayTracer::uploadMaterial(MaterialRT mat)
+{
+    VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+    AllocatedBuffer materialBuffer = engine->create_buffer_data(sizeof(MaterialRT), &mat, usage, VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+    return engine->getBufferDeviceAddress(engine->_device, materialBuffer.buffer);
+}
+
+//--------------------------------------------------------------------------------------------------
 // Ray Tracing the scene
 //
 void VulkanRayTracer::raytrace(const VkCommandBuffer& cmdBuf)

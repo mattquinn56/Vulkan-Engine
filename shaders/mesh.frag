@@ -77,5 +77,6 @@ void main() {
 		    outFragColor.xyz += vec3(color * diffuse);
 	    }
     }
+    outFragColor.xyz = materialData.metal_rough_factors.xyz;
 }
 

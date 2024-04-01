@@ -19,6 +19,7 @@ struct Bounds {
 
 struct GLTFMaterial {
     MaterialInstance data;
+    VkDeviceAddress materialAddressRT;
 };
 
 struct GeoSurface {
