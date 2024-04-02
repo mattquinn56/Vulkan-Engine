@@ -88,6 +88,7 @@ public:
     //-------------------- Ray Tracing Descriptor Set Creation --------------------//
 
     void createRtDescriptorSet();
+    
     DescriptorAllocator         m_rtDescAllocator;
     DescriptorWriter            m_rtDescWriter;
     VkDescriptorPool            m_rtDescPool;
@@ -129,11 +130,23 @@ public:
     {
         glm::vec4 colorFactors;
         glm::vec4 metal_rough_factors;
-        VkSampler colorSamplerID;
-        VkSampler metalRoughSamplerID;
+        int textureID;
     };
 
+    std::vector<VkImageView> m_colTextures;
+    std::vector<VkImageView> m_metalRoughTextures;
+    std::vector<VkSampler> m_colSamplers;
+    std::vector<VkSampler> m_metalRoughSamplers;
+
+    DescriptorAllocatorGrowable m_rtMatDescAllocator;
+    DescriptorWriter            m_rtMatDescWriter;
+    VkDescriptorPool            m_rtMatDescPool;
+    VkDescriptorSetLayout       m_rtMatDescSetLayout;
+    VkDescriptorSet             m_rtMatDescSet;
+
     VkDeviceAddress uploadMaterial(MaterialRT mat);
+
+    void createRtMaterialDescriptorSet();
 
     //-------------------- Ray Tracing Computation --------------------//
 

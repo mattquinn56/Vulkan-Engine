@@ -230,6 +230,10 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::s
 //< load_buffer
     //
 //> load_material
+    engine->rayTracer->m_colTextures.clear();
+    engine->rayTracer->m_metalRoughTextures.clear();
+    engine->rayTracer->m_colSamplers.clear();
+    engine->rayTracer->m_metalRoughSamplers.clear();
     for (fastgltf::Material& mat : gltf.materials) {
         std::shared_ptr<GLTFMaterial> newMat = std::make_shared<GLTFMaterial>();
         materials.push_back(newMat);
@@ -272,13 +276,19 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::s
         // build material
         newMat->data = engine->metalRoughMaterial.write_material(engine->_device, passType, materialResources, file.descriptorPool);
         
-        // add onto ray tracer material vector
+        // upload RT material
         VulkanRayTracer::MaterialRT rtMat;
         rtMat.colorFactors = constants.colorFactors;
         rtMat.metal_rough_factors = constants.metal_rough_factors;
-        rtMat.colorSamplerID = materialResources.colorSampler;
-        rtMat.metalRoughSamplerID = materialResources.metalRoughSampler;
+        rtMat.textureID = data_index;
         newMat->materialAddressRT = engine->rayTracer->uploadMaterial(rtMat);
+
+        // accumulate images for ray tracing textures
+        engine->rayTracer->m_colTextures.push_back(materialResources.colorImage.imageView);
+        engine->rayTracer->m_metalRoughTextures.push_back(materialResources.metalRoughImage.imageView);
+        engine->rayTracer->m_colSamplers.push_back(materialResources.colorSampler);
+        engine->rayTracer->m_metalRoughSamplers.push_back(materialResources.metalRoughSampler);
+
 
         data_index++;
     }

@@ -699,6 +699,7 @@ void VulkanEngine::run()
             rayTracer->createBottomLevelAS();
             rayTracer->createTopLevelAS();
             rayTracer->createRtDescriptorSet();
+            rayTracer->createRtMaterialDescriptorSet();
             rayTracer->createRtPipeline();
             rayTracer->createRtShaderBindingTable();
             createdAS = true;
@@ -1252,7 +1253,7 @@ void VulkanEngine::init_sync_structures()
 
 void VulkanEngine::init_renderables()
 {
-    std::string structurePath = { "..\\..\\assets\\structure.glb" };
+    std::string structurePath = { "..\\..\\assets\\empire_state_building.glb" };
     auto structureFile = loadGltf(this,structurePath);
 
     assert(structureFile.has_value());

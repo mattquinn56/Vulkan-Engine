@@ -449,11 +449,11 @@ void VulkanRayTracer::cmdCreateTlas(VkCommandBuffer cmdBuf, uint32_t countInstan
     pfnCmdBuildAccelerationStructuresKHR(cmdBuf, 1, &buildInfo, &pBuildOffsetInfo);
 }
 
-//--------------------------------------------------------------------------------------------------
-// This descriptor set holds the Acceleration structure and the output image
-//
 void VulkanRayTracer::createRtDescriptorSet()
 {
+    //
+    // Descriptor set #0 holds the Acceleration structure and the output image.
+    //
     DescriptorLayoutBuilder m_rtDescLayoutBuilder;
     m_rtDescLayoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);  // TLAS
     m_rtDescLayoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);  // Output image
@@ -490,6 +490,74 @@ void VulkanRayTracer::createRtDescriptorSet()
         vkDestroyDescriptorSetLayout(engine->_device, m_rtDescSetLayout, nullptr);
         m_rtDescAllocator.destroy_pool(engine->_device);
 	});
+}
+
+
+void VulkanRayTracer::createRtMaterialDescriptorSet() {
+
+    //
+    // Descriptor set #3 holds SSBOs for the static list of color texture images and metal rough images
+    //
+    //AllocatedBuffer m_bRtMatCol = engine->create_buffer_data(sizeof(AllocatedImage) * m_colTextures.size(), m_colTextures.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    //AllocatedBuffer m_bRtMatMR = engine->create_buffer_data(sizeof(AllocatedImage) * m_colTextures.size(), m_colTextures.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    //m_rtMatDescSet = m_rtMatDescAllocator.allocate(engine->_device, m_rtMatDescSetLayout);
+
+    //DescriptorWriter writer;
+    //writer.write_buffer(0, m_bRtMatCol.buffer, VK_WHOLE_SIZE, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+    //writer.update_set(engine->_device, m_rtMatDescSet);
+
+    // VkSampler create info
+    /*
+    VkSamplerCreateInfo samplerInfo = {};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.anisotropyEnable = VK_TRUE;
+    samplerInfo.maxAnisotropy = 16;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+    samplerInfo.compareEnable = VK_FALSE;
+    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
+    // Create each VkSampler
+    m_colSamplers.resize(n);
+    m_metalRoughSamplers.resize(n);
+    for (int i = 0; i < n; ++i) {
+        vkCreateSampler(engine->_device, &samplerInfo, nullptr, &m_colSamplers[i]);
+        vkCreateSampler(engine->_device, &samplerInfo, nullptr, &m_metalRoughSamplers[i]);
+    }
+    */
+
+    int n = m_colTextures.size();
+
+    DescriptorLayoutBuilder m_rtMatDescLayoutBuilder;
+    m_rtMatDescLayoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, n);  // Color textures
+    m_rtMatDescLayoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, n);  // Metal-rough textures
+
+    std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> rt_mat_pool_sizes = {
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+    };
+    m_rtMatDescAllocator.init(engine->_device, 1, rt_mat_pool_sizes);
+    m_rtMatDescSetLayout = m_rtMatDescLayoutBuilder.build(engine->_device, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+    m_rtMatDescSet = m_rtMatDescAllocator.allocate(engine->_device, m_rtMatDescSetLayout);
+
+    m_rtMatDescWriter.clear();
+    // TODO: change below to be "write_image_array" and don't just get the 0th index
+    m_rtMatDescWriter.write_image(0, m_colTextures[0], m_colSamplers[0], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    m_rtMatDescWriter.write_image(1, m_metalRoughTextures[0], m_metalRoughSamplers[0], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    m_rtMatDescWriter.update_set(engine->_device, m_rtMatDescSet);
+
+    // add all to deletion queue
+    engine->_mainDeletionQueue.push_function([=]() {
+        vkDestroyDescriptorPool(engine->_device, m_rtMatDescPool, nullptr);
+        vkDestroyDescriptorSetLayout(engine->_device, m_rtMatDescSetLayout, nullptr);
+        m_rtMatDescAllocator.destroy_pools(engine->_device);
+    });
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -580,7 +648,7 @@ void VulkanRayTracer::createRtPipeline()
 
     // Descriptor sets: one specific to ray tracing, and one shared with the rasterization pipeline
     std::vector<VkDescriptorSetLayout> rtDescSetLayouts = { m_rtDescSetLayout,
-        engine->_gpuSceneDataDescriptorLayout, engine->_objDescLayout };
+        engine->_gpuSceneDataDescriptorLayout, engine->_objDescLayout, m_rtMatDescSetLayout };
     pipelineLayoutCreateInfo.setLayoutCount = static_cast<uint32_t>(rtDescSetLayouts.size());
     pipelineLayoutCreateInfo.pSetLayouts = rtDescSetLayouts.data();
 
@@ -710,10 +778,10 @@ VkDeviceAddress VulkanRayTracer::uploadMaterial(MaterialRT mat)
 void VulkanRayTracer::raytrace(const VkCommandBuffer& cmdBuf)
 {
     // Initializing push constant values
-    m_pcRay.clearColor = glm::vec4(.8, .8, .8, 1.00f);
+    m_pcRay.clearColor = glm::vec4(.6, .6, .6, 1.00f);
     engine->update_global_descriptor();
 
-    std::vector<VkDescriptorSet> descSets{ m_rtDescSet, engine->_globalDescriptor, engine->_objDescSet };
+    std::vector<VkDescriptorSet> descSets{ m_rtDescSet, engine->_globalDescriptor, engine->_objDescSet, m_rtMatDescSet };
     vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
     vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipelineLayout, 0,
         (uint32_t)descSets.size(), descSets.data(), 0, nullptr);

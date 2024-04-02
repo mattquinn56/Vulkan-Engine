@@ -2,7 +2,7 @@
 #include "vk_initializers.h"
 
 //> descriptor_bind
-void DescriptorLayoutBuilder::add_binding(uint32_t binding, VkDescriptorType type)
+void DescriptorLayoutBuilder::add_binding(uint32_t binding, VkDescriptorType type, uint32_t descriptorCount /*== 1*/)
 {
     VkDescriptorSetLayoutBinding newbind {};
     newbind.binding = binding;
@@ -104,7 +104,28 @@ void DescriptorWriter::write_image(int binding, VkImageView image, VkSampler sam
 	writes.push_back(write);
 }
 //< write_image
-// 
+//> write_image_array
+void DescriptorWriter::write_image_array(int binding, std::span<VkImageView> images, VkSampler sampler, VkImageLayout layout, VkDescriptorType type)
+{
+    for (size_t i = 0; i < images.size(); ++i) {
+        imageInfosArray.emplace_back(VkDescriptorImageInfo{
+            .sampler = sampler,
+            .imageView = images[i],
+            .imageLayout = layout
+       });
+    }
+
+    VkWriteDescriptorSet write = {};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstBinding = binding;
+    write.dstSet = VK_NULL_HANDLE; // To be set later
+    write.descriptorCount = static_cast<uint32_t>(images.size());
+    write.descriptorType = type;
+    write.pImageInfo = imageInfosArray.data() + imageInfosArray.size() - images.size();
+
+    writes.push_back(write);
+}
+//< write_image_array
 //> write_buffer
 void DescriptorWriter::write_buffer(int binding, VkBuffer buffer, size_t size, size_t offset, VkDescriptorType type)
 {
@@ -129,6 +150,7 @@ void DescriptorWriter::write_buffer(int binding, VkBuffer buffer, size_t size, s
 void DescriptorWriter::clear()
 {
     imageInfos.clear();
+    imageInfosArray.clear();
     writes.clear();
     bufferInfos.clear();
 }

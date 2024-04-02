@@ -25,6 +25,10 @@ layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; };
 layout(buffer_reference, scalar) buffer Indices { ivec3 i[]; };
 layout(buffer_reference, scalar) buffer Material { MaterialRT m; };
 layout(set = 2, binding = 0, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
+//layout(set = 3, binding = 0, scalar) buffer ColImage2D { sampler2d i[]; };
+//layout(set = 3, binding = 1, scalar) buffer MetalRoughImage2D { sampler2d i[]; };
+layout(set = 3, binding = 0) uniform sampler2D[] ColImage2D;
+layout(set = 3, binding = 1) uniform sampler2D[] MetalRoughImage2D;
 
 layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
@@ -47,6 +51,13 @@ void main()
 
     const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
 
+    // Get texture color
+    vec2 uv0 = vec2(v0.uv_x, v0.uv_y);
+    vec2 uv1 = vec2(v1.uv_x, v1.uv_y);
+    vec2 uv2 = vec2(v2.uv_x, v2.uv_y);
+    vec2 uv = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
+	vec3 texColor = texture(ColImage2D[mat.textureID], uv).xyz;
+
     // Computing the coordinates of the hit position
     const vec3 pos = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
     const vec3 worldPos = vec3(gl_ObjectToWorldEXT * vec4(pos, 1.0));  // Transforming the position to world space
@@ -68,7 +79,6 @@ void main()
         float intensity = l.position.a;
         vec3 lcolor = l.color.xyz;
         int type = int(l.color.a);
-        vec3 color = vec3(.5, .5, .5); // replace with texture color
 
         // Calculate by type
         if (type == POINT) {
@@ -76,16 +86,16 @@ void main()
 		    vec3 lightDir = normalize(lpos - worldPos);
 		    float lightAmt = max(dot(nrm, lightDir), 0.0);
 		    vec3 diffuse = lightAmt * intensity * lcolor / (dist * dist);
-		    prd.hitValue += vec3(color * diffuse);
+		    prd.hitValue += vec3(texColor * diffuse);
 	    } else if (type == AMBIENT) {
-		    prd.hitValue += vec3(color * intensity * lcolor);
+		    prd.hitValue += vec3(texColor * intensity * lcolor);
 	    } else if (type == DIRECTIONAL) {
 		    vec3 lightDir = normalize(lpos);
+            lightDir.yz = -lightDir.yz;
 		    float lightAmt = max(dot(nrm, lightDir), 0.0);
 		    vec3 diffuse = lightAmt * intensity * lcolor;
-		    prd.hitValue += vec3(color * diffuse);
+		    prd.hitValue += vec3(texColor * diffuse);
 	    }
     }
-    prd.hitValue = mat.metal_rough_factors.xyz;
 }
 

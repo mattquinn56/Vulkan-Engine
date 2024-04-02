@@ -10,7 +10,7 @@ struct DescriptorLayoutBuilder {
 
     std::vector<VkDescriptorSetLayoutBinding> bindings;
 
-    void add_binding(uint32_t binding, VkDescriptorType type);
+    void add_binding(uint32_t binding, VkDescriptorType type, uint32_t descriptorCount = 1);
     void clear();
     VkDescriptorSetLayout build(VkDevice device, VkShaderStageFlags shaderStages);
 };
@@ -19,10 +19,12 @@ struct DescriptorLayoutBuilder {
 //> writer
 struct DescriptorWriter {
     std::deque<VkDescriptorImageInfo> imageInfos;
+    std::vector<VkDescriptorImageInfo> imageInfosArray;
     std::deque<VkDescriptorBufferInfo> bufferInfos;
     std::vector<VkWriteDescriptorSet> writes;
 
     void write_image(int binding,VkImageView image,VkSampler sampler , VkImageLayout layout, VkDescriptorType type);
+    void write_image_array(int binding, std::span<VkImageView> images, VkSampler sampler, VkImageLayout layout, VkDescriptorType type);
     void write_buffer(int binding,VkBuffer buffer,size_t size, size_t offset,VkDescriptorType type);
 
     void clear();
