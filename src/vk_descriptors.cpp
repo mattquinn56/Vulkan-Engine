@@ -1,5 +1,6 @@
 ﻿#include <vk_descriptors.h>
 #include "vk_initializers.h"
+#include <memory>
 
 //> descriptor_bind
 void DescriptorLayoutBuilder::add_binding(uint32_t binding, VkDescriptorType type, uint32_t descriptorCount /*== 1*/)
@@ -93,37 +94,42 @@ void DescriptorWriter::write_image(int binding, VkImageView image, VkSampler sam
 		.imageLayout = layout
 	});
 
-	VkWriteDescriptorSet write = { .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+    // create shared ptr with copy of write
+    std::shared_ptr<VkWriteDescriptorSet> write_ptr = std::shared_ptr<VkWriteDescriptorSet>(new VkWriteDescriptorSet{
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstBinding = static_cast<uint32_t>(binding),
+        .descriptorCount = 1,
+        .descriptorType = type,
+        .pImageInfo = &info,
+    });
 
-	write.dstBinding = binding;
-    write.dstSet = VK_NULL_HANDLE; //left empty for now until we need to write it
-	write.descriptorCount = 1;
-	write.descriptorType = type;
-	write.pImageInfo = &info;
-
-	writes.push_back(write);
+    writes.push_back(write_ptr);
 }
 //< write_image
 //> write_image_array
 void DescriptorWriter::write_image_array(int binding, std::span<VkImageView> images, VkSampler sampler, VkImageLayout layout, VkDescriptorType type)
 {
+    std::vector<std::shared_ptr<VkDescriptorImageInfo>> ordWrites;
+    ordWrites.reserve(images.size());
     for (size_t i = 0; i < images.size(); ++i) {
-        imageInfosArray.emplace_back(VkDescriptorImageInfo{
+        VkDescriptorImageInfo elem = VkDescriptorImageInfo{
             .sampler = sampler,
             .imageView = images[i],
             .imageLayout = layout
-       });
+        };
+        imageInfos.emplace_back(elem);
+        ordWrites.push_back(elem);
     }
 
-    VkWriteDescriptorSet write = {};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstBinding = binding;
-    write.dstSet = VK_NULL_HANDLE; // To be set later
-    write.descriptorCount = static_cast<uint32_t>(images.size());
-    write.descriptorType = type;
-    write.pImageInfo = imageInfosArray.data() + imageInfosArray.size() - images.size();
+    std::shared_ptr<VkWriteDescriptorSet> write_ptr = std::shared_ptr<VkWriteDescriptorSet>(new VkWriteDescriptorSet{
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.dstBinding = static_cast<uint32_t>(binding),
+		.descriptorCount = (uint32_t)images.size(),
+		.descriptorType = type,
+		.pImageInfo = ordWrites.data(),
+    });
 
-    writes.push_back(write);
+    writes.push_back(write_ptr);
 }
 //< write_image_array
 //> write_buffer
@@ -135,33 +141,38 @@ void DescriptorWriter::write_buffer(int binding, VkBuffer buffer, size_t size, s
 		.range = size
 	});
 
-	VkWriteDescriptorSet write = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+    // create shared ptr with copy of write
+    std::shared_ptr<VkWriteDescriptorSet> write_ptr = std::shared_ptr<VkWriteDescriptorSet>(new VkWriteDescriptorSet{
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstBinding = static_cast<uint32_t>(binding),
+        .descriptorCount = 1,
+        .descriptorType = type,
+        .pBufferInfo = &info,
+    });
 
-	write.dstBinding = binding;
-    write.dstSet = VK_NULL_HANDLE; //left empty for now until we need to write it
-	write.descriptorCount = 1;
-	write.descriptorType = type;
-	write.pBufferInfo = &info;
-
-	writes.push_back(write);
+	writes.push_back(write_ptr);
 }
 //< write_buffer
 //> writer_end
 void DescriptorWriter::clear()
 {
     imageInfos.clear();
-    imageInfosArray.clear();
+    //imageInfosArray.clear();
     writes.clear();
     bufferInfos.clear();
 }
 
 void DescriptorWriter::update_set(VkDevice device, VkDescriptorSet set)
 {
-    for (VkWriteDescriptorSet& write : writes) {
-        write.dstSet = set;
-    }
 
-    vkUpdateDescriptorSets(device, (uint32_t)writes.size(), writes.data(), 0, nullptr);
+    // write dstSet for each write pointer
+    std::vector<VkWriteDescriptorSet> writes_;
+    for (auto& write : writes) {
+        write->dstSet = set;
+		writes_.push_back(*write);
+	}
+
+    vkUpdateDescriptorSets(device, (uint32_t)writes.size(), writes_.data(), 0, nullptr);
 }
 //< writer_end
 //> growpool_2

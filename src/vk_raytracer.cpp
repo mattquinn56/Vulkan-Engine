@@ -479,8 +479,8 @@ void VulkanRayTracer::createRtDescriptorSet()
 
     m_rtDescWriter.clear();
     m_rtDescWriter.write_buffer(0, 0, 0, 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
-    m_rtDescWriter.writes[0].pNext = &descASInfo;
-    m_rtDescWriter.writes[0].pBufferInfo = nullptr;
+    m_rtDescWriter.writes[0]->pNext = &descASInfo;
+    m_rtDescWriter.writes[0]->pBufferInfo = nullptr;
     m_rtDescWriter.write_image(1, engine->_drawImage.imageView, {}, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     m_rtDescWriter.update_set(engine->_device, m_rtDescSet);
 
@@ -548,8 +548,8 @@ void VulkanRayTracer::createRtMaterialDescriptorSet() {
 
     m_rtMatDescWriter.clear();
     // TODO: change below to be "write_image_array" and don't just get the 0th index
-    m_rtMatDescWriter.write_image(0, m_colTextures[0], m_colSamplers[0], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    m_rtMatDescWriter.write_image(1, m_metalRoughTextures[0], m_metalRoughSamplers[0], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    m_rtMatDescWriter.write_image_array(0, m_colTextures, m_colSamplers[0], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    m_rtMatDescWriter.write_image_array(1, m_metalRoughTextures, m_metalRoughSamplers[0], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     m_rtMatDescWriter.update_set(engine->_device, m_rtMatDescSet);
 
     // add all to deletion queue
