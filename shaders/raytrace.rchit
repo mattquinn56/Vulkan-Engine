@@ -19,11 +19,13 @@ struct ObjDesc {
 };
 
 layout(location = 0) rayPayloadInEXT hitPayload prd;
+layout(location = 1) rayPayloadEXT bool isShadowed;
 hitAttributeEXT vec2 attribs;
 
 layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; };
 layout(buffer_reference, scalar) buffer Indices { ivec3 i[]; };
 layout(buffer_reference, scalar) buffer Material { MaterialRT m; };
+layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
 layout(set = 2, binding = 0, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
 //layout(set = 3, binding = 0, scalar) buffer ColImage2D { sampler2d i[]; };
 //layout(set = 3, binding = 1, scalar) buffer MetalRoughImage2D { sampler2d i[]; };
@@ -31,6 +33,14 @@ layout(set = 3, binding = 0) uniform sampler2D[] ColImage2D;
 layout(set = 3, binding = 1) uniform sampler2D[] MetalRoughImage2D;
 
 layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
+
+bool isOccluded(vec3 origin, vec3 direction, float tmax)
+{
+    isShadowed = true;
+    uint flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+	traceRayEXT(topLevelAS, flags, 0xFF, 0, 0, 1, origin, .001, direction, tmax, 1);
+    return isShadowed;
+}
 
 void main()
 {
@@ -86,15 +96,21 @@ void main()
 		    vec3 lightDir = normalize(lpos - worldPos);
 		    float lightAmt = max(dot(nrm, lightDir), 0.0);
 		    vec3 diffuse = lightAmt * intensity * lcolor / (dist * dist);
-		    prd.hitValue += vec3(texColor * diffuse);
+            bool shadowed = isOccluded(worldPos, lightDir, dist);
+            if (!shadowed) {
+				prd.hitValue += vec3(texColor * diffuse);
+			}
 	    } else if (type == AMBIENT) {
 		    prd.hitValue += vec3(texColor * intensity * lcolor);
 	    } else if (type == DIRECTIONAL) {
 		    vec3 lightDir = normalize(lpos);
-            lightDir.yz = -lightDir.yz;
-		    float lightAmt = max(dot(nrm, lightDir), 0.0);
+            vec3 dotLightDir = vec3(lightDir.x, -lightDir.yz); // unsure why we need to do this only for lightAmt currently
+		    float lightAmt = max(dot(nrm, dotLightDir), 0.0);
 		    vec3 diffuse = lightAmt * intensity * lcolor;
-		    prd.hitValue += vec3(texColor * diffuse);
+            bool shadowed = isOccluded(worldPos, lightDir, 10000.0);
+            if (!shadowed) {
+				prd.hitValue += vec3(texColor * diffuse);
+            }
 	    }
     }
 }
