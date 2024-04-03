@@ -24,7 +24,7 @@ struct DescriptorWriter {
     std::vector<std::shared_ptr<VkWriteDescriptorSet>> writes;
 
     void write_image(int binding,VkImageView image,VkSampler sampler , VkImageLayout layout, VkDescriptorType type);
-    void write_image_array(int binding, std::span<VkImageView> images, VkSampler sampler, VkImageLayout layout, VkDescriptorType type);
+    void write_image_array(int binding, std::span<VkImageView> images, std::span<VkSampler> sampler, VkImageLayout layout, VkDescriptorType type);
     void write_buffer(int binding,VkBuffer buffer,size_t size, size_t offset,VkDescriptorType type);
 
     void clear();
