@@ -88,45 +88,57 @@ VkDescriptorSet DescriptorAllocator::allocate(VkDevice device, VkDescriptorSetLa
 //> write_image
 void DescriptorWriter::write_image(int binding, VkImageView image, VkSampler sampler,  VkImageLayout layout, VkDescriptorType type)
 {
-    VkDescriptorImageInfo& info = imageInfos.emplace_back(VkDescriptorImageInfo{
-		.sampler = sampler,
-		.imageView = image,
-		.imageLayout = layout
-	});
+    std::vector<VkDescriptorImageInfo> ordWrites;
+    ordWrites.reserve(1); // Seems you're working with a single image here
+    VkDescriptorImageInfo info = {
+        .sampler = sampler, // Assuming 'sampler' is defined elsewhere
+        .imageView = image, // Assuming 'image' is defined elsewhere
+        .imageLayout = layout // Assuming 'layout' is defined elsewhere
+    };
 
-    // create shared ptr with copy of write
-    std::shared_ptr<VkWriteDescriptorSet> write_ptr = std::shared_ptr<VkWriteDescriptorSet>(new VkWriteDescriptorSet{
+    // Since you're directly working with the structures, no need for dynamic allocation
+    ordWrites.push_back(info);
+    imageInfos.push_back(info); // Assuming 'imageInfos' is meant to store these for later use
+    imageArrayInfos.push_back(ordWrites); // Extend lifetime by storing in a member variable
+
+    // Note: Ensure 'imageArrayInfos' is a class member that's properly managed to extend the lifetime of 'ordWrites'
+
+    // Now create the write descriptor
+    auto write = std::make_shared<VkWriteDescriptorSet>(VkWriteDescriptorSet{
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstBinding = static_cast<uint32_t>(binding),
         .descriptorCount = 1,
         .descriptorType = type,
-        .pImageInfo = &info,
+        .pImageInfo = &imageArrayInfos.back().front() // Point to the recently added 'ordWrites' data
     });
 
-    writes.push_back(write_ptr);
+
+    // Assuming 'writes' is a class member vector of VkWriteDescriptorSet, not pointers
+    writes.emplace_back(write);
 }
 //< write_image
 //> write_image_array
 void DescriptorWriter::write_image_array(int binding, std::span<VkImageView> images, VkSampler sampler, VkImageLayout layout, VkDescriptorType type)
 {
-    std::vector<std::shared_ptr<VkDescriptorImageInfo>> ordWrites;
+    std::vector<VkDescriptorImageInfo> ordWrites;
     ordWrites.reserve(images.size());
     for (size_t i = 0; i < images.size(); ++i) {
-        VkDescriptorImageInfo elem = VkDescriptorImageInfo{
+        auto elem = VkDescriptorImageInfo{
             .sampler = sampler,
             .imageView = images[i],
             .imageLayout = layout
-        };
+            };
         imageInfos.emplace_back(elem);
-        ordWrites.push_back(elem);
+        ordWrites.emplace_back(elem);
     }
+    imageArrayInfos.push_back(std::move(ordWrites));
 
-    std::shared_ptr<VkWriteDescriptorSet> write_ptr = std::shared_ptr<VkWriteDescriptorSet>(new VkWriteDescriptorSet{
+    std::shared_ptr<VkWriteDescriptorSet> write_ptr = std::make_shared<VkWriteDescriptorSet>(VkWriteDescriptorSet{
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-		.dstBinding = static_cast<uint32_t>(binding),
-		.descriptorCount = (uint32_t)images.size(),
-		.descriptorType = type,
-		.pImageInfo = ordWrites.data(),
+        .dstBinding = static_cast<uint32_t>(binding),
+        .descriptorCount = (uint32_t)images.size(),
+        .descriptorType = type,
+        .pImageInfo = imageArrayInfos.back().data(), // This is not correct for some reason
     });
 
     writes.push_back(write_ptr);
@@ -135,11 +147,13 @@ void DescriptorWriter::write_image_array(int binding, std::span<VkImageView> ima
 //> write_buffer
 void DescriptorWriter::write_buffer(int binding, VkBuffer buffer, size_t size, size_t offset, VkDescriptorType type)
 {
-	VkDescriptorBufferInfo& info = bufferInfos.emplace_back(VkDescriptorBufferInfo{
-		.buffer = buffer,
-		.offset = offset,
-		.range = size
-	});
+    auto info = new VkDescriptorBufferInfo{
+        .buffer = buffer,
+        .offset = offset,
+        .range = size
+    };
+
+    bufferInfos.emplace_back(*info);
 
     // create shared ptr with copy of write
     std::shared_ptr<VkWriteDescriptorSet> write_ptr = std::shared_ptr<VkWriteDescriptorSet>(new VkWriteDescriptorSet{
@@ -147,7 +161,7 @@ void DescriptorWriter::write_buffer(int binding, VkBuffer buffer, size_t size, s
         .dstBinding = static_cast<uint32_t>(binding),
         .descriptorCount = 1,
         .descriptorType = type,
-        .pBufferInfo = &info,
+        .pBufferInfo = info,
     });
 
 	writes.push_back(write_ptr);

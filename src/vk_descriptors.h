@@ -20,6 +20,7 @@ struct DescriptorLayoutBuilder {
 struct DescriptorWriter {
     std::deque<VkDescriptorImageInfo> imageInfos;
     std::deque<VkDescriptorBufferInfo> bufferInfos;
+    std::deque<std::vector<VkDescriptorImageInfo>> imageArrayInfos;
     std::vector<std::shared_ptr<VkWriteDescriptorSet>> writes;
 
     void write_image(int binding,VkImageView image,VkSampler sampler , VkImageLayout layout, VkDescriptorType type);
