@@ -657,6 +657,8 @@ void VulkanEngine::run()
 		ImGui::Text("drawtime %f ms", stats.mesh_draw_time);
 		ImGui::Text("triangles %i", stats.triangle_count);
 		ImGui::Text("draws %i", stats.drawcall_count);
+        glm::vec3 viewDir = mainCamera.getViewDirection();
+        ImGui::Text("view direction: %f %f %f", viewDir.x, viewDir.y, viewDir.z);
         ImGui::End();
 
         bool collapsedDataWindow = ImGui::Begin("background");

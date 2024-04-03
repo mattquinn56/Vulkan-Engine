@@ -23,6 +23,24 @@ glm::mat4 Camera::getRotationMatrix() const
     return glm::toMat4(yawRotation) * glm::toMat4(pitchRotation);
 }
 
+glm::vec3 Camera::getViewDirection() const
+{
+    /*
+    glm::vec3 viewDir = glm::vec3();
+	return glm::vec3(getViewMatrix() * glm::vec4(0, 0, -1, 0));
+    viewDir.x = -viewDir.x;
+    viewDir.y = -viewDir.y;
+    return viewDir;
+    */
+
+    // Calculate the direction vector
+    glm::vec3 direction;
+    direction.x = sin(yaw);
+    direction.y = sin(pitch);
+    direction.z = -cos(yaw);
+    return direction;
+}
+
 void Camera::processSDLEvent(SDL_Event& e)
 {
     if (e.type == SDL_KEYDOWN) {

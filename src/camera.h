@@ -17,6 +17,7 @@ public:
 
     glm::mat4 getViewMatrix() const;
     glm::mat4 getRotationMatrix() const;
+    glm::vec3 getViewDirection() const;
 
     void processSDLEvent(SDL_Event& e);
 

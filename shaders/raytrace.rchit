@@ -94,7 +94,7 @@ void main()
         if (type == POINT) {
             float dist = length(lpos - worldPos);
 		    vec3 lightDir = normalize(lpos - worldPos);
-		    float lightAmt = max(dot(nrm, lightDir), 0.0);
+		    float lightAmt = max(dot(worldNrm, lightDir), 0.0);
 		    vec3 diffuse = lightAmt * intensity * lcolor / (dist * dist);
             bool shadowed = isOccluded(worldPos, lightDir, dist);
             if (!shadowed) {
@@ -104,8 +104,7 @@ void main()
 		    prd.hitValue += vec3(texColor * intensity * lcolor);
 	    } else if (type == DIRECTIONAL) {
 		    vec3 lightDir = normalize(lpos);
-            vec3 dotLightDir = vec3(lightDir.x, -lightDir.yz); // unsure why we need to do this only for lightAmt currently
-		    float lightAmt = max(dot(nrm, dotLightDir), 0.0);
+		    float lightAmt = max(dot(worldNrm, lightDir), 0.0);
 		    vec3 diffuse = lightAmt * intensity * lcolor;
             bool shadowed = isOccluded(worldPos, lightDir, 10000.0);
             if (!shadowed) {
