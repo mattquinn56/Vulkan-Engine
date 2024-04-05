@@ -681,7 +681,7 @@ void VulkanRayTracer::createRtPipeline()
     rayPipelineInfo.groupCount = static_cast<uint32_t>(m_rtShaderGroups.size());
     rayPipelineInfo.pGroups = m_rtShaderGroups.data();
 
-    rayPipelineInfo.maxPipelineRayRecursionDepth = 2;  // Ray depth, second ray for shadow
+    rayPipelineInfo.maxPipelineRayRecursionDepth = MAX_RECURSION;  // Ray depth, last ray for shadow
     rayPipelineInfo.layout = m_rtPipelineLayout;
 
     VK_CHECK(pfnCreateRayTracingPipelinesKHR(engine->_device, {}, {}, 1, &rayPipelineInfo, nullptr, & m_rtPipeline));

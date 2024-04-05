@@ -10,6 +10,9 @@
 const int POINT = 0;
 const int AMBIENT = 1;
 const int DIRECTIONAL = 2;
+const float EPSILON = .001;
+const float T_MAX = 10000.0;
+const int MAX_RECURSION = 4; // should be the same as MAX_RECURSION in vk_raytracer.h
 
 // Information of a obj model when referenced in a shader
 struct ObjDesc {
@@ -38,12 +41,27 @@ bool isOccluded(vec3 origin, vec3 direction, float tmax)
 {
     isShadowed = true;
     uint flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
-	traceRayEXT(topLevelAS, flags, 0xFF, 0, 0, 1, origin, .001, direction, tmax, 1);
+	traceRayEXT(topLevelAS, flags, 0xFF, 0, 0, 1, origin, EPSILON, direction, tmax, 1);
     return isShadowed;
+}
+
+vec3 getReflectedColor(vec3 origin, vec3 direction) 
+{
+    uint flags = gl_RayFlagsOpaqueEXT;
+    traceRayEXT(topLevelAS, flags, 0xFF, 0, 0, 0, origin, EPSILON, direction, T_MAX, 0);
+    return prd.hitValue;
 }
 
 void main()
 {
+    // Increment number of recursions
+    bool computeReflection = true;
+    prd.recursionDepth = prd.recursionDepth + 1;
+    if (prd.recursionDepth == MAX_RECURSION - 1) {
+        // we only want one more hit for the shadow
+        computeReflection = false;
+    }
+
     // Object data
     ObjDesc objResource = objDesc.i[gl_InstanceCustomIndexEXT];
     Indices indices = Indices(objResource.indexAddress);
@@ -68,6 +86,11 @@ void main()
     vec2 uv = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
 	vec3 texColor = texture(ColImage2D[mat.textureID], uv).xyz;
 
+    // Get material data
+    vec4 matData = texture(MetalRoughImage2D[mat.textureID], uv);
+    float metal = .075;//matData.x; // reflectivity proportion
+    float roughness = matData.y; // specular intensity proportion
+
     // Computing the coordinates of the hit position
     const vec3 pos = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
     const vec3 worldPos = vec3(gl_ObjectToWorldEXT * vec4(pos, 1.0));  // Transforming the position to world space
@@ -76,41 +99,52 @@ void main()
     const vec3 nrm = v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z;
     const vec3 worldNrm = normalize(vec3(gl_ObjectToWorldEXT * vec4(nrm, 0.0)));  // Transforming the normal to world space
 
+    vec3 outColor = vec3(0.0, 0.0, 0.0);
+
     // Lighting loop
-    prd.hitValue = vec3(0.0, 0.0, 0.0);
-    int numLights = int(sceneData.numLights.x);
+    if (metal < 1.0 - EPSILON || !computeReflection) {
+        int numLights = int(sceneData.numLights.x);
+        for (int i = 0; i < numLights; i++) {
 
-    // insert for loop
-    for (int i = 0; i < numLights; i++) {
+            // Unpack light info
+            RenderLight l = sceneData.lights[i];
+            vec3 lpos = l.position.xyz;
+            float intensity = l.position.a;
+            vec3 lcolor = l.color.xyz;
+            int type = int(l.color.a);
 
-        // Unpack light info
-        RenderLight l = sceneData.lights[i];
-        vec3 lpos = l.position.xyz;
-        float intensity = l.position.a;
-        vec3 lcolor = l.color.xyz;
-        int type = int(l.color.a);
+            // Calculate by type
+            if (type == POINT) {
+                float dist = length(lpos - worldPos);
+		        vec3 lightDir = normalize(lpos - worldPos);
+                bool shadowed = isOccluded(worldPos, lightDir, dist);
+                if (!shadowed) {
+		            float lightAmt = max(dot(worldNrm, lightDir), 0.0);
+		            vec3 diffuse = lightAmt * intensity * lcolor / (dist * dist);
+				    outColor += vec3(texColor * diffuse);
+			    }
 
-        // Calculate by type
-        if (type == POINT) {
-            float dist = length(lpos - worldPos);
-		    vec3 lightDir = normalize(lpos - worldPos);
-		    float lightAmt = max(dot(worldNrm, lightDir), 0.0);
-		    vec3 diffuse = lightAmt * intensity * lcolor / (dist * dist);
-            bool shadowed = isOccluded(worldPos, lightDir, dist);
-            if (!shadowed) {
-				prd.hitValue += vec3(texColor * diffuse);
-			}
-	    } else if (type == AMBIENT) {
-		    prd.hitValue += vec3(texColor * intensity * lcolor);
-	    } else if (type == DIRECTIONAL) {
-		    vec3 lightDir = normalize(lpos);
-		    float lightAmt = max(dot(worldNrm, lightDir), 0.0);
-		    vec3 diffuse = lightAmt * intensity * lcolor;
-            bool shadowed = isOccluded(worldPos, lightDir, 10000.0);
-            if (!shadowed) {
-				prd.hitValue += vec3(texColor * diffuse);
-            }
-	    }
+	        } else if (type == AMBIENT) {
+		        outColor += vec3(texColor * intensity * lcolor);
+
+	        } else if (type == DIRECTIONAL) {
+		        vec3 lightDir = normalize(lpos);
+                bool shadowed = isOccluded(worldPos, lightDir, T_MAX);
+                if (!shadowed) {
+		            float lightAmt = max(dot(worldNrm, lightDir), 0.0);
+		            vec3 diffuse = lightAmt * intensity * lcolor;
+				    outColor += vec3(texColor * diffuse);
+                }
+	        }
+        }
     }
+
+    // Calculate reflected color if reflective
+    if (metal > EPSILON && computeReflection) {
+        vec3 reflectedDir = reflect(gl_WorldRayDirectionEXT, worldNrm);
+        outColor = (getReflectedColor(worldPos, reflectedDir) * metal) + (outColor * (1.0 - metal));
+    }
+    
+    prd.hitValue = outColor;
 }
 

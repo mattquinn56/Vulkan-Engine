@@ -14,6 +14,7 @@ layout(set = 1, binding = 0) uniform SceneData {
 struct hitPayload
 {
   vec3 hitValue;
+  int recursionDepth;
 };
 
 struct Vertex

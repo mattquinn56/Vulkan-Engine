@@ -101,6 +101,8 @@ public:
 
     void createRtPipeline();
 
+    const int MAX_RECURSION = 4;
+
     std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
     VkPipelineLayout m_rtPipelineLayout;
     VkPipeline m_rtPipeline;
