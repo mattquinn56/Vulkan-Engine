@@ -52,6 +52,32 @@ vec3 getReflectedColor(vec3 origin, vec3 direction)
     return prd.hitValue;
 }
 
+float computeSpecularIntensity(vec3 viewDir, vec3 lightDir, vec3 normal, float roughness)
+{
+    /*
+    vec3 reflectDir = reflect(-lightDir, normal); // Reflect function calculates the reflection direction
+    viewDir = normalize(viewDir); // Normalize the view direction vector
+
+    float specAngle = max(dot(reflectDir, viewDir), 0.0);
+    float shininess = 1.0 / roughness; // Shininess is the inverse of roughness
+    float specular = pow(specAngle, shininess);
+
+    return specular;
+    */
+    vec3 halfVec = normalize(lightDir + viewDir);
+    float nDotVP = max(0.0, dot(normal, normalize(lightDir) ));	
+	float nDotHV = max(0.0, dot(normal, normalize(halfVec) ));
+	
+    float pf;
+	if(nDotVP == 0.0) {
+		pf = 0.0;
+    } else {
+        pf = pow(nDotHV, 1.0 / roughness);
+	}
+
+    return pf;
+}
+
 void main()
 {
     // Increment number of recursions
@@ -88,8 +114,8 @@ void main()
 
     // Get material data
     vec4 matData = texture(MetalRoughImage2D[mat.textureID], uv);
-    float metal = .075;//matData.x; // reflectivity proportion
-    float roughness = matData.y; // specular intensity proportion
+    float metal = .125;//matData.x; // reflectivity proportion
+    float roughness = .5;//matData.y; // specular intensity proportion
 
     // Computing the coordinates of the hit position
     const vec3 pos = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
@@ -99,7 +125,7 @@ void main()
     const vec3 nrm = v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z;
     const vec3 worldNrm = normalize(vec3(gl_ObjectToWorldEXT * vec4(nrm, 0.0)));  // Transforming the normal to world space
 
-    vec3 outColor = vec3(0.0, 0.0, 0.0);
+    vec3 outColor = vec3(0.0);
 
     // Lighting loop
     if (metal < 1.0 - EPSILON || !computeReflection) {
@@ -119,9 +145,14 @@ void main()
 		        vec3 lightDir = normalize(lpos - worldPos);
                 bool shadowed = isOccluded(worldPos, lightDir, dist);
                 if (!shadowed) {
+                    // compute diffuse
 		            float lightAmt = max(dot(worldNrm, lightDir), 0.0);
 		            vec3 diffuse = lightAmt * intensity * lcolor / (dist * dist);
 				    outColor += vec3(texColor * diffuse);
+                    
+                    // compute specular
+					float specular = computeSpecularIntensity(gl_WorldRayDirectionEXT, lightDir, worldNrm, roughness);
+					outColor += specular * lcolor;
 			    }
 
 	        } else if (type == AMBIENT) {
@@ -131,9 +162,14 @@ void main()
 		        vec3 lightDir = normalize(lpos);
                 bool shadowed = isOccluded(worldPos, lightDir, T_MAX);
                 if (!shadowed) {
+                    // compute diffuse
 		            float lightAmt = max(dot(worldNrm, lightDir), 0.0);
 		            vec3 diffuse = lightAmt * intensity * lcolor;
 				    outColor += vec3(texColor * diffuse);
+
+                    // compute specular
+					float specular = computeSpecularIntensity(gl_WorldRayDirectionEXT, lightDir, worldNrm, roughness);
+					outColor += specular * lcolor;
                 }
 	        }
         }
