@@ -1255,7 +1255,7 @@ void VulkanEngine::init_sync_structures()
 
 void VulkanEngine::init_renderables()
 {
-    std::string structurePath = { "..\\..\\assets\\empire_state_building.glb" };
+    std::string structurePath = { "..\\..\\assets\\multitextured.glb" };
     auto structureFile = loadGltf(this,structurePath);
 
     assert(structureFile.has_value());
