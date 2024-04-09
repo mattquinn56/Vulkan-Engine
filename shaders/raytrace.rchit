@@ -114,8 +114,10 @@ void main()
 
     // Get material data
     vec4 matData = texture(MetalRoughImage2D[mat.textureID], uv);
-    float metal = .125;//matData.x; // reflectivity proportion
-    float roughness = .125;//matData.y; // specular intensity proportion
+    //float metal = matData.x; // if using metal rough texture map
+    //float roughness = matData.y;
+    float metal = mat.metal_rough_factors.x;
+    float roughness = mat.metal_rough_factors.y;
 
     // Computing the coordinates of the hit position
     const vec3 pos = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
@@ -152,7 +154,7 @@ void main()
                     
                     // compute specular
 					float specular = computeSpecularIntensity(gl_WorldRayDirectionEXT, lightDir, worldNrm, roughness);
-					outColor += specular * lcolor;
+					outColor += specular * lcolor * intensity;
 			    }
 
 	        } else if (type == AMBIENT) {
@@ -169,7 +171,7 @@ void main()
 
                     // compute specular
 					float specular = computeSpecularIntensity(gl_WorldRayDirectionEXT, lightDir, worldNrm, roughness);
-					outColor += specular * lcolor;
+					outColor += specular * lcolor * intensity;
                 }
 	        }
         }

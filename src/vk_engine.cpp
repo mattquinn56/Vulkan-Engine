@@ -763,12 +763,12 @@ void VulkanEngine::update_scene()
     //sceneData.lights[0] = pointLight;
 
     RenderLight dirLight = RenderLight{};
-    dirLight.position = glm::vec4(1.0, 1.0, 1.0, .95);
+    dirLight.position = glm::vec4(1.0, 1.0, 1.0, .8);
     dirLight.color = glm::vec4(1.0, 1.0, 1.0, 2.0);
     sceneData.lights[0] = dirLight;
 
     RenderLight ambientLight = RenderLight{};
-    ambientLight.position = glm::vec4(0.0, 0.0, 0.0, .05);
+    ambientLight.position = glm::vec4(0.0, 0.0, 0.0, .2);
     ambientLight.color = glm::vec4(1.0, 1.0, 1.0, 1.0);
     sceneData.lights[1] = ambientLight;
 
@@ -1256,7 +1256,7 @@ void VulkanEngine::init_sync_structures()
 void VulkanEngine::init_renderables()
 {
     //std::string structurePath = { "..\\..\\assets\\empire_state_building.glb" };
-    std::string structurePath = { "..\\..\\assets\\structure.glb" };
+    std::string structurePath = { "..\\..\\assets\\crypt_location.glb" };
     auto structureFile = loadGltf(this,structurePath);
 
     assert(structureFile.has_value());

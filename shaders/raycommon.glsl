@@ -29,7 +29,7 @@ struct Vertex
 struct MaterialRT
 {
     vec4 colorFactors;
-    vec4 metal_rough_factors;
+    vec4 metal_rough_factors; // x is reflectivity proportion (metal), y is specular intensity proportion (roughness)
 	int textureID;
 };
 

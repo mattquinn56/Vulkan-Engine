@@ -6,7 +6,7 @@ void DescriptorLayoutBuilder::add_binding(uint32_t binding, VkDescriptorType typ
 {
     VkDescriptorSetLayoutBinding newbind {};
     newbind.binding = binding;
-    newbind.descriptorCount = 1;
+    newbind.descriptorCount = descriptorCount;
     newbind.descriptorType = type;
 
     bindings.push_back(newbind);
@@ -155,10 +155,13 @@ void DescriptorWriter::write_buffer(int binding, VkBuffer buffer, size_t size, s
 void DescriptorWriter::clear()
 {
     imageInfos.clear();
+    imageInfosArray.clear();
     imageInfosArray = {};
+    writes.clear();
     writes = {};
     bufferInfos.clear();
     index = 0;
+    writeArrayIndices.clear();
     writeArrayIndices = {};
 }
 

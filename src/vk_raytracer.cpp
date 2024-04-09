@@ -552,6 +552,7 @@ void VulkanRayTracer::createRtMaterialDescriptorSet() {
     m_rtMatDescSet = m_rtMatDescAllocator.allocate(engine->_device, m_rtMatDescSetLayout);
 
     m_rtMatDescWriter.clear();
+    // arrays with only one element
     m_rtMatDescWriter.write_image_array(0, m_colTextures, m_colSamplers, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     m_rtMatDescWriter.write_image_array(1, m_metalRoughTextures, m_metalRoughSamplers, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     m_rtMatDescWriter.update_set(engine->_device, m_rtMatDescSet);
