@@ -115,7 +115,7 @@ void main()
     // Get material data
     vec4 matData = texture(MetalRoughImage2D[mat.textureID], uv);
     float metal = .125;//matData.x; // reflectivity proportion
-    float roughness = .5;//matData.y; // specular intensity proportion
+    float roughness = .125;//matData.y; // specular intensity proportion
 
     // Computing the coordinates of the hit position
     const vec3 pos = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;

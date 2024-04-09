@@ -105,14 +105,16 @@ void DescriptorWriter::write_image(int binding, VkImageView image, VkSampler sam
 }
 //< write_image
 //> write_image_array
-void DescriptorWriter::write_image_array(int binding, std::span<VkImageView> images, VkSampler sampler, VkImageLayout layout, VkDescriptorType type)
+void DescriptorWriter::write_image_array(int binding, std::vector<VkImageView> images, std::vector<VkSampler> sampler, VkImageLayout layout, VkDescriptorType type)
 {
+    int firstIndex = index;
     for (size_t i = 0; i < images.size(); ++i) {
-        imageInfosArray.emplace_back(VkDescriptorImageInfo{
-            .sampler = sampler,
-            .imageView = images[i],
-            .imageLayout = layout
-       });
+        VkDescriptorImageInfo foo;
+        foo.sampler = sampler[i];
+        foo.imageView = images[i];
+        foo.imageLayout = layout;
+        imageInfosArray.push_back(foo);
+        index++;
     }
 
     VkWriteDescriptorSet write = {};
@@ -121,7 +123,7 @@ void DescriptorWriter::write_image_array(int binding, std::span<VkImageView> ima
     write.dstSet = VK_NULL_HANDLE; // To be set later
     write.descriptorCount = static_cast<uint32_t>(images.size());
     write.descriptorType = type;
-    write.pImageInfo = imageInfosArray.data() + imageInfosArray.size() - images.size();
+    write.pImageInfo = &imageInfosArray[firstIndex]; // when resizing the vector, it may change where it is in memory
 
     writes.push_back(write);
 }
@@ -151,8 +153,10 @@ void DescriptorWriter::clear()
 {
     imageInfos.clear();
     imageInfosArray.clear();
+    imageInfosArray.reserve(128);
     writes.clear();
     bufferInfos.clear();
+    index = 0;
 }
 
 void DescriptorWriter::update_set(VkDevice device, VkDescriptorSet set)
