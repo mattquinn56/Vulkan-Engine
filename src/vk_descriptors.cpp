@@ -123,7 +123,10 @@ void DescriptorWriter::write_image_array(int binding, std::vector<VkImageView> i
     write.dstSet = VK_NULL_HANDLE; // To be set later
     write.descriptorCount = static_cast<uint32_t>(images.size());
     write.descriptorType = type;
-    write.pImageInfo = &imageInfosArray[firstIndex]; // when resizing the vector, it may change where it is in memory
+
+    // when resizing the vector, it may change where it is in memory.
+    // store indices to refer to this memory later
+    writeArrayIndices.push_back({(int)writes.size(), firstIndex});
 
     writes.push_back(write);
 }
@@ -152,17 +155,23 @@ void DescriptorWriter::write_buffer(int binding, VkBuffer buffer, size_t size, s
 void DescriptorWriter::clear()
 {
     imageInfos.clear();
-    imageInfosArray.clear();
-    imageInfosArray.reserve(128);
-    writes.clear();
+    imageInfosArray = {};
+    writes = {};
     bufferInfos.clear();
     index = 0;
+    writeArrayIndices = {};
 }
 
 void DescriptorWriter::update_set(VkDevice device, VkDescriptorSet set)
 {
     for (VkWriteDescriptorSet& write : writes) {
         write.dstSet = set;
+    }
+
+    // set the pImageInfo to the correct offset in the imageInfosArray for each write
+    // this is done later for vector resizing changing where it lies in memory
+    for (auto& [writeIndex, firstIndex] : writeArrayIndices) {
+        writes[writeIndex].pImageInfo = &imageInfosArray[firstIndex];
     }
 
     vkUpdateDescriptorSets(device, (uint32_t)writes.size(), writes.data(), 0, nullptr);

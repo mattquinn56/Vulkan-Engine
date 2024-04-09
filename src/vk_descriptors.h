@@ -19,6 +19,7 @@ struct DescriptorLayoutBuilder {
 //> writer
 struct DescriptorWriter {
     int index;
+    std::vector<std::pair<int, int>> writeArrayIndices; // writes index, imageInfosArray index
     std::deque<VkDescriptorImageInfo> imageInfos;
     std::vector<VkDescriptorImageInfo> imageInfosArray;
     std::deque<VkDescriptorBufferInfo> bufferInfos;
