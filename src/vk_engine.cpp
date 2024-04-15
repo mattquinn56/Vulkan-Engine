@@ -23,6 +23,7 @@
 #include "vk_mem_alloc.h"
 
 #include <iostream>
+#include <stb_image.h>
 
 constexpr bool bUseValidationLayers = true;
 
@@ -763,12 +764,12 @@ void VulkanEngine::update_scene()
     //sceneData.lights[0] = pointLight;
 
     RenderLight dirLight = RenderLight{};
-    dirLight.position = glm::vec4(1.0, 1.0, 1.0, .8);
-    dirLight.color = glm::vec4(1.0, 1.0, 1.0, 2.0);
+    dirLight.position = glm::vec4(1.0, 0.2, 0.0, .9);
+    dirLight.color = glm::vec4(1.0, 1.0, .75, 2.0);
     sceneData.lights[0] = dirLight;
 
     RenderLight ambientLight = RenderLight{};
-    ambientLight.position = glm::vec4(0.0, 0.0, 0.0, .2);
+    ambientLight.position = glm::vec4(0.0, 0.0, 0.0, .1);
     ambientLight.color = glm::vec4(1.0, 1.0, 1.0, 1.0);
     sceneData.lights[1] = ambientLight;
 
@@ -1253,6 +1254,93 @@ void VulkanEngine::init_sync_structures()
     }
 }
 
+AllocatedImage VulkanEngine::loadImageFromFile(std::string path)
+{
+    // Load image file
+    int texWidth, texHeight, texChannels;
+    stbi_uc* pixels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    if (!pixels) {
+        throw std::runtime_error("failed to load texture image!");
+    }
+
+    VkDeviceSize imageSize = texWidth * texHeight * 4;  // 4 for RGBA
+
+    // Create a Vulkan image
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.extent.width = static_cast<uint32_t>(texWidth);
+    imageInfo.extent.height = static_cast<uint32_t>(texHeight);
+    imageInfo.extent.depth = 1;
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+
+    VmaAllocationCreateInfo allocInfo = {};
+    allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+    VkImage image;
+    VmaAllocation allocation;
+    vmaCreateImage(_allocator, &imageInfo, &allocInfo, &image, &allocation, nullptr);
+
+    // Upload pixels to the Vulkan image
+    VkBuffer stagingBuffer;
+    VmaAllocation stagingBufferAllocation;
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = imageSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VmaAllocationCreateInfo bufferAllocInfo = {};
+    bufferAllocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+    vmaCreateBuffer(_allocator, &bufferInfo, &bufferAllocInfo, &stagingBuffer, &stagingBufferAllocation, nullptr);
+
+    void* data;
+    vmaMapMemory(_allocator, stagingBufferAllocation, &data);
+    memcpy(data, pixels, static_cast<size_t>(imageSize));
+    vmaUnmapMemory(_allocator, stagingBufferAllocation);
+
+    // Clean up pixel array
+    stbi_image_free(pixels);
+
+    // Transfer data to the image
+    immediate_submit([&](VkCommandBuffer cmd) {
+        vkutil::transition_image(cmd, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        vkutil::copy_buffer_to_image(cmd, stagingBuffer, image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+        vkutil::transition_image(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    });
+
+    // Clean up staging buffer
+    vmaDestroyBuffer(_allocator, stagingBuffer, stagingBufferAllocation);
+
+    // Create image view
+    VkImageView imageView;
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = 1;
+
+    if (vkCreateImageView(_device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create texture image view!");
+    }
+
+    return AllocatedImage{ image, imageView, allocation, {static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), 1}, VK_FORMAT_R8G8B8A8_SRGB };
+
+}
+
 void VulkanEngine::init_renderables()
 {
     //std::string structurePath = { "..\\..\\assets\\empire_state_building.glb" };
@@ -1262,6 +1350,10 @@ void VulkanEngine::init_renderables()
     assert(structureFile.has_value());
 
     loadedScenes["structure"] = *structureFile;
+
+    // load environment map .png
+    std::string envMapPath = { "..\\..\\assets\\142_hdrmaps_com_free_10K.png" };
+    environmentMap = loadImageFromFile(envMapPath);
 }
 
 void VulkanEngine::init_imgui()

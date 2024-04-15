@@ -13,8 +13,8 @@ layout(set = 1, binding = 0) uniform SceneData {
 
 struct hitPayload
 {
-  vec3 hitValue;
-  int recursionDepth;
+    vec3 hitValue;
+    int recursionDepth;
 };
 
 struct Vertex
@@ -36,5 +36,5 @@ struct MaterialRT
 // Push constant structure for the ray tracer
 struct PushConstantRay
 {
-  vec4 clearColor;
+    vec4 clearColor;
 };

@@ -462,14 +462,17 @@ void VulkanRayTracer::createRtDescriptorSet()
     DescriptorLayoutBuilder m_rtDescLayoutBuilder;
     m_rtDescLayoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);  // TLAS
     m_rtDescLayoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);  // Output image
+    m_rtDescLayoutBuilder.add_binding(2, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);  // Environment map
 
     std::vector<DescriptorAllocator::PoolSizeRatio> rt_pool_sizes = {
         { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
         { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
+        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1 },
     };
     m_rtDescAllocator.init_pool(engine->_device, 1, rt_pool_sizes);
     m_rtDescPool = m_rtDescAllocator.pool;
-    m_rtDescSetLayout = m_rtDescLayoutBuilder.build(engine->_device, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+    VkShaderStageFlags flags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR;
+    m_rtDescSetLayout = m_rtDescLayoutBuilder.build(engine->_device, flags);
 
     VkDescriptorSetAllocateInfo allocateInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
     allocateInfo.descriptorPool = m_rtDescPool;
@@ -487,6 +490,7 @@ void VulkanRayTracer::createRtDescriptorSet()
     m_rtDescWriter.writes[0].pNext = &descASInfo;
     m_rtDescWriter.writes[0].pBufferInfo = nullptr;
     m_rtDescWriter.write_image(1, engine->_drawImage.imageView, {}, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    m_rtDescWriter.write_image(2, engine->environmentMap.imageView, {}, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
     m_rtDescWriter.update_set(engine->_device, m_rtDescSet);
 
     // add all to deletion queue

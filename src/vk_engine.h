@@ -222,6 +222,7 @@ public:
 	AllocatedImage _blackImage;
 	AllocatedImage _greyImage;
 	AllocatedImage _errorCheckerboardImage;
+    AllocatedImage environmentMap;
 
 	VkSampler _defaultSamplerLinear;
 	VkSampler _defaultSamplerNearest;
@@ -293,6 +294,8 @@ public:
     AllocatedBuffer create_buffer_data(VkDeviceSize size, const void* data, VkBufferUsageFlags usage, const VmaMemoryUsage memUsage);
 
     AllocatedBuffer allocateAndBindBuffer(VkBuffer buffer, VmaMemoryUsage memoryUsage);
+
+    AllocatedImage loadImageFromFile(std::string path);
 
 private:
     void init_vulkan();
