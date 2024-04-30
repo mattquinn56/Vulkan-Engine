@@ -164,6 +164,7 @@ public:
     VkExtent2D _windowExtent { 1700, 900 };
 
     std::string structurePath;
+    std::string lightPath;
     std::string envMapPath;
 
     struct SDL_Window* _window { nullptr };

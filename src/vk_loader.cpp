@@ -1,5 +1,6 @@
 ﻿#include "stb_image.h"
 #include <iostream>
+#include <fstream>
 #include <vk_loader.h>
 
 #include "vk_engine.h"
@@ -12,6 +13,8 @@
 #include <fastgltf/parser.hpp>
 #include <fastgltf/tools.hpp>
 #include <fastgltf/util.hpp>
+#include <nlohmann/json.hpp>
+
 //> loadimg
 std::optional<AllocatedImage> load_image(VulkanEngine* engine, fastgltf::Asset& asset, fastgltf::Image& image)
 {
@@ -126,6 +129,80 @@ VkSamplerMipmapMode extract_mipmap_mode(fastgltf::Filter filter)
     }
 }
 //< filters
+
+std::vector<RenderLight> loadLights(std::string filePath) {
+    // Read json
+    std::ifstream inFile(filePath);
+    std::stringstream strStream;
+
+    if (!inFile.is_open()) {
+        std::cerr << "Failed to open file: " << filePath << std::endl;
+        return {};
+    }
+
+    strStream << inFile.rdbuf();  // Read the file
+    std::string jsonData = strStream.str();       // Convert stream to string
+
+    // Parse lights
+    auto j = nlohmann::json::parse(jsonData);
+    std::vector<RenderLight> lights = {};
+
+    for (const auto& item : j["lights"]) {
+        RenderLight light = {};
+
+        // Get type
+        if (item["type"] == "point") {
+            light.color.a = 0.0f;
+        } else if (item["type"] == "ambient") {
+			light.color.a = 1.0f;
+        } else if (item["type"] == "directional") {
+			light.color.a = 2.0f;
+		} else if (item["type"] == "area") {
+            light.color.a = 3.0f;
+        } else {
+            std::cerr << "Unknown light type: " << item["type"] << std::endl;
+            light.color.a = -1.0f;
+        }
+        
+        // Get intensity
+        light.position.a = item["intensity"];
+
+        // Get color
+        light.color.r = item["color"][0] / 255.0f;
+        light.color.g = item["color"][1] / 255.0f;
+        light.color.b = item["color"][2] / 255.0f;
+
+        // Get position/direction
+        if (item["type"] == "point") {
+            light.position.x = item["position"][0];
+            light.position.y = item["position"][1];
+            light.position.z = item["position"][2];
+        } else if (item["type"] == "directional") {
+			light.position.x = item["direction"][0];
+			light.position.y = item["direction"][1];
+			light.position.z = item["direction"][2];
+		}
+
+        // Get vertices
+        if (item["type"] == "area") {
+            light.v0.x = item["vertices"][0][0];
+			light.v0.y = item["vertices"][0][1];
+			light.v0.z = item["vertices"][0][2];
+
+			light.v1.x = item["vertices"][1][0];
+			light.v1.y = item["vertices"][1][1];
+			light.v1.z = item["vertices"][1][2];
+
+            light.position.x = item["vertices"][2][0];
+            light.position.y = item["vertices"][2][1];
+            light.position.z = item["vertices"][2][2];
+        }
+
+        lights.push_back(light);
+    }
+
+    return lights;
+}
 
 std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::string_view filePath)
 {

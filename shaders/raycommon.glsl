@@ -4,8 +4,6 @@ struct RenderLight {
 	// 3 vertex positions and a normal, for an area light
 	vec4 v0;
 	vec4 v1;
-	vec4 v2;
-	vec4 normal;
 };
 
 layout(set = 1, binding = 0) uniform SceneData {   

@@ -9,6 +9,7 @@ set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems
 project ("vulkan_guide")
 
 find_package(Vulkan REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 add_subdirectory(third_party)
 

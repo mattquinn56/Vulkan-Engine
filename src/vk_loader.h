@@ -67,4 +67,5 @@ private:
     void clearAll();
 };
 
+std::vector<RenderLight> loadLights(std::string filePath);
 std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::string_view filePath);

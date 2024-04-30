@@ -1330,8 +1330,8 @@ AllocatedImage VulkanEngine::loadImageFromFile(std::string path)
 
 void VulkanEngine::init_renderables()
 {
-    //std::string structurePath = { "..\\..\\assets\\empire_state_building.glb" };
     structurePath = { "..\\..\\assets\\livingroom.glb" };
+    lightPath = { "..\\..\\assets\\livingroom.json" };
     auto structureFile = loadGltf(this,structurePath);
 
     assert(structureFile.has_value());
@@ -1348,31 +1348,23 @@ void VulkanEngine::init_lights() {
     // below are hard-coded lights for now
     sceneData.numLights = glm::vec4(size(sceneData.lights), 0.0, 0.0, 1.0);
 
-    // temp: generate a ton of useless ambient lights
-    for (int i = 0; i < size(sceneData.lights); i++) {
-        sceneData.lights[i] = RenderLight{};
-        sceneData.lights[i].color.a = 1.0; // to make all all ambient
+    std:vector<RenderLight> parsedLights = loadLights(lightPath);
+    std::cout << "Loaded " << size(parsedLights) << " lights" << std::endl;
+
+    // unpack lights
+    for (int i = 0; i < size(parsedLights); i++) {
+		sceneData.lights[i] = parsedLights[i];
+	}
+    // let user know if array isn't big enough
+    if (size(parsedLights) > size(sceneData.lights)) {
+		std::cout << "Warning: more lights loaded than can be stored in sceneData.lights" << std::endl;
+    } else {
+        // fill remaining entries of array with 0
+        for (int i = size(parsedLights); i < size(sceneData.lights); i++) {
+            sceneData.lights[i] = RenderLight{};
+            sceneData.lights[i].color.a = 1.0; // to make all all ambient
+        }
     }
-
-    RenderLight pointLight = RenderLight{};
-    pointLight.position = glm::vec4(2.256, 1.633, 2.071, 1.0);
-    pointLight.color = glm::vec4(.98, .98, .82, 0.0);
-    sceneData.lights[0] = pointLight;
-
-    RenderLight dirLight = RenderLight{};
-    dirLight.position = glm::vec4(1.0, 0.2, 0.0, .9);
-    dirLight.color = glm::vec4(1.0, 1.0, .75, 2.0);
-    sceneData.lights[1] = dirLight;
-
-    RenderLight ambientLight = RenderLight{};
-    ambientLight.position = glm::vec4(0.0, 0.0, 0.0, .1);
-    ambientLight.color = glm::vec4(1.0, 1.0, 1.0, 1.0);
-    sceneData.lights[2] = ambientLight;
-
-    RenderLight ambientLight2 = RenderLight{};
-    ambientLight2.position = glm::vec4(0.0, 0.0, 0.0, .061);
-    ambientLight2.color = glm::vec4(1.0, 0.0, 0.0, 1.0);
-    sceneData.lights[3] = ambientLight2;
 }
 
 void VulkanEngine::init_imgui()
