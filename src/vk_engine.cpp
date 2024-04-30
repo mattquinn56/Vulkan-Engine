@@ -1344,20 +1344,14 @@ void VulkanEngine::init_renderables()
 }
 
 void VulkanEngine::init_lights() {
-    // loads the "lights" field in sceneData with the lights in the scene
-    // generate lights
+    // there is no (real) way to parse lights from a gltf file
+    // below are hard-coded lights for now
     sceneData.numLights = glm::vec4(size(sceneData.lights), 0.0, 0.0, 1.0);
 
     // temp: generate a ton of useless ambient lights
     for (int i = 0; i < size(sceneData.lights); i++) {
-        RenderLight ambientLight = RenderLight{};
-        ambientLight.position = glm::vec4(0.0, 0.0, 0.0, 0.0);
-        ambientLight.color = glm::vec4(0.0, 0.0, 0.0, 1.0);
-        ambientLight.v0 = glm::vec4(0.0, 0.0, 0.0, 0.0);
-        ambientLight.v1 = glm::vec4(0.0, 0.0, 0.0, 0.0);
-        ambientLight.v2 = glm::vec4(0.0, 0.0, 0.0, 0.0);
-        ambientLight.normal = glm::vec4(0.0, 0.0, 0.0, 0.0);
-        sceneData.lights[i] = ambientLight;
+        sceneData.lights[i] = RenderLight{};
+        sceneData.lights[i].color.a = 1.0; // to make all all ambient
     }
 
     RenderLight pointLight = RenderLight{};
