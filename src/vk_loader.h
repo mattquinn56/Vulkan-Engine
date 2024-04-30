@@ -45,6 +45,7 @@ struct LoadedGLTF : public IRenderable {
     std::unordered_map<std::shared_ptr<Node>, std::string> nodeNames;
     std::unordered_map<std::string, AllocatedImage> images;
     std::unordered_map<std::string, std::shared_ptr<GLTFMaterial>> materials;
+    std::vector<RenderLight> lights;
 
     // nodes that dont have a parent, for iterating through the file in tree order
     std::vector<std::shared_ptr<Node>> topNodes;

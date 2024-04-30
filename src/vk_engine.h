@@ -163,6 +163,9 @@ public:
 
     VkExtent2D _windowExtent { 1700, 900 };
 
+    std::string structurePath;
+    std::string envMapPath;
+
     struct SDL_Window* _window { nullptr };
 
     VkInstance _instance;
@@ -320,6 +323,8 @@ private:
     void init_sync_structures();
 
     void init_renderables();
+
+    void init_lights();
 
     void init_imgui();
 

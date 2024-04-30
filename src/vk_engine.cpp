@@ -24,6 +24,7 @@
 
 #include <iostream>
 #include <stb_image.h>
+#include <fastgltf/parser.hpp>
 
 constexpr bool bUseValidationLayers = true;
 
@@ -74,6 +75,8 @@ void VulkanEngine::init()
     init_raytracing();
 
     init_renderables();
+
+    init_lights();
 
     init_imgui();
 
@@ -756,23 +759,6 @@ void VulkanEngine::update_scene()
 	sceneData.view = view;
 	sceneData.proj = projection;
 	sceneData.viewproj = projection * view;
-    sceneData.numLights = glm::vec4(3.0, 0.0, 0.0, 1.0);
-
-    // lights are updating every frame - unnecessary currently
-    RenderLight pointLight = RenderLight{};
-    pointLight.position = glm::vec4(2.256, 1.633, 2.071, 1.0);
-    pointLight.color = glm::vec4(.98, .98, .82, 0.0);
-    sceneData.lights[0] = pointLight;
-
-    RenderLight dirLight = RenderLight{};
-    dirLight.position = glm::vec4(1.0, 0.2, 0.0, .9);
-    dirLight.color = glm::vec4(1.0, 1.0, .75, 2.0);
-    sceneData.lights[1] = dirLight;
-
-    RenderLight ambientLight = RenderLight{};
-    ambientLight.position = glm::vec4(0.0, 0.0, 0.0, .1);
-    ambientLight.color = glm::vec4(1.0, 1.0, 1.0, 1.0);
-    sceneData.lights[2] = ambientLight;
 
     drawCommands.OpaqueSurfaces.clear();
     drawCommands.m_objDesc.clear();
@@ -1315,7 +1301,7 @@ AllocatedImage VulkanEngine::loadImageFromFile(std::string path)
     immediate_submit([&](VkCommandBuffer cmd) {
         vkutil::transition_image(cmd, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         vkutil::copy_buffer_to_image(cmd, stagingBuffer, image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-        vkutil::transition_image(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        vkutil::transition_image(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
     });
 
     // Clean up staging buffer
@@ -1345,7 +1331,7 @@ AllocatedImage VulkanEngine::loadImageFromFile(std::string path)
 void VulkanEngine::init_renderables()
 {
     //std::string structurePath = { "..\\..\\assets\\empire_state_building.glb" };
-    std::string structurePath = { "..\\..\\assets\\structure.glb" };
+    structurePath = { "..\\..\\assets\\livingroom.glb" };
     auto structureFile = loadGltf(this,structurePath);
 
     assert(structureFile.has_value());
@@ -1353,8 +1339,46 @@ void VulkanEngine::init_renderables()
     loadedScenes["structure"] = *structureFile;
 
     // load environment map .png
-    std::string envMapPath = { "..\\..\\assets\\142_hdrmaps_com_free_10K.png" };
+    envMapPath = { "..\\..\\assets\\142_hdrmaps_com_free_10K.png" };
     environmentMap = loadImageFromFile(envMapPath);
+}
+
+void VulkanEngine::init_lights() {
+    // loads the "lights" field in sceneData with the lights in the scene
+    // generate lights
+    sceneData.numLights = glm::vec4(size(sceneData.lights), 0.0, 0.0, 1.0);
+
+    // temp: generate a ton of useless ambient lights
+    for (int i = 0; i < size(sceneData.lights); i++) {
+        RenderLight ambientLight = RenderLight{};
+        ambientLight.position = glm::vec4(0.0, 0.0, 0.0, 0.0);
+        ambientLight.color = glm::vec4(0.0, 0.0, 0.0, 1.0);
+        ambientLight.v0 = glm::vec4(0.0, 0.0, 0.0, 0.0);
+        ambientLight.v1 = glm::vec4(0.0, 0.0, 0.0, 0.0);
+        ambientLight.v2 = glm::vec4(0.0, 0.0, 0.0, 0.0);
+        ambientLight.normal = glm::vec4(0.0, 0.0, 0.0, 0.0);
+        sceneData.lights[i] = ambientLight;
+    }
+
+    RenderLight pointLight = RenderLight{};
+    pointLight.position = glm::vec4(2.256, 1.633, 2.071, 1.0);
+    pointLight.color = glm::vec4(.98, .98, .82, 0.0);
+    sceneData.lights[0] = pointLight;
+
+    RenderLight dirLight = RenderLight{};
+    dirLight.position = glm::vec4(1.0, 0.2, 0.0, .9);
+    dirLight.color = glm::vec4(1.0, 1.0, .75, 2.0);
+    sceneData.lights[1] = dirLight;
+
+    RenderLight ambientLight = RenderLight{};
+    ambientLight.position = glm::vec4(0.0, 0.0, 0.0, .1);
+    ambientLight.color = glm::vec4(1.0, 1.0, 1.0, 1.0);
+    sceneData.lights[2] = ambientLight;
+
+    RenderLight ambientLight2 = RenderLight{};
+    ambientLight2.position = glm::vec4(0.0, 0.0, 0.0, .061);
+    ambientLight2.color = glm::vec4(1.0, 0.0, 0.0, 1.0);
+    sceneData.lights[3] = ambientLight2;
 }
 
 void VulkanEngine::init_imgui()
@@ -1671,8 +1695,6 @@ VkDeviceAddress VulkanEngine::getBufferDeviceAddress(VkDevice device, VkBuffer b
     info.buffer = buffer;
     return vkGetBufferDeviceAddress(device, &info);
 }
-
-
 
 //--------------------------------------------------------------------------------------------------
 // Creates a buffer with data mapped in

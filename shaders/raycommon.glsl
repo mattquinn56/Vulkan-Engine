@@ -1,6 +1,11 @@
 struct RenderLight {
     vec4 position; // a is intensity
     vec4 color; // a is type, 0 is point, 1 is ambient
+	// 3 vertex positions and a normal, for an area light
+	vec4 v0;
+	vec4 v1;
+	vec4 v2;
+	vec4 normal;
 };
 
 layout(set = 1, binding = 0) uniform SceneData {   

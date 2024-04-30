@@ -10,6 +10,7 @@
 const int POINT = 0;
 const int AMBIENT = 1;
 const int DIRECTIONAL = 2;
+const int AREA = 3;
 const float EPSILON = .001;
 const float T_MAX = 10000.0;
 const int MAX_RECURSION = 4; // should be the same as MAX_RECURSION in vk_raytracer.h
@@ -112,12 +113,14 @@ void main()
     vec2 uv = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
 	vec3 texColor = texture(ColImage2D[mat.textureID], uv).xyz * v0.color.xyz * mat.colorFactors.xyz;
 
-    // Get material data
-    vec4 matData = texture(MetalRoughImage2D[mat.textureID], uv);
-    //float metal = matData.x; // if using metal rough texture map
+    // Get material data via metal-rough texture map
+    //vec4 matData = texture(MetalRoughImage2D[mat.textureID], uv);
+    //float metal = matData.x;
     //float roughness = matData.y;
+    
+    // Get material data via metal-rough factors
     float metal = mat.metal_rough_factors.x;
-    float roughness = mat.metal_rough_factors.y;
+    float roughness = 0.0;//mat.metal_rough_factors.y;
 
     // Computing the coordinates of the hit position
     const vec3 pos = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
@@ -173,7 +176,9 @@ void main()
 					float specular = computeSpecularIntensity(gl_WorldRayDirectionEXT, lightDir, worldNrm, roughness);
 					outColor += specular * lcolor * intensity;
                 }
-	        }
+	        } else if (type == AREA) {
+                outColor += vec3(0.0);
+            }
         }
     }
 

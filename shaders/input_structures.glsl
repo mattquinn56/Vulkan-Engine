@@ -9,7 +9,7 @@ layout(set = 0, binding = 0) uniform SceneData {
 	mat4 proj;
 	mat4 viewproj;
     vec4 numLights; // x is num lights
-    RenderLight lights[16];
+    RenderLight lights[4];
 } sceneData;
 
 layout(set = 1, binding = 0) uniform GLTFMaterialData {   
