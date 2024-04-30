@@ -659,6 +659,7 @@ void VulkanEngine::run()
 		ImGui::Text("triangles %i", stats.triangle_count);
 		ImGui::Text("draws %i", stats.drawcall_count);
         glm::vec3 viewDir = mainCamera.getViewDirection();
+        ImGui::Text("position: %f %f %f", mainCamera.position.x, mainCamera.position.y, mainCamera.position.z);
         ImGui::Text("view direction: %f %f %f", viewDir.x, viewDir.y, viewDir.z);
         ImGui::End();
 
@@ -755,23 +756,23 @@ void VulkanEngine::update_scene()
 	sceneData.view = view;
 	sceneData.proj = projection;
 	sceneData.viewproj = projection * view;
-    sceneData.numLights = glm::vec4(2.0, 0.0, 0.0, 1.0);
+    sceneData.numLights = glm::vec4(3.0, 0.0, 0.0, 1.0);
 
     // lights are updating every frame - unnecessary currently
-    //RenderLight pointLight = RenderLight{};
-    //pointLight.position = glm::vec4(-15.0, 0.0, -70.0, 5000.0);
-    //pointLight.color = glm::vec4(.7, .85, 1.0, 0.0);
-    //sceneData.lights[0] = pointLight;
+    RenderLight pointLight = RenderLight{};
+    pointLight.position = glm::vec4(2.256, 1.633, 2.071, 1.0);
+    pointLight.color = glm::vec4(.98, .98, .82, 0.0);
+    sceneData.lights[0] = pointLight;
 
     RenderLight dirLight = RenderLight{};
     dirLight.position = glm::vec4(1.0, 0.2, 0.0, .9);
     dirLight.color = glm::vec4(1.0, 1.0, .75, 2.0);
-    sceneData.lights[0] = dirLight;
+    sceneData.lights[1] = dirLight;
 
     RenderLight ambientLight = RenderLight{};
     ambientLight.position = glm::vec4(0.0, 0.0, 0.0, .1);
     ambientLight.color = glm::vec4(1.0, 1.0, 1.0, 1.0);
-    sceneData.lights[1] = ambientLight;
+    sceneData.lights[2] = ambientLight;
 
     drawCommands.OpaqueSurfaces.clear();
     drawCommands.m_objDesc.clear();
@@ -1344,7 +1345,7 @@ AllocatedImage VulkanEngine::loadImageFromFile(std::string path)
 void VulkanEngine::init_renderables()
 {
     //std::string structurePath = { "..\\..\\assets\\empire_state_building.glb" };
-    std::string structurePath = { "..\\..\\assets\\crypt_location.glb" };
+    std::string structurePath = { "..\\..\\assets\\livingroom.gltf" };
     auto structureFile = loadGltf(this,structurePath);
 
     assert(structureFile.has_value());

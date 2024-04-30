@@ -504,43 +504,6 @@ void VulkanRayTracer::createRtDescriptorSet()
 
 void VulkanRayTracer::createRtMaterialDescriptorSet() {
 
-    //
-    // Descriptor set #3 holds SSBOs for the static list of color texture images and metal rough images
-    //
-    //AllocatedBuffer m_bRtMatCol = engine->create_buffer_data(sizeof(AllocatedImage) * m_colTextures.size(), m_colTextures.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-    //AllocatedBuffer m_bRtMatMR = engine->create_buffer_data(sizeof(AllocatedImage) * m_colTextures.size(), m_colTextures.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-    //m_rtMatDescSet = m_rtMatDescAllocator.allocate(engine->_device, m_rtMatDescSetLayout);
-
-    //DescriptorWriter writer;
-    //writer.write_buffer(0, m_bRtMatCol.buffer, VK_WHOLE_SIZE, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-    //writer.update_set(engine->_device, m_rtMatDescSet);
-
-    // VkSampler create info
-    /*
-    VkSamplerCreateInfo samplerInfo = {};
-    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = VK_FILTER_LINEAR;
-    samplerInfo.minFilter = VK_FILTER_LINEAR;
-    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.anisotropyEnable = VK_TRUE;
-    samplerInfo.maxAnisotropy = 16;
-    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-    samplerInfo.unnormalizedCoordinates = VK_FALSE;
-    samplerInfo.compareEnable = VK_FALSE;
-    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-
-    // Create each VkSampler
-    m_colSamplers.resize(n);
-    m_metalRoughSamplers.resize(n);
-    for (int i = 0; i < n; ++i) {
-        vkCreateSampler(engine->_device, &samplerInfo, nullptr, &m_colSamplers[i]);
-        vkCreateSampler(engine->_device, &samplerInfo, nullptr, &m_metalRoughSamplers[i]);
-    }
-    */
-
     int n = m_colTextures.size();
 
     DescriptorLayoutBuilder m_rtMatDescLayoutBuilder;

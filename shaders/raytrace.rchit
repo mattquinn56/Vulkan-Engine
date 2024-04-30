@@ -110,7 +110,7 @@ void main()
     vec2 uv1 = vec2(v1.uv_x, v1.uv_y);
     vec2 uv2 = vec2(v2.uv_x, v2.uv_y);
     vec2 uv = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
-	vec3 texColor = texture(ColImage2D[mat.textureID], uv).xyz;
+	vec3 texColor = texture(ColImage2D[mat.textureID], uv).xyz * v0.color.xyz * mat.colorFactors.xyz;
 
     // Get material data
     vec4 matData = texture(MetalRoughImage2D[mat.textureID], uv);
