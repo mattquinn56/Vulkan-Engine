@@ -75,7 +75,7 @@ BlasInput VulkanRayTracer::objectToVkGeometryKHR(const RenderObject object)
     VkAccelerationStructureBuildRangeInfoKHR offset;
     offset.firstVertex = 0;
     offset.primitiveCount = maxPrimitiveCount;
-    offset.primitiveOffset = 0;
+    offset.primitiveOffset = object.firstIndex * sizeof(uint32_t);
     offset.transformOffset = 0;
 
     // Our blas is made from only one geometry, but could be made of many geometries

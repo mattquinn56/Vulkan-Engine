@@ -1345,7 +1345,7 @@ AllocatedImage VulkanEngine::loadImageFromFile(std::string path)
 void VulkanEngine::init_renderables()
 {
     //std::string structurePath = { "..\\..\\assets\\empire_state_building.glb" };
-    std::string structurePath = { "..\\..\\assets\\livingroom.gltf" };
+    std::string structurePath = { "..\\..\\assets\\structure.glb" };
     auto structureFile = loadGltf(this,structurePath);
 
     assert(structureFile.has_value());
