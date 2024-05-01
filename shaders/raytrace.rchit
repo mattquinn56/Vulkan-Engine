@@ -22,6 +22,14 @@ struct ObjDesc {
     uint64_t materialAddress; // Address of the material buffer
 };
 
+// Push constant structure for the ray tracer
+struct PushConstantRay
+{
+    vec4 clearColor;
+	uint64_t lightAddress;
+    uint numLights;
+};
+
 layout(location = 0) rayPayloadInEXT hitPayload prd;
 layout(location = 1) rayPayloadEXT bool isShadowed;
 hitAttributeEXT vec2 attribs;
@@ -29,6 +37,7 @@ hitAttributeEXT vec2 attribs;
 layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; };
 layout(buffer_reference, scalar) buffer Indices { ivec3 i[]; };
 layout(buffer_reference, scalar) buffer Material { MaterialRT m; };
+layout(buffer_reference, scalar) buffer Light { RenderLight rl; };
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
 layout(set = 2, binding = 0, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
 //layout(set = 3, binding = 0, scalar) buffer ColImage2D { sampler2d i[]; };
@@ -134,15 +143,17 @@ void main()
 
     // Lighting loop
     if (metal < 1.0 - EPSILON || !computeReflection) {
-        int numLights = int(sceneData.numLights.x);
-        for (int i = 0; i < numLights; i++) {
-
+        for (int i = 0; i < pcRay.numLights; i++) {
+            
             // Unpack light info
-            RenderLight l = sceneData.lights[i];
+            RenderLight l = Light(pcRay.lightAddress + i * RLstride).rl;
             vec3 lpos = l.position.xyz;
             float intensity = l.position.a;
             vec3 lcolor = l.color.xyz;
             int type = int(l.color.a);
+            vec3 v0 = l.v0.xyz;
+            vec3 v1 = l.v1.xyz;
+            vec3 v2 = lpos;
 
             // Calculate by type
             if (type == POINT) {

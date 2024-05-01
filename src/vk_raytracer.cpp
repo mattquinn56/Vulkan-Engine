@@ -763,6 +763,8 @@ void VulkanRayTracer::raytrace(const VkCommandBuffer& cmdBuf)
 {
     // Initializing push constant values
     m_pcRay.clearColor = glm::vec4(.6, .6, .6, 1.00f);
+    m_pcRay.lightAddress = engine->getBufferDeviceAddress(engine->_device, engine->m_lightBuffer.buffer);
+    m_pcRay.numLights = engine->m_numLights;
     engine->update_global_descriptor();
 
     std::vector<VkDescriptorSet> descSets{ m_rtDescSet, engine->_globalDescriptor, engine->_objDescSet, m_rtMatDescSet };

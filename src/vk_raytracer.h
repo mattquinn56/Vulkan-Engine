@@ -111,6 +111,8 @@ public:
     struct PushConstantRay
     {
         glm::vec4 clearColor;
+        uint64_t lightAddress;
+        int numLights;
     };
 
     // Push constant for ray tracer

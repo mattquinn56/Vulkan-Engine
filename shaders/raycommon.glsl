@@ -1,3 +1,4 @@
+const int RLstride = 64; // total size of RenderLight, in bytes
 struct RenderLight {
     vec4 position; // a is intensity
     vec4 color; // a is type, 0 is point, 1 is ambient
@@ -34,10 +35,4 @@ struct MaterialRT
     vec4 colorFactors;
     vec4 metal_rough_factors; // x is reflectivity proportion (metal), y is specular intensity proportion (roughness)
 	int textureID;
-};
-
-// Push constant structure for the ray tracer
-struct PushConstantRay
-{
-    vec4 clearColor;
 };

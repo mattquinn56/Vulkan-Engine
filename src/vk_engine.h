@@ -179,6 +179,8 @@ public:
 
     AllocatedBuffer _defaultGLTFMaterialData;
     AllocatedBuffer m_bObjDesc;
+    AllocatedBuffer m_lightBuffer;
+    int m_numLights;
 
     FrameData _frames[FRAME_OVERLAP];
 

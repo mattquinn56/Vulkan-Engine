@@ -5,6 +5,14 @@
 #include "raycommon.glsl"
 #define M_PI 3.1415926535897932384626433832795
 
+// Push constant structure for the ray tracer
+struct PushConstantRay
+{
+    vec4 clearColor;
+	uint64_t lightAddress;
+    uint numLights;
+};
+
 layout(location = 0) rayPayloadInEXT hitPayload prd;
 layout(set = 0, binding = 2) uniform sampler2D envmap;
 

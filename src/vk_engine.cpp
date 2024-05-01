@@ -1365,6 +1365,11 @@ void VulkanEngine::init_lights() {
             sceneData.lights[i].color.a = 1.0; // to make all all ambient
         }
     }
+
+    // create a buffer for the lights
+    VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+    m_lightBuffer = create_buffer_data(sizeof(GPUSceneData), parsedLights.data(), usage, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    m_numLights = size(parsedLights);
 }
 
 void VulkanEngine::init_imgui()
