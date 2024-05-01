@@ -570,8 +570,10 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd)
         GPUDrawPushConstants push_constants;
         push_constants.worldMatrix = r.transform;
         push_constants.vertexBuffer = r.vertexBufferAddress;
+        push_constants.lightBuffer = getBufferDeviceAddress(_device, m_lightBuffer.buffer);;
+        push_constants.numLights = m_numLights;
 
-        vkCmdPushConstants(cmd, r.material->pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+        vkCmdPushConstants(cmd, r.material->pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
 
         stats.drawcall_count++;
         stats.triangle_count += r.indexCount / 3;
@@ -1344,32 +1346,13 @@ void VulkanEngine::init_renderables()
 }
 
 void VulkanEngine::init_lights() {
-    // there is no (real) way to parse lights from a gltf file
-    // below are hard-coded lights for now
-    sceneData.numLights = glm::vec4(size(sceneData.lights), 0.0, 0.0, 1.0);
-
     std:vector<RenderLight> parsedLights = loadLights(lightPath);
-    std::cout << "Loaded " << size(parsedLights) << " lights" << std::endl;
-
-    // unpack lights
-    for (int i = 0; i < size(parsedLights); i++) {
-		sceneData.lights[i] = parsedLights[i];
-	}
-    // let user know if array isn't big enough
-    if (size(parsedLights) > size(sceneData.lights)) {
-		std::cout << "Warning: more lights loaded than can be stored in sceneData.lights" << std::endl;
-    } else {
-        // fill remaining entries of array with 0
-        for (int i = size(parsedLights); i < size(sceneData.lights); i++) {
-            sceneData.lights[i] = RenderLight{};
-            sceneData.lights[i].color.a = 1.0; // to make all all ambient
-        }
-    }
+    m_numLights = size(parsedLights);
+    std::cout << "Loaded " << m_numLights << " lights" << std::endl;
 
     // create a buffer for the lights
     VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-    m_lightBuffer = create_buffer_data(sizeof(GPUSceneData), parsedLights.data(), usage, VMA_MEMORY_USAGE_CPU_TO_GPU);
-    m_numLights = size(parsedLights);
+    m_lightBuffer = create_buffer_data(sizeof(RenderLight) * m_numLights, parsedLights.data(), usage, VMA_MEMORY_USAGE_CPU_TO_GPU);
 }
 
 void VulkanEngine::init_imgui()
@@ -1517,7 +1500,7 @@ void GLTFMetallic_Roughness::build_pipelines(VulkanEngine* engine)
 	VkPushConstantRange matrixRange{};
 	matrixRange.offset = 0;
 	matrixRange.size = sizeof(GPUDrawPushConstants);
-	matrixRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	matrixRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
     DescriptorLayoutBuilder layoutBuilder;
     layoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);

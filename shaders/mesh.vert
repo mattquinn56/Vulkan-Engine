@@ -2,6 +2,7 @@
 
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 #include "input_structures.glsl"
 
@@ -27,6 +28,8 @@ layout(buffer_reference, std430) readonly buffer VertexBuffer {
 layout( push_constant ) uniform constants {
 	mat4 render_matrix;
 	VertexBuffer vertexBuffer;
+	uint64_t lightAddress;
+    uint numLights;
 } PushConstants;
 
 void main() {

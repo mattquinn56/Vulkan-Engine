@@ -58,8 +58,6 @@ struct GPUSceneData {
     glm::mat4 view;
     glm::mat4 proj;
     glm::mat4 viewproj;
-    glm::vec4 numLights; // x is num lights
-    RenderLight lights[16];
 };
 
 //> mat_types
@@ -102,6 +100,8 @@ struct GPUMeshBuffers {
 struct GPUDrawPushConstants {
     glm::mat4 worldMatrix;
     VkDeviceAddress vertexBuffer;
+    VkDeviceAddress lightBuffer;
+    int numLights;
 };
 //< vbuf_types
 

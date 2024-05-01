@@ -1,12 +1,37 @@
 #version 450
 
 #extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #include "input_structures.glsl"
 
 layout (location = 0) in vec3 inNormal;
 layout (location = 1) in vec3 inColor;
 layout (location = 2) in vec2 inUV;
 layout (location = 3) in vec3 inPos;
+
+struct Vertex {
+
+	vec3 position;
+	float uv_x;
+	vec3 normal;
+	float uv_y;
+	vec4 color;
+}; 
+
+layout(buffer_reference, std430) readonly buffer VertexBuffer { 
+	Vertex vertices[];
+};
+
+layout(buffer_reference, std430) buffer Light { RenderLight rl; };
+
+//push constants block
+layout( push_constant ) uniform constants {
+	mat4 render_matrix;
+	VertexBuffer vertexBuffer;
+	uint64_t lightAddress;
+    uint numLights;
+} PushConstants;
 
 layout (location = 0) out vec4 outFragColor;
 
@@ -57,11 +82,11 @@ void main() {
     outFragColor = vec4(0.0, 0.0, 0.0, 1.0);
     vec3 color = inColor * texture(colorTex, inUV).xyz;
     vec3 normal = normalize(inNormal);
-    int numLights = int(sceneData.numLights.x);
-    for (int i = 0; i < numLights; i++) {
-        RenderLight l = sceneData.lights[i];
+    for (int i = 0; i < PushConstants.numLights; i++) {
+        RenderLight l = Light(PushConstants.lightAddress + i * RLstride).rl;
         float power = l.position.a;
         int type = int(l.color.a);
+
 	    if (type == POINT) {
             float dist = length(l.position.xyz - inPos);
 		    vec3 lightDir = normalize(l.position.xyz - inPos);
