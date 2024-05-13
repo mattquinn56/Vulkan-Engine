@@ -11,9 +11,10 @@ const int POINT = 0;
 const int AMBIENT = 1;
 const int DIRECTIONAL = 2;
 const int AREA = 3;
-const float EPSILON = .001;
+const float EPSILON = .01;
 const float T_MAX = 10000.0;
 const int MAX_RECURSION = 4; // should be the same as MAX_RECURSION in vk_raytracer.h
+const int AREA_SAMPLES = 6;
 
 // Information of a obj model when referenced in a shader
 struct ObjDesc {
@@ -88,6 +89,11 @@ float computeSpecularIntensity(vec3 viewDir, vec3 lightDir, vec3 normal, float r
     return pf;
 }
 
+vec2 randomVec2(vec2 seed) {
+    return vec2(fract(sin(seed.x * 12.9898 + seed.y * 78.233) * 43758.5453),
+                fract(sin(seed.y * 34.7892 + seed.x * 56.1234) * 12345.6789));
+}
+
 void main()
 {
     // Increment number of recursions
@@ -151,12 +157,13 @@ void main()
             float intensity = l.position.a;
             vec3 lcolor = l.color.xyz;
             int type = int(l.color.a);
-            vec3 v0 = l.v0.xyz;
-            vec3 v1 = l.v1.xyz;
-            vec3 v2 = lpos;
+            vec3 lv0 = l.v0.xyz;
+            vec3 lv1 = l.v1.xyz;
+            vec3 lv2 = lpos;
 
             // Calculate by type
             if (type == POINT) {
+                continue;
                 float dist = length(lpos - worldPos);
 		        vec3 lightDir = normalize(lpos - worldPos);
                 bool shadowed = isOccluded(worldPos, lightDir, dist);
@@ -175,6 +182,7 @@ void main()
 		        outColor += vec3(texColor * intensity * lcolor);
 
 	        } else if (type == DIRECTIONAL) {
+                continue;
 		        vec3 lightDir = normalize(lpos);
                 bool shadowed = isOccluded(worldPos, lightDir, T_MAX);
                 if (!shadowed) {
@@ -188,7 +196,26 @@ void main()
 					outColor += specular * lcolor * intensity;
                 }
 	        } else if (type == AREA) {
-                outColor += vec3(0.0);
+                for (int j = 0; j < AREA_SAMPLES; j++) {
+                    // randomly generate a point on the light
+                    //vec2 rand = randomVec2(gl_WorldRayDirectionEXT.xy * sceneData.data.x * j);
+                    vec2 rand = randomVec2(gl_WorldRayDirectionEXT.xy * j);
+                    if (rand.x + rand.y > 1.0) {
+                        rand.x = 1.0 - rand.x;
+                        rand.y = 1.0 - rand.y;
+                    }
+                    vec3 samplePoint = lv0 + (rand.x * (lv1 - lv0)) + (rand.y * (lv2 - lv0));
+                    
+                    float dist = length(samplePoint - worldPos);
+					vec3 lightDir = normalize(samplePoint - worldPos);
+					bool shadowed = isOccluded(worldPos, lightDir, dist);
+					if (!shadowed) {
+						// compute diffuse
+		                float lightAmt = max(dot(worldNrm, lightDir), 0.0);
+		                vec3 diffuse = lightAmt * intensity * lcolor;
+                        outColor += vec3(texColor * diffuse) / float(AREA_SAMPLES);
+                    }
+                }
             }
         }
     }

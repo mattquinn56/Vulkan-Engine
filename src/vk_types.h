@@ -58,6 +58,7 @@ struct GPUSceneData {
     glm::mat4 view;
     glm::mat4 proj;
     glm::mat4 viewproj;
+    glm::vec4 data; // x is sin(time)
 };
 
 //> mat_types

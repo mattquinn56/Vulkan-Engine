@@ -761,6 +761,7 @@ void VulkanEngine::update_scene()
 	sceneData.view = view;
 	sceneData.proj = projection;
 	sceneData.viewproj = projection * view;
+    sceneData.data = glm::vec4(sin(_frameNumber), 0, 0, 0);
 
     drawCommands.OpaqueSurfaces.clear();
     drawCommands.m_objDesc.clear();

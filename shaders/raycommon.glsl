@@ -1,8 +1,8 @@
 const int RLstride = 64; // total size of RenderLight, in bytes
 struct RenderLight {
-    vec4 position; // a is intensity
-    vec4 color; // a is type, 0 is point, 1 is ambient, 2 is directional, 3 is area
-	vec4 v0;
+    vec4 position; // if directional light, this is direction. if area light, this is v2. alpha channel is intensity
+    vec4 color; // alpha is type, 0 is point, 1 is ambient (no pos data used), 2 is directional (pos data is direction), 3 is area
+	vec4 v0; // this and below is only populated if area light
 	vec4 v1;
 };
 
@@ -10,6 +10,7 @@ layout(set = 1, binding = 0) uniform SceneData {
 	mat4 view;
 	mat4 proj;
 	mat4 viewproj;
+	vec4 data;
 } sceneData;
 
 struct hitPayload
