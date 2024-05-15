@@ -84,9 +84,9 @@ void VulkanEngine::init()
     _isInitialized = true;
 
     mainCamera.velocity = glm::vec3(0.f);
-    mainCamera.position = glm::vec3(2, 4, 2);
+    mainCamera.position = glm::vec3(.53, 1.84, 2.88);
 
-    mainCamera.pitch = 30;
+    mainCamera.pitch = 70;
     mainCamera.yaw = 30;
 }
 
@@ -657,7 +657,7 @@ void VulkanEngine::run()
         ImGui::Begin("Stats");
 
         ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
-        ImGui::Checkbox("View monte carlo", &computeMonteCarlo);  // Run monte carlo sampling
+        ImGui::Checkbox("View multiple sampling", &computeMonteCarlo);  // Run monte carlo sampling
         ImGui::Checkbox("Debug setting", &debugSetting);  // Used for anything
 
 		ImGui::Text("frametime %f ms", stats.frametime);
@@ -762,7 +762,7 @@ void VulkanEngine::update_scene()
 	sceneData.view = view;
 	sceneData.proj = projection;
 	sceneData.viewproj = projection * view;
-    sceneData.data = glm::vec4(sin(_frameNumber), computeMonteCarlo ? 1 : 0, 0, 0); // x is time-dependent random value, y is enable sampling
+    sceneData.data = glm::vec4(_frameNumber, computeMonteCarlo ? 1 : 0, 0, 0); // x is num frames, y is enable sampling
 
     drawCommands.OpaqueSurfaces.clear();
     drawCommands.m_objDesc.clear();
@@ -1334,7 +1334,7 @@ AllocatedImage VulkanEngine::loadImageFromFile(std::string path)
 
 void VulkanEngine::init_renderables()
 {
-    structurePath = { "..\\..\\assets\\livingroom.glb" };
+    structurePath = { "..\\..\\assets\\livingroom_vkr.glb" };
     lightPath = { "..\\..\\assets\\livingroom.json" };
     auto structureFile = loadGltf(this,structurePath);
 

@@ -24,7 +24,7 @@
     },
     {
       "type": "area",
-      "intensity": 1.0,
+      "intensity": 0.33,
       "color": [ 250, 250, 210 ],
       "vertices": [
         [ 0.772635, 2.54652, 0.36661 ],
@@ -34,7 +34,7 @@
     },
     {
       "type": "area",
-      "intensity": 1.0,
+      "intensity": 0.33,
       "color": [ 250, 250, 210 ],
       "vertices": [
         [ -0.344645, 2.54652, 0.36661 ],
@@ -44,7 +44,7 @@
     },
     {
       "type": "area",
-      "intensity": 1.0,
+      "intensity": 0.33,
       "color": [ 250, 250, 210 ],
       "vertices": [
         [ -0.664774, 2.54652, 0.45351 ],
@@ -54,7 +54,7 @@
     },
     {
       "type": "area",
-      "intensity": 1.0,
+      "intensity": 0.33,
       "color": [ 250, 250, 210 ],
       "vertices": [
         [ -1.4009, 2.54652, 0.853016 ],
@@ -64,7 +64,7 @@
     },
     {
       "type": "area",
-      "intensity": 1.0,
+      "intensity": 0.33,
       "color": [ 250, 250, 210 ],
       "vertices": [
         [ 1.82916, 2.54652, 0.853416 ],
@@ -74,7 +74,7 @@
     },
     {
       "type": "area",
-      "intensity": 1.0,
+      "intensity": 0.33,
       "color": [ 250, 250, 210 ],
       "vertices": [
         [ 1.09297, 2.54652, 0.45351 ],
@@ -84,7 +84,7 @@
     },
     {
       "type": "area",
-      "intensity": 1.0,
+      "intensity": 0.33,
       "color": [ 250, 250, 210 ],
       "vertices": [
         [ -1.70004, 2.99093, 8.17265 ],
@@ -94,7 +94,7 @@
     },
     {
       "type": "area",
-      "intensity": 1.0,
+      "intensity": 0.33,
       "color": [ 250, 250, 210 ],
       "vertices": [
         [ 1.41359, 2.99093, 8.17265 ],

@@ -14,7 +14,8 @@ const int AREA = 3;
 const float EPSILON = .01;
 const float T_MAX = 10000.0;
 const int MAX_RECURSION = 4; // should be the same as MAX_RECURSION in vk_raytracer.h
-const int AREA_SAMPLES = 500;
+const int AREA_SAMPLES = 10;
+const bool USE_METAL_ROUGH_TEX = false;
 
 // Information of a obj model when referenced in a shader
 struct ObjDesc {
@@ -89,11 +90,6 @@ float computeSpecularIntensity(vec3 viewDir, vec3 lightDir, vec3 normal, float r
     return pf;
 }
 
-vec2 randomVec2(vec2 seed) {
-    return vec2(fract(sin(seed.x * 12.9898 + seed.y * 78.233) * 43758.5453),
-                fract(sin(seed.y * 34.7892 + seed.x * 56.1234) * 12345.6789));
-}
-
 void main()
 {
     // Increment number of recursions
@@ -128,14 +124,18 @@ void main()
     vec2 uv = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
 	vec3 texColor = texture(ColImage2D[mat.textureID], uv).xyz * v0.color.xyz * mat.colorFactors.xyz;
 
-    // Get material data via metal-rough texture map
-    //vec4 matData = texture(MetalRoughImage2D[mat.textureID], uv);
-    //float metal = matData.x;
-    //float roughness = matData.y;
-    
-    // Get material data via metal-rough factors
-    float metal = mat.metal_rough_factors.x;
-    float roughness = 0.0;//mat.metal_rough_factors.y;
+    float metal;
+    float roughness;
+    if (USE_METAL_ROUGH_TEX) {
+        // Get material data via metal-rough texture map
+        vec4 matData = texture(MetalRoughImage2D[mat.textureID], uv);
+        metal = matData.x;
+        roughness = matData.y;
+    } else {
+        // Get material data via metal-rough factors
+        metal = mat.metal_rough_factors.x;
+        roughness = 0.0; //mat.metal_rough_factors.y;
+    }
 
     // Computing the coordinates of the hit position
     const vec3 pos = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
@@ -145,6 +145,7 @@ void main()
     const vec3 nrm = v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z;
     const vec3 worldNrm = normalize(vec3(gl_ObjectToWorldEXT * vec4(nrm, 0.0)));  // Transforming the normal to world space
 
+    int frameNumber = int(sceneData.data.x);
     vec3 outColor = vec3(0.0);
 
     // Lighting loop
@@ -163,7 +164,6 @@ void main()
 
             // Calculate by type
             if (type == POINT) {
-                continue;
                 float dist = length(lpos - worldPos);
 		        vec3 lightDir = normalize(lpos - worldPos);
                 bool shadowed = isOccluded(worldPos, lightDir, dist);
@@ -182,7 +182,6 @@ void main()
 		        outColor += vec3(texColor * intensity * lcolor);
 
 	        } else if (type == DIRECTIONAL) {
-                continue;
 		        vec3 lightDir = normalize(lpos);
                 bool shadowed = isOccluded(worldPos, lightDir, T_MAX);
                 if (!shadowed) {
@@ -202,7 +201,7 @@ void main()
                 for (int j = 0; j < AREA_SAMPLES; j++) {
                     // randomly generate a point on the light
                     //vec2 rand = randomVec2(gl_WorldRayDirectionEXT.xy * sceneData.data.x * j);
-                    vec2 rand = randomVec2(gl_WorldRayDirectionEXT.xy * j);
+                    vec2 rand = randomVec2(gl_WorldRayDirectionEXT.xy * (j + 1));
                     if (rand.x + rand.y > 1.0) {
                         rand.x = 1.0 - rand.x;
                         rand.y = 1.0 - rand.y;

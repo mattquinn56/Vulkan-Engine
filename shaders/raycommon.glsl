@@ -10,7 +10,7 @@ layout(set = 1, binding = 0) uniform SceneData {
 	mat4 view;
 	mat4 proj;
 	mat4 viewproj;
-	vec4 data; // x is time-dependent random value, y is enable sampling
+	vec4 data; // x is num frames, y is enable sampling
 } sceneData;
 
 struct hitPayload
@@ -34,3 +34,8 @@ struct MaterialRT
     vec4 metal_rough_factors; // x is reflectivity proportion (metal), y is specular intensity proportion (roughness)
 	int textureID;
 };
+
+vec2 randomVec2(vec2 seed) {
+    return vec2(fract(sin(seed.x * 12.9898 + seed.y * 78.233) * 43758.5453),
+                fract(sin(seed.y * 34.7892 + seed.x * 56.1234) * 12345.6789));
+}
