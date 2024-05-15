@@ -159,7 +159,10 @@ public:
     bool createdAS{ false };
     int _frameNumber { 0 };
     bool useRaytracer = true;
+    bool computeMonteCarlo = false;
     bool debugSetting = false;
+
+    bool monteCarloDone = false; // not controlled by UI
 
     VkExtent2D _windowExtent { 1700, 900 };
 

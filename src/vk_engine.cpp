@@ -632,8 +632,8 @@ void VulkanEngine::run()
                 cursorLocked = !cursorLocked;
 			}
 
-            if (cursorLocked) {
-                mainCamera.processSDLEvent(e);
+            if (cursorLocked && !computeMonteCarlo) {
+                 mainCamera.processSDLEvent(e);
             }
 
             ImGui_ImplSDL2_ProcessEvent(&e);
@@ -657,6 +657,7 @@ void VulkanEngine::run()
         ImGui::Begin("Stats");
 
         ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
+        ImGui::Checkbox("View monte carlo", &computeMonteCarlo);  // Run monte carlo sampling
         ImGui::Checkbox("Debug setting", &debugSetting);  // Used for anything
 
 		ImGui::Text("frametime %f ms", stats.frametime);
@@ -747,7 +748,7 @@ void VulkanEngine::recursively_render_node(std::shared_ptr<LoadedGLTF> gltf, std
 
 void VulkanEngine::update_scene()
 {
-	mainCamera.update();
+    mainCamera.update();
 
 	glm::mat4 view = mainCamera.getViewMatrix();
 
@@ -761,7 +762,7 @@ void VulkanEngine::update_scene()
 	sceneData.view = view;
 	sceneData.proj = projection;
 	sceneData.viewproj = projection * view;
-    sceneData.data = glm::vec4(sin(_frameNumber), 0, 0, 0);
+    sceneData.data = glm::vec4(sin(_frameNumber), computeMonteCarlo ? 1 : 0, 0, 0); // x is time-dependent random value, y is enable sampling
 
     drawCommands.OpaqueSurfaces.clear();
     drawCommands.m_objDesc.clear();

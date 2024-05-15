@@ -10,7 +10,7 @@ layout(set = 1, binding = 0) uniform SceneData {
 	mat4 view;
 	mat4 proj;
 	mat4 viewproj;
-	vec4 data;
+	vec4 data; // x is time-dependent random value, y is enable sampling
 } sceneData;
 
 struct hitPayload

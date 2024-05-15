@@ -1,4 +1,5 @@
 #include "vk_raytracer.h"
+#include <iostream>
 
 VulkanRayTracer::VulkanRayTracer(VulkanEngine* engine)
 {
@@ -776,5 +777,15 @@ void VulkanRayTracer::raytrace(const VkCommandBuffer& cmdBuf)
         VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
         0, sizeof(PushConstantRay), &m_pcRay);
 
-    pfnCmdTraceRaysKHR(cmdBuf, &m_rgenRegion, &m_missRegion, &m_hitRegion, &m_callRegion, engine->_windowExtent.width, engine->_windowExtent.height, 1);
+    // don't run shader multiple times if computing monte carlo
+    if (!engine->computeMonteCarlo || (engine->computeMonteCarlo && !engine->monteCarloDone)) {
+        pfnCmdTraceRaysKHR(cmdBuf, &m_rgenRegion, &m_missRegion, &m_hitRegion, &m_callRegion, engine->_windowExtent.width, engine->_windowExtent.height, 1);
+
+        // if we just ran monte carlo, make sure to not run again
+        if (engine->computeMonteCarlo) {
+			engine->monteCarloDone = true;
+        } else {
+            engine->monteCarloDone = false;
+        }
+    }
 }
