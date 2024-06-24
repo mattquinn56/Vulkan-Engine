@@ -778,14 +778,9 @@ void VulkanRayTracer::raytrace(const VkCommandBuffer& cmdBuf)
         0, sizeof(PushConstantRay), &m_pcRay);
 
     // don't run shader multiple times if computing monte carlo
-    if (!engine->computeMonteCarlo || (engine->computeMonteCarlo && !engine->monteCarloDone)) {
+    if (engine->computeMonteCarlo == 0 || engine->lastMonteCarlo != engine->computeMonteCarlo || engine->lastMSAA != engine->msaaSetting) {
         pfnCmdTraceRaysKHR(cmdBuf, &m_rgenRegion, &m_missRegion, &m_hitRegion, &m_callRegion, engine->_windowExtent.width, engine->_windowExtent.height, 1);
-
-        // if we just ran monte carlo, make sure to not run again
-        if (engine->computeMonteCarlo) {
-			engine->monteCarloDone = true;
-        } else {
-            engine->monteCarloDone = false;
-        }
     }
+    engine->lastMonteCarlo = engine->computeMonteCarlo;
+    engine->lastMSAA = engine->msaaSetting;
 }

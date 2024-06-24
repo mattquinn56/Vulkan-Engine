@@ -14,7 +14,7 @@ const int AREA = 3;
 const float EPSILON = .01;
 const float T_MAX = 10000.0;
 const int MAX_RECURSION = 4; // should be the same as MAX_RECURSION in vk_raytracer.h
-const int AREA_SAMPLES = 10;
+const int AREA_SAMPLES = 50;
 const bool USE_METAL_ROUGH_TEX = false;
 
 // Information of a obj model when referenced in a shader
@@ -198,7 +198,7 @@ void main()
                 if (int(sceneData.data.y) == 0) {
 					continue;
 				}
-                for (int j = 0; j < AREA_SAMPLES; j++) {
+                for (int j = 0; j < int(sceneData.data.y); j++) {
                     // randomly generate a point on the light
                     //vec2 rand = randomVec2(gl_WorldRayDirectionEXT.xy * sceneData.data.x * j);
                     vec2 rand = randomVec2(gl_WorldRayDirectionEXT.xy * (j + 1));

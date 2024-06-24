@@ -3,28 +3,44 @@
 #extension GL_GOOGLE_include_directive : enable
 #include "raycommon.glsl"
 
-const int N_SAMPLES = 8;
-
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
 layout(set = 0, binding = 1, rgba32f) uniform image2D image;
 
 layout(location = 0) rayPayloadEXT hitPayload prd;
 
+const float msaa_3 = 1.0 / 3.0;
+int N_SAMPLES = 9;
+vec2 MSAA[9] = vec2[](
+    vec2(-msaa_3, -msaa_3), vec2(0.0, -msaa_3), vec2(msaa_3, -msaa_3),
+    vec2(-msaa_3, 0.0), vec2(0.0, 0.0), vec2(msaa_3, 0.0),
+    vec2(-msaa_3, msaa_3), vec2(0.0, msaa_3), vec2(msaa_3, msaa_3)
+);
+
 void main() 
 {
+    // MSAA determination
+    if (int(sceneData.data.z) == 2) {
+        N_SAMPLES = 4;
+        MSAA[0] = vec2(-.25, -.25);
+        MSAA[1] = vec2(-.25, .25);
+        MSAA[2] = vec2(.25, -.25);
+        MSAA[3] = vec2(.25, .25);
+    }
+
+    if (int(sceneData.data.z) == 1) {
+        N_SAMPLES = 1;
+        MSAA[0] = vec2(0, 0);
+    }
+
     vec3 hitValues = vec3(0);
     for(int smpl = 0; smpl < N_SAMPLES; smpl++) {
 
-        // Determine jitter
-        int frame = int(sceneData.data.x);
-        vec2 subpixel_jitter = vec2(0.5);
-        if (frame != 0) {
-            subpixel_jitter = randomVec2(vec2(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, sin(sceneData.data.x)));
-        }
+        // Determine MSAA offset
+        vec2 offset = vec2(MSAA[smpl]);
 
         mat4 invView = inverse(sceneData.view);
         mat4 invProj = inverse(sceneData.proj);
-        const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + subpixel_jitter;
+        const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + offset;
         const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
         vec2 d = inUV * 2.0 - 1.0;
         vec4 origin    = invView * vec4(0, 0, 0, 1);
@@ -53,15 +69,4 @@ void main()
 
     // Directly store
     imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(hitValues, 1.0));
-
-    // Do accumulation over time
-    /*
-    if(frame > 1) {
-        float a = 1.0f / float(frame + 1);
-        vec3 old_color = imageLoad(image, ivec2(gl_LaunchIDEXT.xy)).xyz;
-        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(mix(old_color, prd.hitValue, a), 1.f));
-    } else {
-        // First frame, replace the value in the buffer
-        imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(prd.hitValue, 1.f));
-    }*/
 }

@@ -159,10 +159,12 @@ public:
     bool createdAS{ false };
     int _frameNumber { 0 };
     bool useRaytracer = true;
-    bool computeMonteCarlo = false;
+    int computeMonteCarlo = 0;
+    int msaaSetting = 1;
     bool debugSetting = false;
 
-    bool monteCarloDone = false; // not controlled by UI
+    bool lastMonteCarlo = -1; // not controlled by UI
+    int lastMSAA = -1; // not controlled by UI
 
     VkExtent2D _windowExtent { 1700, 900 };
 
