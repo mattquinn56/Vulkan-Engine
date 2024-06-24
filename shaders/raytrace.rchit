@@ -14,7 +14,6 @@ const int AREA = 3;
 const float EPSILON = .01;
 const float T_MAX = 10000.0;
 const int MAX_RECURSION = 4; // should be the same as MAX_RECURSION in vk_raytracer.h
-const int AREA_SAMPLES = 50;
 const bool USE_METAL_ROUGH_TEX = false;
 
 // Information of a obj model when referenced in a shader
@@ -134,7 +133,7 @@ void main()
     } else {
         // Get material data via metal-rough factors
         metal = mat.metal_rough_factors.x;
-        roughness = 0.0; //mat.metal_rough_factors.y;
+        roughness = mat.metal_rough_factors.y;
     }
 
     // Computing the coordinates of the hit position
@@ -215,7 +214,7 @@ void main()
 						// compute diffuse
 		                float lightAmt = max(dot(worldNrm, lightDir), 0.0);
 		                vec3 diffuse = lightAmt * intensity * lcolor;
-                        outColor += vec3(texColor * diffuse) / float(AREA_SAMPLES);
+                        outColor += vec3(texColor * diffuse) / sceneData.data.y;
                     }
                 }
             }
