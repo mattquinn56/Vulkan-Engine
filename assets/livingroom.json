@@ -17,6 +17,12 @@
       "color": [ 255, 0, 0 ]
     },
     {
+      "type": "point",
+      "position": [ 0.3613, 1.9944, 2.8855 ],
+      "intensity": 1,
+      "color": [ 250, 250, 210 ]
+    },
+    {
       "type": "area",
       "intensity": 0.33,
       "color": [ 250, 250, 210 ],

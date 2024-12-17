@@ -65,16 +65,6 @@ vec3 getReflectedColor(vec3 origin, vec3 direction)
 
 float computeSpecularIntensity(vec3 viewDir, vec3 lightDir, vec3 normal, float roughness)
 {
-    /*
-    vec3 reflectDir = reflect(-lightDir, normal); // Reflect function calculates the reflection direction
-    viewDir = normalize(viewDir); // Normalize the view direction vector
-
-    float specAngle = max(dot(reflectDir, viewDir), 0.0);
-    float shininess = 1.0 / roughness; // Shininess is the inverse of roughness
-    float specular = pow(specAngle, shininess);
-
-    return specular;
-    */
     vec3 halfVec = normalize(lightDir + viewDir);
     float nDotVP = max(0.0, dot(normal, normalize(lightDir) ));	
 	float nDotHV = max(0.0, dot(normal, normalize(halfVec) ));
@@ -83,7 +73,7 @@ float computeSpecularIntensity(vec3 viewDir, vec3 lightDir, vec3 normal, float r
 	if(nDotVP == 0.0) {
 		pf = 0.0;
     } else {
-        pf = pow(nDotHV, 1.0 / roughness);
+        pf = pow(nDotHV, 1.0 / roughness) / 20.0;
 	}
 
     return pf;
