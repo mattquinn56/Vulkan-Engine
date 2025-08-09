@@ -512,8 +512,8 @@ void VulkanRayTracer::createRtMaterialDescriptorSet() {
     m_rtMatDescLayoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, n);  // Metal-rough textures
 
     std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> rt_mat_pool_sizes = {
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, float(n) },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, float(n) },
     };
     m_rtMatDescAllocator.init(engine->_device, 1, rt_mat_pool_sizes);
     m_rtMatDescSetLayout = m_rtMatDescLayoutBuilder.build(engine->_device, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
