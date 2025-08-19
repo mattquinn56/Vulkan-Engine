@@ -151,9 +151,7 @@ void VulkanRayTracer::cmdCreateBlas(VkCommandBuffer cmdBuf, std::vector<uint32_t
 
         // BuildInfo #2 part
         buildAs[idx].buildInfo.dstAccelerationStructure = buildAs[idx].as.accel;  // Setting where the build lands
-        uint64_t alignment = accelerationStructureProperties.minAccelerationStructureScratchOffsetAlignment; // aligh address
-        uint64_t alignedAddress = (scratchAddress + alignment - 1) & ~(alignment - 1);
-        buildAs[idx].buildInfo.scratchData.deviceAddress = alignedAddress;  // All build are using the same scratch buffer
+        buildAs[idx].buildInfo.scratchData.deviceAddress = scratchAddress;  // All build are using the same scratch buffer
 
         // Building the bottom-level-acceleration-structure
         pfnCmdBuildAccelerationStructuresKHR(cmdBuf, 1, &buildAs[idx].buildInfo, &buildAs[idx].rangeInfo);
@@ -258,11 +256,14 @@ void VulkanRayTracer::buildBlas(const std::vector<BlasInput>& input, VkBuildAcce
         nbCompactions += hasFlag(buildAs[idx].buildInfo.flags, VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR);
     }
 
+    uint64_t align = accelerationStructureProperties.minAccelerationStructureScratchOffsetAlignment;
+
     // Allocate the scratch buffers holding the temporary data of the acceleration structure builder
-    AllocatedBuffer scratchBuffer = engine->create_buffer(maxScratchSize, 
+    AllocatedBuffer scratchBuffer = engine->create_buffer(maxScratchSize + align, 
         VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
     VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, scratchBuffer.buffer };
     VkDeviceAddress scratchAddress = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
+    VkDeviceAddress alignedAddress = (scratchAddress + align - 1) & ~(align - 1);
 
     // Allocate a query pool for storing the needed size for every BLAS compaction.
     VkQueryPool queryPool{ VK_NULL_HANDLE };
@@ -286,7 +287,7 @@ void VulkanRayTracer::buildBlas(const std::vector<BlasInput>& input, VkBuildAcce
         // Over the limit or last BLAS element
         if (batchSize >= batchLimit || idx == nbBlas - 1)
         {
-            engine->immediate_submit([&](VkCommandBuffer cmd) { cmdCreateBlas(cmd, indices, buildAs, scratchAddress, queryPool); });
+            engine->immediate_submit([&](VkCommandBuffer cmd) { cmdCreateBlas(cmd, indices, buildAs, alignedAddress, queryPool); });
 
             if (queryPool)
             {
@@ -434,17 +435,17 @@ void VulkanRayTracer::cmdCreateTlas(VkCommandBuffer cmdBuf, uint32_t countInstan
     m_tlas = createAcceleration(createInfo);
 
     // Allocate the scratch memory
-    scratchBuffer = engine->create_buffer(sizeInfo.buildScratchSize,
+    uint64_t align = accelerationStructureProperties.minAccelerationStructureScratchOffsetAlignment;
+    scratchBuffer = engine->create_buffer(sizeInfo.buildScratchSize + align,
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 
     VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, scratchBuffer.buffer };
-    VkDeviceAddress           scratchAddress = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
+    VkDeviceAddress scratchAddress = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
+    VkDeviceAddress alignedAddress = (scratchAddress + align - 1) & ~(align - 1);
 
     // Update build information
     buildInfo.srcAccelerationStructure = VK_NULL_HANDLE;
     buildInfo.dstAccelerationStructure = m_tlas.accel;
-    uint64_t alignment = accelerationStructureProperties.minAccelerationStructureScratchOffsetAlignment; // aligh address
-    uint64_t alignedAddress = (scratchAddress + alignment - 1) & ~(alignment - 1);
     buildInfo.scratchData.deviceAddress = alignedAddress;
 
     // Build Offsets info: n instances
@@ -504,20 +505,25 @@ void VulkanRayTracer::createRtDescriptorSet()
 
 
 void VulkanRayTracer::createRtMaterialDescriptorSet() {
-
-    int n = m_colTextures.size();
+    const uint32_t TEX_MAX = 256;
+    // int n = m_colTextures.size();
 
     DescriptorLayoutBuilder m_rtMatDescLayoutBuilder;
-    m_rtMatDescLayoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, n);  // Color textures
-    m_rtMatDescLayoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, n);  // Metal-rough textures
+    m_rtMatDescLayoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, TEX_MAX);  // Color textures
+    m_rtMatDescLayoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, TEX_MAX);  // Metal-rough textures
 
     std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> rt_mat_pool_sizes = {
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, float(n) },
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, float(n) },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, float(TEX_MAX) * 2.0f }
     };
     m_rtMatDescAllocator.init(engine->_device, 1, rt_mat_pool_sizes);
     m_rtMatDescSetLayout = m_rtMatDescLayoutBuilder.build(engine->_device, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
     m_rtMatDescSet = m_rtMatDescAllocator.allocate(engine->_device, m_rtMatDescSetLayout);
+
+    // pad your current arrays to TEX_MAX
+    m_colTextures.resize(TEX_MAX, engine->_whiteImage.imageView);
+    m_colSamplers.resize(TEX_MAX, engine->_defaultSamplerLinear);
+    m_metalRoughTextures.resize(TEX_MAX, engine->_whiteImage.imageView);
+    m_metalRoughSamplers.resize(TEX_MAX, engine->_defaultSamplerLinear);
 
     m_rtMatDescWriter.clear();
     // arrays with only one element

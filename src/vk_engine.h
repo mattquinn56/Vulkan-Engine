@@ -184,7 +184,7 @@ public:
     bool lastMonteCarlo = -1; // not controlled by UI
     int lastMSAA = -1; // not controlled by UI
 
-    VkExtent2D _windowExtent { 2000, 1200 };
+    VkExtent2D _windowExtent { 1000, 600 };
 
     std::string structurePath;
     std::string lightPath;
@@ -222,6 +222,9 @@ public:
     
     std::vector<VkImage> _swapchainImages;
     std::vector<VkImageView> _swapchainImageViews;
+
+    std::vector<VkSemaphore> _imageAcquireSems;
+    std::vector<VkSemaphore> _imageRenderSems;
 
 	VkDescriptorSet _drawImageDescriptors;
 	VkDescriptorSetLayout _drawImageDescriptorLayout;
