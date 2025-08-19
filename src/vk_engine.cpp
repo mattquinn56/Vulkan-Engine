@@ -325,7 +325,7 @@ void VulkanEngine::draw()
 	uint32_t swapchainImageIndex;
 
 	VkResult e = vkAcquireNextImageKHR(_device, _swapchain, 1000000000, get_current_frame()._swapchainSemaphore, nullptr, &swapchainImageIndex);
-	if (e == VK_ERROR_OUT_OF_DATE_KHR) {
+	if (e == VK_ERROR_OUT_OF_DATE_KHR || e == VK_SUBOPTIMAL_KHR) {
         resize_requested = true;
 		return ;
 	}
@@ -754,7 +754,7 @@ void VulkanEngine::update_scene()
 	glm::mat4 view = mainCamera.getViewMatrix();
 
 	// camera projection
-	glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)_windowExtent.width / (float)_windowExtent.height, 10000.f, 0.1f);
+	glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)_windowExtent.width / (float)_windowExtent.height, 0.1f, 10000.f);
 
 	// invert the Y direction on projection matrix so that we are more similar
 	// to opengl and gltf axis
@@ -805,38 +805,40 @@ AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags
     return newBuffer;
 }
 
-AllocatedImage VulkanEngine::create_image(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
-{
+AllocatedImage VulkanEngine::create_image(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped) {
     AllocatedImage newImage;
     newImage.imageFormat = format;
     newImage.imageExtent = size;
 
     VkImageCreateInfo img_info = vkinit::image_create_info(format, usage, size);
-    if (mipmapped) {
-		img_info.mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(size.width, size.height)))) + 1;
+
+    // 🔧 Ensure 3D image type + 3D view when depth > 1
+    if (size.depth > 1) {
+        img_info.imageType = VK_IMAGE_TYPE_3D;
+        img_info.arrayLayers = 1;
+        img_info.flags &= ~VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT; // just in case
     }
 
-    // always allocate images on dedicated GPU memory
-    VmaAllocationCreateInfo allocinfo = {};
+    if (mipmapped) {
+        img_info.mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max({ size.width, size.height, size.depth })))) + 1;
+    }
+
+    VmaAllocationCreateInfo allocinfo{};
     allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
     allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    // allocate and create the image
     VK_CHECK(vmaCreateImage(_allocator, &img_info, &allocinfo, &newImage.image, &newImage.allocation, nullptr));
 
-    // if the format is a depth format, we will need to have it use the correct
-    // aspect flag
-    VkImageAspectFlags aspectFlag = VK_IMAGE_ASPECT_COLOR_BIT;
-    if (format == VK_FORMAT_D32_SFLOAT) {
-        aspectFlag = VK_IMAGE_ASPECT_DEPTH_BIT;
-    }
+    VkImageAspectFlags aspectFlag = (format == VK_FORMAT_D32_SFLOAT) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
-    // build a image-view for the image
     VkImageViewCreateInfo view_info = vkinit::imageview_create_info(format, newImage.image, aspectFlag);
+    if (size.depth > 1) {
+        view_info.viewType = VK_IMAGE_VIEW_TYPE_3D;
+        view_info.subresourceRange.layerCount = 1;
+    }
     view_info.subresourceRange.levelCount = img_info.mipLevels;
 
     VK_CHECK(vkCreateImageView(_device, &view_info, nullptr, &newImage.imageView));
-
     return newImage;
 }
 
@@ -1025,7 +1027,12 @@ void VulkanEngine::init_vulkan()
    
     VkPhysicalDeviceVulkan12Features features12 {};
     features12.bufferDeviceAddress = true;
-    features12.descriptorIndexing = true; 
+    features12.descriptorIndexing = true;
+
+    features12.scalarBlockLayout = VK_TRUE;
+    features12.runtimeDescriptorArray = VK_TRUE;
+    features12.descriptorBindingPartiallyBound = VK_TRUE;
+    features12.descriptorBindingVariableDescriptorCount = VK_TRUE;
 
     VkPhysicalDeviceFeatures features {};
     features.shaderInt64 = VK_TRUE; // Enable 64-bit integers in shaders
@@ -1306,7 +1313,7 @@ AllocatedImage VulkanEngine::loadImageFromFile(std::string path)
     immediate_submit([&](VkCommandBuffer cmd) {
         vkutil::transition_image(cmd, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         vkutil::copy_buffer_to_image(cmd, stagingBuffer, image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-        vkutil::transition_image(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+        vkutil::transition_image(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     });
 
     // Clean up staging buffer
@@ -1437,6 +1444,7 @@ void VulkanEngine::init_descriptors()
         { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3 },
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 },
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3 },
+        { VK_DESCRIPTOR_TYPE_SAMPLER, 3 },              // <-- add this
     };
 
     globalDescriptorAllocator.init_pool(_device, 10, sizes);
@@ -1486,6 +1494,30 @@ void VulkanEngine::init_descriptors()
 			_frames[i]._frameDescriptors.destroy_pools(_device);
 		});
 	}
+
+    // Volume set: binding 0 = medium params (uniform/storage buffer)
+    //             binding 1 = 3D density image (sampled image)
+    //             binding 2 = sampler
+    {
+        DescriptorLayoutBuilder builder;
+        builder.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        builder.add_binding(1, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+        builder.add_binding(2, VK_DESCRIPTOR_TYPE_SAMPLER);
+        _volumeSetLayout = builder.build(
+            _device,
+            VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR
+        );
+    }
+
+    _mainDeletionQueue.push_function([&]() {
+        vkDestroyDescriptorSetLayout(_device, _volumeSetLayout, nullptr);
+    });
+
+    // Allocate once globally; we’ll update buffer contents when params change.
+    _volumeSet = globalDescriptorAllocator.allocate(_device, _volumeSetLayout);
+
+    init_volume_descriptors();
+    create_default_volume();
 }
 
 void GLTFMetallic_Roughness::build_pipelines(VulkanEngine* engine)
@@ -1707,4 +1739,103 @@ AllocatedBuffer VulkanEngine::create_buffer_data(VkDeviceSize size, const void* 
     immediate_submit([&](VkCommandBuffer cmd) { vkCmdCopyBuffer(cmd, stagingBuffer, resultBuffer.buffer, 1, &copyRegion); });
 
     return resultBuffer;
+}
+
+void VulkanEngine::init_volume_descriptors() {
+    // Create params buffer (mapped CPU->GPU)
+    if (_volume.mediumParams.buffer == VK_NULL_HANDLE) {
+        _volume.mediumParams = create_buffer(sizeof(GPUMediumParams),
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VMA_MEMORY_USAGE_CPU_TO_GPU);
+        auto* p = (GPUMediumParams*)_volume.mediumParams.allocation->GetMappedData();
+        *p = {
+            /*sigma_a*/{0,0,0}, /*step*/0.01f,
+            /*sigma_s*/{0,0,0}, /*maxT*/1000.0f,
+            /*g*/0.0f, /*emission*/0.0f,
+            /*densityScale*/1.0f, /*pad*/0.0f,
+            /*pad2*/{0,0}
+        };
+        _mainDeletionQueue.push_function([&] { destroy_buffer(_volume.mediumParams); });
+    }
+
+    // Create a sampler
+    if (_volume.densitySampler == VK_NULL_HANDLE) {
+        VkSamplerCreateInfo sci{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+        sci.magFilter = VK_FILTER_LINEAR; sci.minFilter = VK_FILTER_LINEAR;
+        sci.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        sci.addressModeU = sci.addressModeV = sci.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        VK_CHECK(vkCreateSampler(_device, &sci, nullptr, &_volume.densitySampler));
+        _mainDeletionQueue.push_function([&] { vkDestroySampler(_device, _volume.densitySampler, nullptr); });
+    }
+
+    // Write the set: buffer at binding 0, sampler at binding 2
+    DescriptorWriter w;
+    w.write_buffer(0, _volume.mediumParams.buffer, sizeof(GPUMediumParams), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+    w.write_image(2, VK_NULL_HANDLE, _volume.densitySampler, VK_IMAGE_LAYOUT_UNDEFINED, VK_DESCRIPTOR_TYPE_SAMPLER);
+    // (No image at binding 1 yet, that’s fine)
+    w.update_set(_device, _volumeSet);
+}
+
+void VulkanEngine::create_default_volume() {
+    // No 3D density bound initially; homogeneous only.
+    _volume.hasDensity = false;
+}
+
+void VulkanEngine::upload_volume_3d(const void* voxels, VkExtent3D extent, VkFormat fmt) {
+    // Create a 3D image (R16_SFLOAT or R8_UNORM or R32_SFLOAT)
+    VkImageUsageFlags usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    _volume.densityTex3D = create_image(extent, fmt, usage, /*mipmapped=*/false);
+
+    // Upload via staging (reusing your create_image(void*,...) path is 2D-only; do a custom upload)
+    size_t pixelSize =
+        (fmt == VK_FORMAT_R32_SFLOAT) ? 4 :
+        (fmt == VK_FORMAT_R16_SFLOAT) ? 2 :
+        1; // R8_UNORM
+    size_t total = size_t(extent.width) * extent.height * extent.depth * pixelSize;
+
+    AllocatedBuffer staging = create_buffer(total, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+    memcpy(staging.allocation->GetMappedData(), voxels, total);
+
+    immediate_submit([&](VkCommandBuffer cmd) {
+        // Transition
+        vkutil::transition_image(cmd, _volume.densityTex3D.image,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        VkBufferImageCopy copy{};
+        copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copy.imageSubresource.mipLevel = 0;
+        copy.imageSubresource.baseArrayLayer = 0;
+        copy.imageSubresource.layerCount = 1;
+        copy.imageExtent = extent;
+
+        vkCmdCopyBufferToImage(cmd, staging.buffer, _volume.densityTex3D.image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+
+        vkutil::transition_image(cmd, _volume.densityTex3D.image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        });
+
+    destroy_buffer(staging);
+
+    _volume.hasDensity = true;
+
+    // Update descriptor set with the image at binding 1
+    {
+        DescriptorWriter w;
+        w.write_buffer(0, _volume.mediumParams.buffer, sizeof(GPUMediumParams), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        w.write_image(1, _volume.densityTex3D.imageView, VK_NULL_HANDLE,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+        w.write_image(2, VK_NULL_HANDLE, _volume.densitySampler, VK_IMAGE_LAYOUT_UNDEFINED, VK_DESCRIPTOR_TYPE_SAMPLER);
+        w.update_set(_device, _volumeSet);
+    }
+
+    // Cleanup hook
+    _mainDeletionQueue.push_function([&]() { destroy_image(_volume.densityTex3D); });
+}
+
+void VulkanEngine::setMediumParams(const GPUMediumParams& p) {
+    GPUMediumParams* dst = (GPUMediumParams*)_volume.mediumParams.allocation->GetMappedData();
+    *dst = p;
 }

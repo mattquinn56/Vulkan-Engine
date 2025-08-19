@@ -5,3 +5,6 @@
 /.vs
 vcpkg/
 *.spv
+assets/manymonkies.glb
+assets/manymonkies.blend1
+assets/manymonkies.blend

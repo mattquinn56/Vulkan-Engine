@@ -148,6 +148,24 @@ struct MeshNode : public Node {
 	virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) override;
 };
 
+// volumetric additions
+// Medium parameters for a homogeneous base + settings controlling ray marching
+struct GPUMediumParams {
+    glm::vec3 sigma_a;   float stepSize;   // absorption, world units step
+    glm::vec3 sigma_s;   float maxT;      // scattering, world-space march cap
+    float g;             float emission;  // Henyey–Greenstein anisotropy, simple emission
+    float densityScale;  float padding0;  // scales texture density into sigma_t
+    glm::vec2 padding1;
+};
+
+// Volume resources: optional 3D density + sampler + params buffer
+struct VolumeResources {
+    AllocatedImage densityTex3D;  // R16F or R8_UNORM or R32F depending on memory
+    VkSampler      densitySampler;
+    AllocatedBuffer mediumParams; // sizeof(GPUMediumParams)
+    bool hasDensity = false;
+};
+
 class VulkanEngine {
 public:
     bool _isInitialized { false };
@@ -166,7 +184,7 @@ public:
     bool lastMonteCarlo = -1; // not controlled by UI
     int lastMSAA = -1; // not controlled by UI
 
-    VkExtent2D _windowExtent { 1000, 600 };
+    VkExtent2D _windowExtent { 2000, 1200 };
 
     std::string structurePath;
     std::string lightPath;
@@ -247,6 +265,11 @@ public:
 
     EngineStats stats;
 
+    // some volumetric additions
+    VkDescriptorSetLayout _volumeSetLayout = {VK_NULL_HANDLE};
+    VkDescriptorSet       _volumeSet = {VK_NULL_HANDLE};
+    VolumeResources       _volume{};
+
 	std::vector<ComputeEffect> backgroundEffects;
 	int currentBackgroundEffect{ 0 };
 
@@ -308,6 +331,9 @@ public:
 
     AllocatedImage loadImageFromFile(std::string path);
 
+    // volumetric additions
+    void setMediumParams(const GPUMediumParams& p);
+
 private:
     void init_vulkan();
 
@@ -341,4 +367,9 @@ private:
     void render_loaded_gltf(std::shared_ptr<LoadedGLTF> scene);
 
     void recursively_render_node(std::shared_ptr<LoadedGLTF> scene, std::shared_ptr<Node> node);
+
+    // volumetric additions
+    void init_volume_descriptors();
+    void create_default_volume();                         // start with homogeneous only
+    void upload_volume_3d(const void* voxels, VkExtent3D extent, VkFormat fmt); // later for grids
 };
