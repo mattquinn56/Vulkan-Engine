@@ -641,6 +641,26 @@ void VulkanEngine::run()
         ImGui::Text("view direction: %f %f %f", viewDir.x, viewDir.y, viewDir.z);
         ImGui::End();
 
+        ImGui::Begin("Medium");
+        {
+            auto* mp = (GPUMediumParams*)_volume.mediumParams.allocation->GetMappedData();
+
+            // unpack helpers for readability
+            auto& sigma_a = mp->sigma_a_step;       // xyz used, w = step
+            auto& sigma_s = mp->sigma_s_maxT;       // xyz used, w = maxT
+            auto& g_e_d = mp->g_emis_density_pad; // x=g, y=emission, z=densityScale
+
+            ImGui::Text("Homogeneous Medium");
+            ImGui::DragFloat3("sigma_a (absorption)", &sigma_a.x, 0.001f, 0.0f, 5.0f);
+            ImGui::DragFloat3("sigma_s (scattering)", &sigma_s.x, 0.001f, 0.0f, 5.0f);
+            ImGui::DragFloat("stepSize", &sigma_a.w, 0.001f, 0.001f, 1.0f);
+            ImGui::DragFloat("maxT", &sigma_s.w, 1.0f, 0.0f, 20000.0f);
+            ImGui::DragFloat("g (anisotropy)", &g_e_d.x, 0.001f, -0.99f, 0.99f);
+            ImGui::DragFloat("emission", &g_e_d.y, 0.001f, 0.0f, 10.0f);
+            ImGui::DragFloat("densityScale", &g_e_d.z, 0.001f, 0.0f, 10.0f);
+        }
+        ImGui::End();
+
         bool collapsedDataWindow = ImGui::Begin("background");
 		if (collapsedDataWindow) {
 
@@ -776,22 +796,23 @@ AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags
     return newBuffer;
 }
 
-AllocatedImage VulkanEngine::create_image(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped) {
+AllocatedImage VulkanEngine::create_image(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+{
     AllocatedImage newImage;
     newImage.imageFormat = format;
     newImage.imageExtent = size;
 
     VkImageCreateInfo img_info = vkinit::image_create_info(format, usage, size);
 
-    // 🔧 Ensure 3D image type + 3D view when depth > 1
+    // treat 3D extents as 3D textures
     if (size.depth > 1) {
         img_info.imageType = VK_IMAGE_TYPE_3D;
         img_info.arrayLayers = 1;
-        img_info.flags &= ~VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT; // just in case
     }
 
     if (mipmapped) {
-        img_info.mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max({ size.width, size.height, size.depth })))) + 1;
+        const uint32_t mx = std::max({ size.width, size.height, size.depth });
+        img_info.mipLevels = static_cast<uint32_t>(std::floor(std::log2(mx))) + 1;
     }
 
     VmaAllocationCreateInfo allocinfo{};
@@ -803,12 +824,14 @@ AllocatedImage VulkanEngine::create_image(VkExtent3D size, VkFormat format, VkIm
     VkImageAspectFlags aspectFlag = (format == VK_FORMAT_D32_SFLOAT) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
     VkImageViewCreateInfo view_info = vkinit::imageview_create_info(format, newImage.image, aspectFlag);
+
+    // 3D view when needed
     if (size.depth > 1) {
         view_info.viewType = VK_IMAGE_VIEW_TYPE_3D;
         view_info.subresourceRange.layerCount = 1;
     }
-    view_info.subresourceRange.levelCount = img_info.mipLevels;
 
+    view_info.subresourceRange.levelCount = img_info.mipLevels;
     VK_CHECK(vkCreateImageView(_device, &view_info, nullptr, &newImage.imageView));
     return newImage;
 }
@@ -1478,7 +1501,7 @@ void VulkanEngine::init_descriptors()
         builder.add_binding(2, VK_DESCRIPTOR_TYPE_SAMPLER);
         _volumeSetLayout = builder.build(
             _device,
-            VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR
+            VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR
         );
     }
 
@@ -1714,44 +1737,46 @@ AllocatedBuffer VulkanEngine::create_buffer_data(VkDeviceSize size, const void* 
     return resultBuffer;
 }
 
-void VulkanEngine::init_volume_descriptors() {
-    // Create params buffer (mapped CPU->GPU)
+void VulkanEngine::init_volume_descriptors()
+{
+    // Create std140 medium UBO (persistently mapped CPU->GPU)
     if (_volume.mediumParams.buffer == VK_NULL_HANDLE) {
         _volume.mediumParams = create_buffer(sizeof(GPUMediumParams),
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             VMA_MEMORY_USAGE_CPU_TO_GPU);
-        auto* p = (GPUMediumParams*)_volume.mediumParams.allocation->GetMappedData();
-        *p = {
-            /*sigma_a*/{0,0,0}, /*step*/0.01f,
-            /*sigma_s*/{0,0,0}, /*maxT*/1000.0f,
-            /*g*/0.0f, /*emission*/0.0f,
-            /*densityScale*/1.0f, /*pad*/0.0f,
-            /*pad2*/{0,0}
-        };
-        _mainDeletionQueue.push_function([&] { destroy_buffer(_volume.mediumParams); });
+        _mainDeletionQueue.push_function([&]() { destroy_buffer(_volume.mediumParams); });
     }
 
-    // Create a sampler
+    // Create a dedicated 3D sampler (linear, clamp)
     if (_volume.densitySampler == VK_NULL_HANDLE) {
         VkSamplerCreateInfo sci{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
-        sci.magFilter = VK_FILTER_LINEAR; sci.minFilter = VK_FILTER_LINEAR;
+        sci.magFilter = VK_FILTER_LINEAR;
+        sci.minFilter = VK_FILTER_LINEAR;
         sci.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
         sci.addressModeU = sci.addressModeV = sci.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         VK_CHECK(vkCreateSampler(_device, &sci, nullptr, &_volume.densitySampler));
-        _mainDeletionQueue.push_function([&] { vkDestroySampler(_device, _volume.densitySampler, nullptr); });
+        _mainDeletionQueue.push_function([&]() { vkDestroySampler(_device, _volume.densitySampler, nullptr); });
     }
 
-    // Write the set: buffer at binding 0, sampler at binding 2
-    DescriptorWriter w;
-    w.write_buffer(0, _volume.mediumParams.buffer, sizeof(GPUMediumParams), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-    w.write_image(2, VK_NULL_HANDLE, _volume.densitySampler, VK_IMAGE_LAYOUT_UNDEFINED, VK_DESCRIPTOR_TYPE_SAMPLER);
-    // (No image at binding 1 yet, that’s fine)
-    w.update_set(_device, _volumeSet);
+    // Initial descriptor write: UBO + sampler (no density image yet)
+    {
+        DescriptorWriter w;
+        w.write_buffer(0, _volume.mediumParams.buffer, sizeof(GPUMediumParams), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        w.write_image(2, VK_NULL_HANDLE, _volume.densitySampler, VK_IMAGE_LAYOUT_UNDEFINED, VK_DESCRIPTOR_TYPE_SAMPLER);
+        w.update_set(_device, _volumeSet);
+    }
 }
 
 void VulkanEngine::create_default_volume() {
     // No 3D density bound initially; homogeneous only.
     _volume.hasDensity = false;
+
+    // One time defaults
+    GPUMediumParams p{};
+    p.sigma_a_step = { 0.02f, 0.02f, 0.02f, 0.02f }; // stepSize as .w
+    p.sigma_s_maxT = { 0.00f, 0.00f, 0.00f, 200.0f };
+    p.g_emis_density_pad = { 0.0f,   0.0f,   1.0f, 0.0f }; // g, emission, densityScale
+    setMediumParams(p);
 }
 
 void VulkanEngine::upload_volume_3d(const void* voxels, VkExtent3D extent, VkFormat fmt) {
@@ -1759,7 +1784,7 @@ void VulkanEngine::upload_volume_3d(const void* voxels, VkExtent3D extent, VkFor
     VkImageUsageFlags usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     _volume.densityTex3D = create_image(extent, fmt, usage, /*mipmapped=*/false);
 
-    // Upload via staging (reusing your create_image(void*,...) path is 2D-only; do a custom upload)
+    // Upload via staging (reusing create_image(void*,...) path is 2D-only; do a custom upload)
     size_t pixelSize =
         (fmt == VK_FORMAT_R32_SFLOAT) ? 4 :
         (fmt == VK_FORMAT_R16_SFLOAT) ? 2 :

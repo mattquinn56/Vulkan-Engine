@@ -35,6 +35,29 @@ struct MaterialRT
 	int textureID;
 };
 
+// Homogeneous medium parameters (matches GPUMediumParams)
+layout(set = 4, binding = 0, std140) uniform Medium {
+    vec4 sigma_a_step;
+    vec4 sigma_s_maxT;
+    vec4 g_emis_density_pad;
+} uMedium;
+
+#define U_SIGMA_A       (uMedium.sigma_a_step.xyz)
+#define U_STEP          (uMedium.sigma_a_step.w)
+#define U_SIGMA_S       (uMedium.sigma_s_maxT.xyz)
+#define U_MAXT          (uMedium.sigma_s_maxT.w)
+#define U_G             (uMedium.g_emis_density_pad.x)
+#define U_EMISSION      (uMedium.g_emis_density_pad.y)
+#define U_DENSITY_SCALE (uMedium.g_emis_density_pad.z)
+
+vec3 sigma_t() { return U_SIGMA_A + U_SIGMA_S; }
+
+// Safe, per-channel divide: a/b with b>=0; returns 0 where b==0
+vec3 safeDiv(vec3 a, vec3 b) {
+    b = max(b, vec3(1e-8));
+    return a / b;
+}
+
 vec2 randomVec2(vec2 seed) {
     return vec2(fract(sin(seed.x * 12.9898 + seed.y * 78.233) * 43758.5453),
                 fract(sin(seed.y * 34.7892 + seed.x * 56.1234) * 12345.6789));

@@ -219,6 +219,20 @@ void main()
         outColor = (getReflectedColor(worldPos, reflectedDir) * metal) + (outColor * (1.0 - metal));
     }
     
-    prd.hitValue = outColor;
+    // === Volumetric over camera to first-hit segment ===
+    // t from camera to this surface (GL_EXT_ray_tracing builtin)
+    float tHit = gl_HitTEXT;  // distance in world units
+
+    vec3 sig_t = sigma_t();
+    vec3 Tr = exp(-sig_t * tHit);
+
+    // Constant emission along the segment
+    vec3 E = vec3(U_EMISSION);
+    vec3 L_emis = E * safeDiv((vec3(1.0) - Tr), sig_t);
+
+    // Apply absorption to surface light, add emission along view path
+    outColor = Tr * outColor + L_emis;
+
+    prd.hitValue = outColor;// + uMedium.sigma_a;
 }
 

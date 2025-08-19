@@ -151,11 +151,9 @@ struct MeshNode : public Node {
 // volumetric additions
 // Medium parameters for a homogeneous base + settings controlling ray marching
 struct GPUMediumParams {
-    glm::vec3 sigma_a;   float stepSize;   // absorption, world units step
-    glm::vec3 sigma_s;   float maxT;      // scattering, world-space march cap
-    float g;             float emission;  // Henyey–Greenstein anisotropy, simple emission
-    float densityScale;  float padding0;  // scales texture density into sigma_t
-    glm::vec2 padding1;
+    glm::vec4 sigma_a_step;        // xyz = sigma_a, w = stepSize
+    glm::vec4 sigma_s_maxT;        // xyz = sigma_s, w = maxT
+    glm::vec4 g_emis_density_pad;  // x = g, y = emission, z = densityScale, w = pad
 };
 
 // Volume resources: optional 3D density + sampler + params buffer
@@ -184,7 +182,7 @@ public:
     bool lastMonteCarlo = -1; // not controlled by UI
     int lastMSAA = -1; // not controlled by UI
 
-    VkExtent2D _windowExtent { 1000, 600 };
+    VkExtent2D _windowExtent { 1500, 900 };
 
     std::string structurePath;
     std::string lightPath;
