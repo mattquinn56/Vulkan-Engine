@@ -1775,7 +1775,7 @@ void VulkanEngine::create_default_volume() {
     GPUMediumParams p{};
     p.sigma_a_step = { 0.02f, 0.02f, 0.02f, 0.02f }; // stepSize as .w
     p.sigma_s_maxT = { 0.00f, 0.00f, 0.00f, 200.0f };
-    p.g_emis_density_pad = { 0.0f,   0.0f,   1.0f, 0.0f }; // g, emission, densityScale
+    p.g_emis_density_pad = { 0.0f,   0.1f,   1.0f, 0.0f }; // g, emission, densityScale
     setMediumParams(p);
 }
 
