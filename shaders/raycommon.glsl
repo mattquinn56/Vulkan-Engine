@@ -49,6 +49,7 @@ layout(set = 4, binding = 0, std140) uniform Medium {
 #define U_G             (uMedium.g_emis_density_pad.x)
 #define U_EMISSION      (uMedium.g_emis_density_pad.y)
 #define U_DENSITY_SCALE (uMedium.g_emis_density_pad.z)
+#define U_FOG_ENV       (uMedium.g_emis_density_pad.w)
 
 vec3 sigma_t() { return U_SIGMA_A + U_SIGMA_S; }
 

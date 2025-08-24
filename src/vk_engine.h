@@ -153,7 +153,7 @@ struct MeshNode : public Node {
 struct GPUMediumParams {
     glm::vec4 sigma_a_step;        // xyz = sigma_a, w = stepSize
     glm::vec4 sigma_s_maxT;        // xyz = sigma_s, w = maxT
-    glm::vec4 g_emis_density_pad;  // x = g, y = emission, z = densityScale, w = pad
+    glm::vec4 g_emis_density_pad;  // x = g, y = emission, z = densityScale, w = fogEnvFlag (1=affect env, 0=skip)
 };
 
 // Volume resources: optional 3D density + sampler + params buffer

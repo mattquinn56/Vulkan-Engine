@@ -727,22 +727,28 @@ void VulkanEngine::run()
             ImGui::DragFloat("g (anisotropy)", &g_e_d.x, 0.001f, -0.99f, 0.99f);
             ImGui::DragFloat("emission", &g_e_d.y, 0.001f, 0.0f, 10.0f);
             ImGui::DragFloat("densityScale", &g_e_d.z, 0.001f, 0.0f, 10.0f);
+
+            {
+                auto* mp = (GPUMediumParams*)_volume.mediumParams.allocation->GetMappedData();
+                bool fogEnv = mp->g_emis_density_pad.w > 0.5f;
+                if (ImGui::Checkbox("Fog affects environment", &fogEnv)) {
+                    mp->g_emis_density_pad.w = fogEnv ? 1.0f : 0.0f;
+                }
+            }
         }
         ImGui::End();
 
-        bool collapsedDataWindow = ImGui::Begin("background");
+        bool collapsedDataWindow = ImGui::Begin("Background (Raster)");
 		if (collapsedDataWindow) {
 
 			ComputeEffect& selected = backgroundEffects[currentBackgroundEffect];
 
-			ImGui::Text("Selected effect: ", selected.name);
+			ImGui::Text("Selected background: ", selected.name);
 
-			ImGui::SliderInt("Effect Index", &currentBackgroundEffect, 0, backgroundEffects.size() - 1);
+			ImGui::SliderInt("Effect", &currentBackgroundEffect, 0, backgroundEffects.size() - 1);
 
-			ImGui::InputFloat4("data1", (float*)&selected.data.data1);
-			ImGui::InputFloat4("data2", (float*)&selected.data.data2);
-			ImGui::InputFloat4("data3", (float*)&selected.data.data3);
-			ImGui::InputFloat4("data4", (float*)&selected.data.data4);
+			ImGui::InputFloat4("Top Gradient", (float*)&selected.data.data1);
+			ImGui::InputFloat4("Bottom Gradient", (float*)&selected.data.data2);
 
 		}
         ImGui::End();
@@ -1898,7 +1904,7 @@ void VulkanEngine::create_default_volume() {
     GPUMediumParams p{};
     p.sigma_a_step = { 0.02f, 0.02f, 0.02f, 0.02f }; // stepSize as .w
     p.sigma_s_maxT = { 0.00f, 0.00f, 0.00f, 200.0f };
-    p.g_emis_density_pad = { 0.0f,   0.1f,   1.0f, 0.0f }; // g, emission, densityScale
+    p.g_emis_density_pad = { 0.0f, 0.1f, 1.0f, 0.0f }; // ... , fogEnvFlag=0 (skip fog on env)
     setMediumParams(p);
 }
 
