@@ -314,6 +314,17 @@ void VulkanEngine::draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView)
 	vkCmdEndRendering(cmd);     
 }
 
+void seed_taa_history(VulkanEngine* e, VkCommandBuffer cmd) {
+    for (int i = 0; i < 2; ++i) {
+        vkutil::transition_image(cmd, e->_taaHistory[i].image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        vkutil::transition_image(cmd, e->_drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vkutil::copy_image_to_image(cmd, e->_drawImage.image, e->_taaHistory[i].image, e->_windowExtent, e->_windowExtent);
+        vkutil::transition_image(cmd, e->_taaHistory[i].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+        vkutil::transition_image(cmd, e->_drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+    }
+    e->_taaIndex = 0;
+}
+
 void VulkanEngine::draw()
 {
     // Wait for the previous frame using this FrameData to finish
@@ -352,15 +363,17 @@ void VulkanEngine::draw()
         draw_main(cmd);
     }
 
-    if (aaMode == AAMode::TAA)
-    {
-        // Ensure draw image is GENERAL for compute read
-        // (already transitioned to GENERAL before rendering)
-        // Prepare descriptor set for this frame
+    if (aaMode == AAMode::TAA) {
         int prev = _taaIndex;
         int next = 1 - _taaIndex;
 
-        // Write descriptors: curr = _drawImage, prev = history[prev], out = history[next]
+        // seed history when we first switch to TAA or on strong movement with zero alpha
+        if (cameraMoving && taaMovingAlpha == 0.0f) {
+            seed_taa_history(this, cmd);
+            prev = _taaIndex;
+            next = 1 - _taaIndex;
+        }
+
         {
             DescriptorWriter w;
             w.write_image(0, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
@@ -372,14 +385,16 @@ void VulkanEngine::draw()
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _taaPipeline);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _taaPipelineLayout, 0, 1, &_taaSet[next], 0, nullptr);
 
-        struct { float alpha; float clampK; } pc{ taaAlpha, taaClampK };
+        struct { float alpha; float clampK; } pc {
+            cameraMoving ? taaMovingAlpha : taaAlpha,
+            taaClampK
+        };
         vkCmdPushConstants(cmd, _taaPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
 
         uint32_t gx = (_windowExtent.width + 7) / 8;
         uint32_t gy = (_windowExtent.height + 7) / 8;
         vkCmdDispatch(cmd, gx, gy, 1);
 
-        // Copy resolved history[next] into drawImage for presentation
         vkutil::transition_image(cmd, _taaHistory[next].image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         vkutil::copy_image_to_image(cmd, _taaHistory[next].image, _drawImage.image, _windowExtent, _windowExtent);
@@ -677,7 +692,7 @@ void VulkanEngine::run()
         ImGui::Text("view direction: %f %f %f", viewDir.x, viewDir.y, viewDir.z);
         ImGui::End();
 
-        ImGui::Begin("Stats");
+        ImGui::Begin("Antialiasing");
         int aa = (aaMode == AAMode::TAA) ? 1 : 0;
         if (ImGui::RadioButton("Adaptive MSAA", aa == 0)) { aa = 0; }
         ImGui::SameLine();
@@ -685,8 +700,11 @@ void VulkanEngine::run()
         aaMode = (aa == 1) ? AAMode::TAA : AAMode::AdaptiveMSAA;
 
         if (aaMode == AAMode::TAA) {
-            ImGui::SliderFloat("TAA alpha", &taaAlpha, 0.0f, 0.99f);
-            ImGui::SliderFloat("TAA clampK", &taaClampK, 0.0f, 1.0f);
+            ImGui::SliderFloat("TAA alpha (still)", &taaAlpha, 0.0f, 0.99f);
+            ImGui::SliderFloat("TAA alpha (moving)", &taaMovingAlpha, 0.0f, 0.99f);
+            ImGui::SliderFloat("TAA vel thresh", &taaVelThreshold, 0.0f, 0.2f);
+            ImGui::SliderFloat("TAA rot thresh", &taaRotThreshold, 0.0f, 5.0f);
+            ImGui::Text("Camera moving: %s", cameraMoving ? "yes" : "no");
         }
         if (aaMode == AAMode::AdaptiveMSAA)
             ImGui::SliderInt("MSAA Divisions", &msaaSetting, 1, 3);
@@ -793,37 +811,32 @@ void VulkanEngine::update_scene()
 {
     mainCamera.update();
 
-	glm::mat4 view = mainCamera.getViewMatrix();
+    glm::mat4 view = mainCamera.getViewMatrix();
+    glm::mat4 projection = glm::perspective(glm::radians(70.f),
+        (float)_windowExtent.width / (float)_windowExtent.height,
+        0.1f, 10000.f);
+    projection[1][1] *= -1;
 
-	// camera projection
-	glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)_windowExtent.width / (float)_windowExtent.height, 10000.0f, 0.1f);
+    // motion detection
+    glm::vec3 camPos = mainCamera.position;
+    glm::vec3 viewDir = mainCamera.getViewDirection();
 
-	// invert the Y direction on projection matrix so that we are more similar
-	// to opengl and gltf axis
-	projection[1][1] *= -1;
+    float linDelta = _hasPrevCamera ? glm::length(camPos - _prevCamPos) : 0.f;
+    float angDelta = _hasPrevCamera ? glm::degrees(acos(glm::clamp(glm::dot(glm::normalize(viewDir), glm::normalize(_prevViewDir)), -1.f, 1.f))) : 0.f;
+    cameraMoving = _hasPrevCamera && (linDelta > taaVelThreshold || angDelta > taaRotThreshold);
+    _prevCamPos = camPos;
+    _prevViewDir = viewDir;
+    _hasPrevCamera = true;
 
-	sceneData.view = view;
-	sceneData.proj = projection;
-	sceneData.viewproj = projection * view;
-    // x is num frames, y is enable sampling, z is enable msaa
+    sceneData.view = view;
+    sceneData.proj = projection;
+    sceneData.viewproj = projection * view;
     sceneData.data = glm::vec4(_frameNumber, computeMonteCarlo, msaaSetting, (aaMode == AAMode::TAA) ? 1.f : 0.f);
 
     drawCommands.OpaqueSurfaces.clear();
     drawCommands.m_objDesc.clear();
     drawCommands.TransparentSurfaces.clear();
     loadedScenes["structure"]->Draw(glm::mat4{ 1.f }, drawCommands);
-
-    /*
-    // temp: only keep one
-    RenderObject x = drawCommands.OpaqueSurfaces[0];
-    drawCommands.OpaqueSurfaces.clear();
-    drawCommands.OpaqueSurfaces.push_back(x);
-
-    // do the same for m_objDesc
-    ObjDesc objDesc = drawCommands.m_objDesc[0];
-    drawCommands.m_objDesc.clear();
-    drawCommands.m_objDesc.push_back(objDesc);
-    */
 }
 
 AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
@@ -1713,8 +1726,7 @@ AllocatedBuffer VulkanEngine::allocateAndBindBuffer(VkBuffer buffer, VmaMemoryUs
     return allocatedBuffer;
 }
 
-void MeshNode::Draw(const glm::mat4& topMatrix, DrawContext& ctx)
-{
+void MeshNode::Draw(const glm::mat4& topMatrix, DrawContext& ctx) {
     glm::mat4 nodeMatrix = topMatrix * worldTransform;
 
     for (auto& s : mesh->surfaces) {
@@ -1791,8 +1803,7 @@ AllocatedBuffer VulkanEngine::create_buffer_data(VkDeviceSize size, const void* 
     return resultBuffer;
 }
 
-void VulkanEngine::init_taa_resources()
-{
+void VulkanEngine::init_taa_resources() {
     VkExtent3D ext{ _windowExtent.width, _windowExtent.height, 1 };
     auto make_history = [&](AllocatedImage& img) {
         img = create_image(ext, VK_FORMAT_R16G16B16A16_SFLOAT,
@@ -1846,13 +1857,11 @@ void VulkanEngine::init_taa_resources()
     _mainDeletionQueue.push_function([&, this]() { vkDestroyPipeline(_device, _taaPipeline, nullptr); });
 }
 
-void VulkanEngine::destroy_taa_resources()
-{
+void VulkanEngine::destroy_taa_resources() {
     // handled by deletion queue
 }
 
-void VulkanEngine::init_volume_descriptors()
-{
+void VulkanEngine::init_volume_descriptors() {
     // Create std140 medium UBO (persistently mapped CPU->GPU)
     if (_volume.mediumParams.buffer == VK_NULL_HANDLE) {
         _volume.mediumParams = create_buffer(sizeof(GPUMediumParams),

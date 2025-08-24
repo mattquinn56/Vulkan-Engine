@@ -338,6 +338,15 @@ public:
     float taaAlpha = 0.9f;     // history weight
     float taaClampK = 0.10f;   // neighborhood clamps
 
+    float taaMovingAlpha = 0.0f;   // alpha when moving (0 = full reset behavior)
+    float taaVelThreshold = 0.002f;  // world units / frame
+    float taaRotThreshold = 0.5f;   // degrees / frame
+
+    bool  cameraMoving = false;
+    glm::vec3 _prevCamPos = {};
+    glm::vec3 _prevViewDir = {};
+    bool _hasPrevCamera = false;
+
     // TAA GPU resources
     AllocatedImage _taaHistory[2];
     int _taaIndex = 0;
