@@ -352,6 +352,43 @@ void VulkanEngine::draw()
         draw_main(cmd);
     }
 
+    if (aaMode == AAMode::TAA)
+    {
+        // Ensure draw image is GENERAL for compute read
+        // (already transitioned to GENERAL before rendering)
+        // Prepare descriptor set for this frame
+        int prev = _taaIndex;
+        int next = 1 - _taaIndex;
+
+        // Write descriptors: curr = _drawImage, prev = history[prev], out = history[next]
+        {
+            DescriptorWriter w;
+            w.write_image(0, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+            w.write_image(1, _taaHistory[prev].imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+            w.write_image(2, _taaHistory[next].imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+            w.update_set(_device, _taaSet[next]);
+        }
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _taaPipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _taaPipelineLayout, 0, 1, &_taaSet[next], 0, nullptr);
+
+        struct { float alpha; float clampK; } pc{ taaAlpha, taaClampK };
+        vkCmdPushConstants(cmd, _taaPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+
+        uint32_t gx = (_windowExtent.width + 7) / 8;
+        uint32_t gy = (_windowExtent.height + 7) / 8;
+        vkCmdDispatch(cmd, gx, gy, 1);
+
+        // Copy resolved history[next] into drawImage for presentation
+        vkutil::transition_image(cmd, _taaHistory[next].image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        vkutil::copy_image_to_image(cmd, _taaHistory[next].image, _drawImage.image, _windowExtent, _windowExtent);
+        vkutil::transition_image(cmd, _taaHistory[next].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+        vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+
+        _taaIndex = next;
+    }
+
     // Copy the rendered image into the swapchain image
     vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     vkutil::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -629,7 +666,6 @@ void VulkanEngine::run()
 
         ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
         ImGui::SliderInt("Monte Carlo Samples", &computeMonteCarlo, 0, 500); // Run monte carlo sampling
-        ImGui::SliderInt("MSAA Divisions", &msaaSetting, 1, 3);
         ImGui::Checkbox("Debug setting", &debugSetting);  // Used for anything
 
 		ImGui::Text("frametime %f ms", stats.frametime);
@@ -639,6 +675,21 @@ void VulkanEngine::run()
         glm::vec3 viewDir = mainCamera.getViewDirection();
         ImGui::Text("position: %f %f %f", mainCamera.position.x, mainCamera.position.y, mainCamera.position.z);
         ImGui::Text("view direction: %f %f %f", viewDir.x, viewDir.y, viewDir.z);
+        ImGui::End();
+
+        ImGui::Begin("Stats");
+        int aa = (aaMode == AAMode::TAA) ? 1 : 0;
+        if (ImGui::RadioButton("Adaptive MSAA", aa == 0)) { aa = 0; }
+        ImGui::SameLine();
+        if (ImGui::RadioButton("TAA", aa == 1)) { aa = 1; }
+        aaMode = (aa == 1) ? AAMode::TAA : AAMode::AdaptiveMSAA;
+
+        if (aaMode == AAMode::TAA) {
+            ImGui::SliderFloat("TAA alpha", &taaAlpha, 0.0f, 0.99f);
+            ImGui::SliderFloat("TAA clampK", &taaClampK, 0.0f, 1.0f);
+        }
+        if (aaMode == AAMode::AdaptiveMSAA)
+            ImGui::SliderInt("MSAA Divisions", &msaaSetting, 1, 3);
         ImGui::End();
 
         ImGui::Begin("Medium");
@@ -754,7 +805,8 @@ void VulkanEngine::update_scene()
 	sceneData.view = view;
 	sceneData.proj = projection;
 	sceneData.viewproj = projection * view;
-    sceneData.data = glm::vec4(_frameNumber, computeMonteCarlo, msaaSetting, 0); // x is num frames, y is enable sampling, z is enable msaa
+    // x is num frames, y is enable sampling, z is enable msaa
+    sceneData.data = glm::vec4(_frameNumber, computeMonteCarlo, msaaSetting, (aaMode == AAMode::TAA) ? 1.f : 0.f);
 
     drawCommands.OpaqueSurfaces.clear();
     drawCommands.m_objDesc.clear();
@@ -1186,7 +1238,7 @@ void VulkanEngine::resize_swapchain()
 	_windowExtent.height = h;
 
 	create_swapchain(_windowExtent.width, _windowExtent.height);
-
+    init_taa_resources();
 	resize_requested = false;
 }
 
@@ -1429,6 +1481,8 @@ void VulkanEngine::init_pipelines()
     init_background_pipelines();
 
     metalRoughMaterial.build_pipelines(this);
+
+    init_taa_resources();
 }
 
 void VulkanEngine::init_descriptors()
@@ -1735,6 +1789,66 @@ AllocatedBuffer VulkanEngine::create_buffer_data(VkDeviceSize size, const void* 
     immediate_submit([&](VkCommandBuffer cmd) { vkCmdCopyBuffer(cmd, stagingBuffer, resultBuffer.buffer, 1, &copyRegion); });
 
     return resultBuffer;
+}
+
+void VulkanEngine::init_taa_resources()
+{
+    VkExtent3D ext{ _windowExtent.width, _windowExtent.height, 1 };
+    auto make_history = [&](AllocatedImage& img) {
+        img = create_image(ext, VK_FORMAT_R16G16B16A16_SFLOAT,
+            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+        immediate_submit([&](VkCommandBuffer cmd) {
+            vkutil::transition_image(cmd, img.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+            });
+        _mainDeletionQueue.push_function([&, this]() { destroy_image(img); });
+        };
+    make_history(_taaHistory[0]);
+    make_history(_taaHistory[1]);
+
+    // Descriptor set layout: curr, prev, out = 3 storage images
+    DescriptorLayoutBuilder b;
+    b.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    b.add_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    b.add_binding(2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    _taaSetLayout = b.build(_device, VK_SHADER_STAGE_COMPUTE_BIT);
+    _mainDeletionQueue.push_function([&, this]() { vkDestroyDescriptorSetLayout(_device, _taaSetLayout, nullptr); });
+
+    // Allocate two descriptor sets (we’ll ping-pong prev/out between histories)
+    _taaSet[0] = globalDescriptorAllocator.allocate(_device, _taaSetLayout);
+    _taaSet[1] = globalDescriptorAllocator.allocate(_device, _taaSetLayout);
+
+    // Compute pipeline
+    VkPipelineLayoutCreateInfo pli{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+    VkPushConstantRange pc{};
+    pc.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    pc.offset = 0;
+    pc.size = sizeof(float) * 2; // alpha, clampK
+    pli.pushConstantRangeCount = 1;
+    pli.pPushConstantRanges = &pc;
+    pli.setLayoutCount = 1;
+    pli.pSetLayouts = &_taaSetLayout;
+    VK_CHECK(vkCreatePipelineLayout(_device, &pli, nullptr, &_taaPipelineLayout));
+    _mainDeletionQueue.push_function([&, this]() { vkDestroyPipelineLayout(_device, _taaPipelineLayout, nullptr); });
+
+    VkShaderModule taaCS;
+    if (!vkutil::load_shader_module("../../shaders/temporal_resolve.comp.spv", _device, &taaCS)) {
+        throw std::runtime_error("failed to load temporal_resolve.comp.spv");
+    }
+    VkComputePipelineCreateInfo ci{ VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
+    VkPipelineShaderStageCreateInfo ss{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+    ss.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    ss.module = taaCS;
+    ss.pName = "main";
+    ci.stage = ss;
+    ci.layout = _taaPipelineLayout;
+    VK_CHECK(vkCreateComputePipelines(_device, VK_NULL_HANDLE, 1, &ci, nullptr, &_taaPipeline));
+    vkDestroyShaderModule(_device, taaCS, nullptr);
+    _mainDeletionQueue.push_function([&, this]() { vkDestroyPipeline(_device, _taaPipeline, nullptr); });
+}
+
+void VulkanEngine::destroy_taa_resources()
+{
+    // handled by deletion queue
 }
 
 void VulkanEngine::init_volume_descriptors()

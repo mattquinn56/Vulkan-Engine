@@ -332,6 +332,24 @@ public:
 
     AllocatedImage loadImageFromFile(std::string path);
 
+    // antialiasing
+    enum class AAMode : int { AdaptiveMSAA = 0, TAA = 1 };
+    AAMode aaMode = AAMode::TAA;
+    float taaAlpha = 0.9f;     // history weight
+    float taaClampK = 0.10f;   // neighborhood clamps
+
+    // TAA GPU resources
+    AllocatedImage _taaHistory[2];
+    int _taaIndex = 0;
+    VkDescriptorSetLayout _taaSetLayout = VK_NULL_HANDLE;
+    VkPipelineLayout      _taaPipelineLayout = VK_NULL_HANDLE;
+    VkPipeline            _taaPipeline = VK_NULL_HANDLE;
+    VkDescriptorSet       _taaSet[2]{};   // 2 sets for ping-pong
+
+    // helpers
+    void init_taa_resources();
+    void destroy_taa_resources();
+
     // volumetric additions
     void setMediumParams(const GPUMediumParams& p);
 

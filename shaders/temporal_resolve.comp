@@ -1,0 +1,26 @@
+#version 460
+layout(local_size_x=8, local_size_y=8) in;
+
+layout(rgba16f, binding = 0) uniform readonly image2D currImg;
+layout(rgba16f, binding = 1) uniform readonly image2D prevImg;
+layout(rgba16f, binding = 2) uniform writeonly image2D outImg;
+
+layout(push_constant) uniform PC { float alpha; float clampK; } pc;
+
+void main()
+{
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+    vec3 c  = imageLoad(currImg,p).rgb;
+    vec3 h  = imageLoad(prevImg,p).rgb;
+
+    vec3 mn = c, mx = c;
+    for (int dy=-1; dy<=1; ++dy)
+    for (int dx=-1; dx<=1; ++dx) {
+        ivec2 q = p + ivec2(dx,dy);
+        vec3 s = imageLoad(currImg, q).rgb;
+        mn = min(mn, s); mx = max(mx, s);
+    }
+    vec3 hc = clamp(h, mn - pc.clampK, mx + pc.clampK);
+    vec3 outc = mix(c, hc, pc.alpha);
+    imageStore(outImg, p, vec4(outc,1));
+}
