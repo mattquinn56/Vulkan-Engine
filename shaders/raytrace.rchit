@@ -29,6 +29,7 @@ struct PushConstantRay
     vec4 clearColor;
 	uint64_t lightAddress;
     uint numLights;
+    uint useMicrofacet; // 0=legacy, 1=GGX
 };
 
 layout(location = 0) rayPayloadInEXT hitPayload prd;
@@ -50,6 +51,65 @@ layout(set = 3, binding = 1) uniform sampler2D MetalRoughImage2D[TEX_MAX];
 
 layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
 
+
+// Microfacet helpers (GGX + Schlick Fresnel + Smith)
+const float PI = 3.14159265358979323846;
+
+float saturate(float x) { return clamp(x, 0.0, 1.0); }
+
+vec3 fresnelSchlick(float cosTheta, vec3 F0)
+{
+    // UE4-style Schlick
+    return F0 + (1.0 - F0) * pow(1.0 - saturate(cosTheta), 5.0);
+}
+
+float D_GGX(float NdotH, float alpha)
+{
+    float a2 = alpha * alpha;
+    float d  = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
+    return a2 / (PI * d * d + 1e-6);
+}
+
+float G_SchlickSmith(float NdotV, float NdotL, float alpha)
+{
+    // k from Epic (alpha remap)
+    float k = (alpha + 1.0);
+    k = (k * k) / 8.0;
+    float gV = NdotV / (NdotV * (1.0 - k) + k);
+    float gL = NdotL / (NdotL * (1.0 - k) + k);
+    return gV * gL;
+}
+
+// Returns BRDF * NdotL (no light color or intensity applied)
+vec3 brdf_ggx_smith(vec3 N, vec3 V, vec3 L, vec3 albedo, float metallic, float roughness)
+{
+    vec3 H = normalize(V + L);
+
+    float NdotV = saturate(dot(N, V));
+    float NdotL = saturate(dot(N, L));
+    float NdotH = saturate(dot(N, H));
+    float VdotH = saturate(dot(V, H));
+
+    float r = clamp(roughness, 0.04, 1.0);
+    float alpha = r * r;
+
+    // Dielectric F0 ~ 0.04, metallic uses albedo as F0
+    vec3 F0 = mix(vec3(0.04), albedo, metallic);
+    vec3  F = fresnelSchlick(VdotH, F0);
+    float D = D_GGX(NdotH, alpha);
+    float G = G_SchlickSmith(NdotV, NdotL, alpha);
+
+    vec3  spec = (D * G * F) / max(4.0 * NdotV * NdotL, 1e-5);
+
+    // Energy conservation: kD = (1 - F) * (1 - metallic)
+    vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
+
+    vec3 diff = (kD * albedo) * (1.0 / PI);
+
+    // Return BRDF * cos term
+    return (diff + spec) * NdotL;
+}
+
 bool isOccluded(vec3 origin, vec3 direction, float tmax)
 {
     isShadowed = true;
@@ -65,20 +125,25 @@ vec3 getReflectedColor(vec3 origin, vec3 direction)
     return prd.hitValue;
 }
 
-float computeSpecularIntensity(vec3 viewDir, vec3 lightDir, vec3 normal, float roughness)
+// --- Legacy fallback (Lambert + simple Phong-like) ---
+float legacy_specular(vec3 V, vec3 L, vec3 N, float roughness)
 {
-    vec3 halfVec = normalize(lightDir + viewDir);
-    float nDotVP = max(0.0, dot(normal, normalize(lightDir) ));	
-	float nDotHV = max(0.0, dot(normal, normalize(halfVec) ));
-	
-    float pf;
-	if(nDotVP == 0.0) {
-		pf = 0.0;
-    } else {
-        pf = pow(nDotHV, 1.0 / roughness) / 20.0;
-	}
+    vec3  H = normalize(V + L);
+    float nDotH = max(dot(N, H), 0.0);
+    float gloss = max(1.0 - roughness, 0.02);       // invert roughness
+    float shin  = mix(8.0, 128.0, gloss);           // ad-hoc shininess
+    return pow(nDotH, shin);
+}
 
-    return pf;
+vec3 brdf_legacy(vec3 N, vec3 V, vec3 L, vec3 albedo, float metallic, float roughness)
+{
+    float NdotL = max(dot(N, L), 0.0);
+    // Mostly diffuse unless “metallic” is high (metal kills diffuse)
+    vec3  diff  = albedo * (1.0 - metallic) * (NdotL / PI);
+    float spec  = legacy_specular(V, L, N, roughness) * NdotL;
+    // Mildly tint the spec with albedo for metals
+    vec3  specC = mix(vec3(1.0), albedo, metallic) * spec * 0.25;
+    return diff + specC;
 }
 
 void main()
@@ -139,78 +204,77 @@ void main()
     int frameNumber = int(sceneData.data.x);
     vec3 outColor = vec3(0.0);
 
+    
+
+    // View vector points from surface to camera
+    vec3 V = normalize(-gl_WorldRayDirectionEXT);
+
     // Lighting loop
     if (metal < 1.0 - EPSILON || !computeReflection) {
         for (int i = 0; i < pcRay.numLights; i++) {
             
-            // Unpack light info
             RenderLight l = Light(pcRay.lightAddress + i * RLstride).rl;
             vec3 lpos = l.position.xyz;
-            float intensity = l.position.a;
-            vec3 lcolor = l.color.xyz;
+            float intensity = l.position.a;     // scalar intensity
+            vec3 lcolor = l.color.xyz;          // light color (linear)
             int type = int(l.color.a);
             vec3 lv0 = l.v0.xyz;
             vec3 lv1 = l.v1.xyz;
             vec3 lv2 = lpos;
 
-            // Calculate by type
             if (type == POINT) {
                 float dist = length(lpos - worldPos);
-		        vec3 lightDir = normalize(lpos - worldPos);
-                bool shadowed = isOccluded(worldPos, lightDir, dist);
+                vec3  L    = normalize(lpos - worldPos);
+                bool  shadowed = isOccluded(worldPos, L, dist);
                 if (!shadowed) {
-                    // compute diffuse
-		            float lightAmt = max(dot(worldNrm, lightDir), 0.0);
-		            vec3 diffuse = lightAmt * intensity * lcolor / (dist * dist);
-				    outColor += vec3(texColor * diffuse);
-                    
-                    // compute specular
-					float specular = computeSpecularIntensity(gl_WorldRayDirectionEXT, lightDir, worldNrm, roughness);
-					outColor += specular * lcolor * intensity;
-			    }
-	        } else if (type == AMBIENT) {
-		        outColor += vec3(texColor * intensity * lcolor);
+                    float invDist2 = 1.0 / max(dist * dist, 1e-4);
+                    vec3  radiance = lcolor * intensity * invDist2;
 
-	        } else if (type == DIRECTIONAL) {
-		        vec3 lightDir = normalize(lpos);
-                bool shadowed = isOccluded(worldPos, lightDir, T_MAX);
-                if (!shadowed) {
-                    // compute diffuse
-		            float lightAmt = max(dot(worldNrm, lightDir), 0.0);
-		            vec3 diffuse = lightAmt * intensity * lcolor;
-				    outColor += vec3(texColor * diffuse);
-
-                    // compute specular
-					float specular = computeSpecularIntensity(gl_WorldRayDirectionEXT, lightDir, worldNrm, roughness);
-					outColor += specular * lcolor * intensity;
+                    // Microfacet BRDF (diffuse+spec) * NdotL
+                    vec3 contrib = (pcRay.useMicrofacet != 0)
+                     ? brdf_ggx_smith(worldNrm, V, L, texColor, metal, roughness)
+                     : brdf_legacy     (worldNrm, V, L, texColor, metal, roughness);
+                    outColor += radiance * contrib;
                 }
-	        } else if (type == AREA) {
+
+            } else if (type == AMBIENT) {
+                // Ambient treated as diffuse only
+                vec3 F0 = mix(vec3(0.04), texColor, metal);
+                vec3 F  = fresnelSchlick(1.0, F0);
+                vec3 kD = (vec3(1.0) - F) * (1.0 - metal);
+                vec3 diffuse = kD * texColor * (1.0 / PI);
+                outColor += diffuse * lcolor * intensity;
+
+            } else if (type == DIRECTIONAL) {
+                vec3  L = normalize(lpos); // direction stored in position.xyz
+                bool  shadowed = isOccluded(worldPos, L, T_MAX);
+                if (!shadowed) {
+                    vec3 radiance = lcolor * intensity;
+                    vec3 contrib = (pcRay.useMicrofacet != 0)
+                     ? brdf_ggx_smith(worldNrm, V, L, texColor, metal, roughness)
+                     : brdf_legacy     (worldNrm, V, L, texColor, metal, roughness);
+                    outColor += radiance * contrib;
+                }
+
+            } else if (type == AREA) {
                 if (int(sceneData.data.y) == 0) {
-					continue;
-				}
-                for (int j = 0; j < int(sceneData.data.y); j++) {
-                    // randomly generate a point on the light
-                    uint frame = uint(sceneData.data.x);
-                    uvec2 pix  = uvec2(gl_LaunchIDEXT.xy);
-                    uint seed  = (pix.x * 1973u) ^ (pix.y * 9277u) ^ (frame * 26699u) ^ (j * 811u);
-                    vec2 rand  = vec2(fract(sin(float(seed) * 0.0243902439) * 43758.5453),
-                                      fract(sin(float(seed ^ 0x9E3779B9u) * 0.0243902439) * 24634.6345));
+                    continue;
+                }
+                int samples = int(sceneData.data.y);
+                for (int j = 0; j < samples; j++) {
+                    vec2 rand = randomVec2(gl_WorldRayDirectionEXT.xy * float(j + 1));
                     if (rand.x + rand.y > 1.0) { rand = vec2(1.0) - rand; }
-                    if (rand.x + rand.y > 1.0) {
-                        rand.x = 1.0 - rand.x;
-                        rand.y = 1.0 - rand.y;
-                    }
-                    rand = randomVec2(gl_WorldRayDirectionEXT.xy * (j + 1));
                     vec3 samplePoint = lv0 + (rand.x * (lv1 - lv0)) + (rand.y * (lv2 - lv0));
-                    
+
                     float dist = length(samplePoint - worldPos);
-					vec3 lightDir = normalize(samplePoint - worldPos);
-					bool shadowed = isOccluded(worldPos, lightDir, dist);
-					if (!shadowed) {
-						// compute diffuse
-		                float lightAmt = max(dot(worldNrm, lightDir), 0.0);
-		                vec3 diffuse = lightAmt * intensity * lcolor;
-                        outColor += vec3(texColor * diffuse) / sceneData.data.y;
+                    vec3  L    = normalize(samplePoint - worldPos);
+                    bool  shadowed = isOccluded(worldPos, L, dist);
+                    if (!shadowed) {
+                        vec3 radiance = lcolor * intensity; // treat intensity as already scaled for area
+                        vec3 contrib = (pcRay.useMicrofacet != 0)
+                         ? brdf_ggx_smith(worldNrm, V, L, texColor, metal, roughness)
+                         : brdf_legacy     (worldNrm, V, L, texColor, metal, roughness);
+                        outColor += (radiance * contrib) / float(samples);
                     }
                 }
             }

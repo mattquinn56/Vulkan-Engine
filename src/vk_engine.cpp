@@ -851,7 +851,7 @@ void VulkanEngine::run()
 
         ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
         ImGui::Checkbox("Debug setting", &debugSetting);  // Used for anything
-
+        ImGui::Checkbox("Use Microfacet BRDF (GGX/Smith/Schlick)", &useMicrofacetBRDF);
 		ImGui::Text("frametime %f ms", stats.frametime);
         glm::vec3 viewDir = mainCamera.getViewDirection();
         ImGui::Text("position: %f %f %f", mainCamera.position.x, mainCamera.position.y, mainCamera.position.z);

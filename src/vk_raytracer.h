@@ -113,6 +113,7 @@ public:
         glm::vec4 clearColor;
         uint64_t lightAddress;
         int numLights;
+        int useMicrofacet; // 0 = legacy, 1 = GGX+Smith+Schlick
     };
 
     // Push constant for ray tracer

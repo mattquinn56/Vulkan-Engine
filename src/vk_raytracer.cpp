@@ -776,6 +776,7 @@ void VulkanRayTracer::raytrace(const VkCommandBuffer& cmdBuf)
     m_pcRay.clearColor = glm::vec4(.6, .6, .6, 1.00f);
     m_pcRay.lightAddress = engine->getBufferDeviceAddress(engine->_device, engine->m_lightBuffer.buffer);
     m_pcRay.numLights = engine->m_numLights;
+    m_pcRay.useMicrofacet = engine->useMicrofacetBRDF ? 1 : 0;
     engine->update_global_descriptor();
 
     std::vector<VkDescriptorSet> descSets {

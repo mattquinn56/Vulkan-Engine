@@ -11,6 +11,7 @@ struct PushConstantRay
     vec4 clearColor;
 	uint64_t lightAddress;
     uint numLights;
+    uint useMicrofacet; // 0=legacy, 1=GGX
 };
 
 layout(location = 0) rayPayloadInEXT hitPayload prd;

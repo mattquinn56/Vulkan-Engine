@@ -392,6 +392,9 @@ public:
     void init_postprocess();
     void destroy_postprocess();
 
+    // Microfacet addition
+    bool useMicrofacetBRDF = true;
+
     // volumetric additions
     void setMediumParams(const GPUMediumParams& p);
 
