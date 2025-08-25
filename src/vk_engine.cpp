@@ -755,10 +755,6 @@ void VulkanEngine::run()
         ImGui::Begin("Main Control");
 
         ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
-        ImGui::SliderInt("Monte Carlo Samples", &computeMonteCarlo, 0, 500); // Run monte carlo sampling
-        ImGui::Checkbox("Progressive MC", &mcProgressive);
-        ImGui::SliderInt("MC per-frame spp", &mcPerFrame, 1, 20);
-        ImGui::SliderInt("MC reset frames", &mcResetFrames, 0, 8);
         ImGui::Checkbox("Debug setting", &debugSetting);  // Used for anything
 
 		ImGui::Text("frametime %f ms", stats.frametime);
@@ -773,13 +769,21 @@ void VulkanEngine::run()
         ImGui::SameLine();
         if (ImGui::RadioButton("TAA", aa == 1)) { aa = 1; }
         aaMode = (aa == 1) ? AAMode::TAA : AAMode::AdaptiveMSAA;
-
+        ImGui::BeginDisabled();            // disable interactions, grays out
+        ImGui::Checkbox("Progressive MC", &mcProgressive);
+        ImGui::EndDisabled();
         if (aaMode == AAMode::TAA) {
+            ImGui::SliderInt("MC per-frame spp", &mcPerFrame, 0, 20);
+            ImGui::SliderInt("MC reset frames", &mcResetFrames, 0, 8);
             ImGui::SliderFloat("TAA alpha (still)", &taaAlpha, 0.0f, 0.99f);
-            ImGui::SliderFloat("TAA alpha (moving)", &taaMovingAlpha, 0.0f, 0.99f);
-            ImGui::SliderFloat("TAA vel thresh", &taaVelThreshold, 0.0f, 0.2f);
-            ImGui::SliderFloat("TAA rot thresh", &taaRotThreshold, 0.0f, 5.0f);
+            //ImGui::SliderFloat("TAA alpha (moving)", &taaMovingAlpha, 0.0f, 0.99f);
+            //ImGui::SliderFloat("TAA vel thresh", &taaVelThreshold, 0.0f, 0.2f);
+            //ImGui::SliderFloat("TAA rot thresh", &taaRotThreshold, 0.0f, 5.0f);
             ImGui::Text("Camera moving: %s", cameraMoving ? "yes" : "no");
+            mcProgressive = true;
+        } else {
+            ImGui::SliderInt("MC per-frame spp", &mcPerFrame, 0, 20);
+            mcProgressive = false;
         }
         ImGui::End();
 
