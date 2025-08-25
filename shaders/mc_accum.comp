@@ -1,0 +1,35 @@
+#version 460
+layout(local_size_x=8, local_size_y=8) in;
+
+layout(rgba16f, binding = 0) uniform readonly  image2D currImg;   // current frame estimate
+layout(rgba16f, binding = 1) uniform coherent image2D accumImg;  // running average (color)
+layout(r32ui,  binding = 2) uniform coherent uimage2D countImg;  // running count
+layout(rgba16f, binding = 3) uniform writeonly image2D outImg;   // resolved to draw
+
+layout(push_constant) uniform PC { float perFrameSpp; float movingFlag; } pc;
+
+void main(){
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+
+    // current frame may contain avg over N sub-samples; treat it as one "batch sample"
+    vec3 curr = imageLoad(currImg, p).rgb;
+
+    uint n = imageLoad(countImg, p).x;
+    vec3 avg = imageLoad(accumImg, p).rgb;
+
+    if (pc.movingFlag > 0.5) {
+        // when moving, just pass through current and don't increase count
+        imageStore(outImg, p, vec4(curr,1));
+        return;
+    }
+
+    // accumulate perFrameSpp batches (integer)
+    uint add = max(1u, uint(pc.perFrameSpp));
+    // new running average: (avg*n + curr*add) / (n + add)
+    vec3 newAvg = (avg * float(n) + curr * float(add)) / float(n + add);
+    uint newN   = n + add;
+
+    imageStore(accumImg, p, vec4(newAvg, 1));
+    imageStore(countImg, p, uvec4(newN,0,0,0));
+    imageStore(outImg, p,   vec4(newAvg, 1));
+}

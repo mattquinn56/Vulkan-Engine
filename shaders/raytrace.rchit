@@ -155,6 +155,7 @@ void main()
 
             // Calculate by type
             if (type == POINT) {
+            /*
                 float dist = length(lpos - worldPos);
 		        vec3 lightDir = normalize(lpos - worldPos);
                 bool shadowed = isOccluded(worldPos, lightDir, dist);
@@ -168,11 +169,12 @@ void main()
 					float specular = computeSpecularIntensity(gl_WorldRayDirectionEXT, lightDir, worldNrm, roughness);
 					outColor += specular * lcolor * intensity;
 			    }
-
+                */
 	        } else if (type == AMBIENT) {
-		        outColor += vec3(texColor * intensity * lcolor);
+		        //outColor += vec3(texColor * intensity * lcolor);
 
 	        } else if (type == DIRECTIONAL) {
+            /*
 		        vec3 lightDir = normalize(lpos);
                 bool shadowed = isOccluded(worldPos, lightDir, T_MAX);
                 if (!shadowed) {
@@ -185,18 +187,24 @@ void main()
 					float specular = computeSpecularIntensity(gl_WorldRayDirectionEXT, lightDir, worldNrm, roughness);
 					outColor += specular * lcolor * intensity;
                 }
+                */
 	        } else if (type == AREA) {
                 if (int(sceneData.data.y) == 0) {
 					continue;
 				}
                 for (int j = 0; j < int(sceneData.data.y); j++) {
                     // randomly generate a point on the light
-                    //vec2 rand = randomVec2(gl_WorldRayDirectionEXT.xy * sceneData.data.x * j);
-                    vec2 rand = randomVec2(gl_WorldRayDirectionEXT.xy * (j + 1));
+                    uint frame = uint(sceneData.data.x);
+                    uvec2 pix  = uvec2(gl_LaunchIDEXT.xy);
+                    uint seed  = (pix.x * 1973u) ^ (pix.y * 9277u) ^ (frame * 26699u) ^ (j * 811u);
+                    vec2 rand  = vec2(fract(sin(float(seed) * 0.0243902439) * 43758.5453),
+                                      fract(sin(float(seed ^ 0x9E3779B9u) * 0.0243902439) * 24634.6345));
+                    if (rand.x + rand.y > 1.0) { rand = vec2(1.0) - rand; }
                     if (rand.x + rand.y > 1.0) {
                         rand.x = 1.0 - rand.x;
                         rand.y = 1.0 - rand.y;
                     }
+                    rand = randomVec2(gl_WorldRayDirectionEXT.xy * (j + 1));
                     vec3 samplePoint = lv0 + (rand.x * (lv1 - lv0)) + (rand.y * (lv2 - lv0));
                     
                     float dist = length(samplePoint - worldPos);

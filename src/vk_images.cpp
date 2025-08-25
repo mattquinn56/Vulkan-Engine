@@ -166,3 +166,22 @@ void vkutil::generate_mipmaps(VkCommandBuffer cmd, VkImage image, VkExtent2D ima
     transition_image(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 //< mipgen
+//> clear image
+
+void vkutil::clear_color_image_uint(VkCommandBuffer cmd, VkImage image, uint32_t r, uint32_t g, uint32_t b, uint32_t a) {
+    VkClearColorValue clearValue{};
+    clearValue.uint32[0] = r;
+    clearValue.uint32[1] = g;
+    clearValue.uint32[2] = b;
+    clearValue.uint32[3] = a;
+
+    VkImageSubresourceRange range{};
+    range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    range.baseMipLevel = 0;
+    range.levelCount = 1;
+    range.baseArrayLayer = 0;
+    range.layerCount = 1;
+
+    vkCmdClearColorImage(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue, 1, &range);
+}
+//< clear image

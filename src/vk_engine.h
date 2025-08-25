@@ -182,7 +182,7 @@ public:
     bool lastMonteCarlo = -1; // not controlled by UI
     int lastMSAA = -1; // not controlled by UI
 
-    VkExtent2D _windowExtent { 1500, 900 };
+    VkExtent2D _windowExtent { 2500, 1250 };
 
     std::string structurePath;
     std::string lightPath;
@@ -359,6 +359,24 @@ public:
     // helpers
     void init_taa_resources();
     void destroy_taa_resources();
+
+    // progressive mc things
+    bool  mcProgressive = true;     // enable progressive MC accumulation
+    int   mcPerFrame = 1;        // samples per pixel per frame (1–2 is plenty)
+    int   mcResetFrames = 2;        // clear history this many frames after motion
+
+    AllocatedImage _mcAccumColor;   // rgba16f, running average
+    AllocatedImage _mcAccumCount;   // r32ui, sample counts
+
+    VkDescriptorSetLayout _mcSetLayout = VK_NULL_HANDLE;
+    VkPipelineLayout      _mcPipeLayout = VK_NULL_HANDLE;
+    VkPipeline            _mcPipeline = VK_NULL_HANDLE;
+    VkDescriptorSet       _mcSet = VK_NULL_HANDLE;
+
+    // helpers
+    void init_mc_resources();
+    void destroy_mc_resources();
+    void reset_mc_history(VkCommandBuffer cmd);
 
     // volumetric additions
     void setMediumParams(const GPUMediumParams& p);

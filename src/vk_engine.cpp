@@ -363,6 +363,46 @@ void VulkanEngine::draw()
         draw_main(cmd);
     }
 
+    bool doProgressive = mcProgressive && (aaMode == AAMode::TAA ? !cameraMoving : true);
+
+    // Bind descriptors for MC accumulation
+    {
+        DescriptorWriter w;
+        w.write_image(0, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+        w.write_image(1, _mcAccumColor.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+        w.write_image(2, _mcAccumCount.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+        w.write_image(3, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+        w.update_set(_device, _mcSet);
+    }
+
+    if (doProgressive) {
+        // Optional: delay reset for a couple frames after movement ends
+        static int resetCooldown = 0;
+        if (cameraMoving) resetCooldown = mcResetFrames;
+        if (resetCooldown > 0) {
+            reset_mc_history(cmd);
+            resetCooldown--;
+        }
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _mcPipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _mcPipeLayout, 0, 1, &_mcSet, 0, nullptr);
+
+        struct { float perFrameSpp; float movingFlag; } pc{
+            float(mcPerFrame), cameraMoving ? 1.f : 0.f
+        };
+        vkCmdPushConstants(cmd, _mcPipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+
+        uint32_t gx = (_windowExtent.width + 7) / 8;
+        uint32_t gy = (_windowExtent.height + 7) / 8;
+        vkCmdDispatch(cmd, gx, gy, 1);
+
+        // Note: mc resolve writes back into _drawImage (binding 3), so TAA will consume it next
+    }
+    else {
+        // Not progressive: legacy per-frame heavy sampling; ensure MC history is reset so we don't mix modes
+        reset_mc_history(cmd);
+    }
+
     if (aaMode == AAMode::TAA) {
         // Make RT writes visible to compute reads
         VkImageMemoryBarrier2 imgBarrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
@@ -379,9 +419,7 @@ void VulkanEngine::draw()
         dep.imageMemoryBarrierCount = 1;
         dep.pImageMemoryBarriers = &imgBarrier;
         vkCmdPipelineBarrier2(cmd, &dep);
-    }
 
-    if (aaMode == AAMode::TAA) {
         if (!_taaInitialized) {
             seed_taa_history(this, cmd);
             _taaInitialized = true;
@@ -427,7 +465,7 @@ void VulkanEngine::draw()
         histBarrier.image = _taaHistory[next].image;
         histBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
-        VkDependencyInfo dep{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+        dep = { VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
         dep.imageMemoryBarrierCount = 1;
         dep.pImageMemoryBarriers = &histBarrier;
         vkCmdPipelineBarrier2(cmd, &dep);
@@ -718,6 +756,9 @@ void VulkanEngine::run()
 
         ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
         ImGui::SliderInt("Monte Carlo Samples", &computeMonteCarlo, 0, 500); // Run monte carlo sampling
+        ImGui::Checkbox("Progressive MC", &mcProgressive);
+        ImGui::SliderInt("MC per-frame spp", &mcPerFrame, 1, 20);
+        ImGui::SliderInt("MC reset frames", &mcResetFrames, 0, 8);
         ImGui::Checkbox("Debug setting", &debugSetting);  // Used for anything
 
 		ImGui::Text("frametime %f ms", stats.frametime);
@@ -869,7 +910,8 @@ void VulkanEngine::update_scene()
     sceneData.view = view;
     sceneData.proj = projection;
     sceneData.viewproj = projection * view;
-    sceneData.data = glm::vec4(_frameNumber, computeMonteCarlo, msaaSetting, (aaMode == AAMode::TAA) ? 1.f : 0.f);
+    const float perFrameSpp = mcProgressive ? float(mcPerFrame) : float(computeMonteCarlo);
+    sceneData.data = glm::vec4(_frameNumber, perFrameSpp, msaaSetting, (aaMode == AAMode::TAA) ? 1.f : 0.f);
 
     drawCommands.OpaqueSurfaces.clear();
     drawCommands.m_objDesc.clear();
@@ -1289,6 +1331,7 @@ void VulkanEngine::resize_swapchain()
 	_windowExtent.height = h;
 
 	create_swapchain(_windowExtent.width, _windowExtent.height);
+    init_mc_resources();
     init_taa_resources();
 	resize_requested = false;
 }
@@ -1532,6 +1575,8 @@ void VulkanEngine::init_pipelines()
     init_background_pipelines();
 
     metalRoughMaterial.build_pipelines(this);
+
+    init_mc_resources();
 
     init_taa_resources();
 }
@@ -1898,6 +1943,82 @@ void VulkanEngine::init_taa_resources() {
 void VulkanEngine::destroy_taa_resources() {
     // handled by deletion queue
 }
+
+void VulkanEngine::init_mc_resources() {
+    // destroy old (handled by deletion queue on app close; here we re-create)
+    destroy_mc_resources();
+
+    VkExtent3D ext{ _windowExtent.width, _windowExtent.height, 1 };
+
+    // Accum color: running average
+    _mcAccumColor = create_image(ext, VK_FORMAT_R16G16B16A16_SFLOAT,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+    immediate_submit([&](VkCommandBuffer cmd) {
+        vkutil::transition_image(cmd, _mcAccumColor.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        });
+    _mainDeletionQueue.push_function([&, this]() { destroy_image(_mcAccumColor); });
+
+    // Accum count: number of accumulated samples per pixel
+    _mcAccumCount = create_image(ext, VK_FORMAT_R32_UINT,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+    immediate_submit([&](VkCommandBuffer cmd) {
+        vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        // zero it
+        vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        vkutil::clear_color_image_uint(cmd, _mcAccumCount.image, 0, 0, 0, 0); // helper: vkCmdClearColorImage for UINT
+        vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+    });
+    _mainDeletionQueue.push_function([&, this]() { destroy_image(_mcAccumCount); });
+
+    // Descriptor set layout: currColor, accumColor, accumCount, outColor
+    DescriptorLayoutBuilder b;
+    b.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE); // curr (from raygen)
+    b.add_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE); // accum color (avg)
+    b.add_binding(2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE); // accum count (r32ui)
+    b.add_binding(3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE); // out (resolved)
+    _mcSetLayout = b.build(_device, VK_SHADER_STAGE_COMPUTE_BIT);
+    _mainDeletionQueue.push_function([&, this]() { vkDestroyDescriptorSetLayout(_device, _mcSetLayout, nullptr); });
+
+    _mcSet = globalDescriptorAllocator.allocate(_device, _mcSetLayout);
+
+    // Pipeline + layout (push: resetFrames, movingFlag)
+    VkPushConstantRange pc{ VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float) * 2 };
+    VkPipelineLayoutCreateInfo pli{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+    pli.pushConstantRangeCount = 1; pli.pPushConstantRanges = &pc;
+    pli.setLayoutCount = 1;        pli.pSetLayouts = &_mcSetLayout;
+    VK_CHECK(vkCreatePipelineLayout(_device, &pli, nullptr, &_mcPipeLayout));
+    _mainDeletionQueue.push_function([&, this]() { vkDestroyPipelineLayout(_device, _mcPipeLayout, nullptr); });
+
+    VkShaderModule mcCS;
+    if (!vkutil::load_shader_module("../../shaders/mc_accum.comp.spv", _device, &mcCS)) {
+        throw std::runtime_error("failed to load mc_accum.comp.spv");
+    }
+    VkComputePipelineCreateInfo ci{ VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
+    VkPipelineShaderStageCreateInfo ss{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+    ss.stage = VK_SHADER_STAGE_COMPUTE_BIT; ss.module = mcCS; ss.pName = "main";
+    ci.stage = ss; ci.layout = _mcPipeLayout;
+    VK_CHECK(vkCreateComputePipelines(_device, VK_NULL_HANDLE, 1, &ci, nullptr, &_mcPipeline));
+    vkDestroyShaderModule(_device, mcCS, nullptr);
+    _mainDeletionQueue.push_function([&, this]() { vkDestroyPipeline(_device, _mcPipeline, nullptr); });
+}
+
+void VulkanEngine::destroy_mc_resources() {
+    // resources are freed by deletion queue on shutdown; nothing to do here for live-recreate
+}
+
+void VulkanEngine::reset_mc_history(VkCommandBuffer cmd) {
+    // Clear count=0 and copy current draw into accumColor so the first blend is stable
+    vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    vkutil::clear_color_image_uint(cmd, _mcAccumCount.image, 0, 0, 0, 0);
+    vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+
+    vkutil::transition_image(cmd, _mcAccumColor.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    vkutil::copy_image_to_image(cmd, _drawImage.image, _mcAccumColor.image, _windowExtent, _windowExtent);
+    vkutil::transition_image(cmd, _mcAccumColor.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+    vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+}
+
 
 void VulkanEngine::init_volume_descriptors() {
     // Create std140 medium UBO (persistently mapped CPU->GPU)
