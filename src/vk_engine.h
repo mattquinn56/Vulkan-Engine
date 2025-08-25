@@ -395,6 +395,10 @@ public:
     // Microfacet addition
     bool useMicrofacetBRDF = true;
 
+    // Force reset of MC/TAA history on the next draw()
+    void request_accum_reset();
+    bool _resetAccumNextFrame = false;
+
     // volumetric additions
     void setMediumParams(const GPUMediumParams& p);
 

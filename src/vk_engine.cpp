@@ -363,6 +363,19 @@ void VulkanEngine::draw()
         draw_main(cmd);
     }
 
+    // If UI changed something that affects appearance, clear histories now
+    if (_resetAccumNextFrame) {
+        // Reset MC accumulators (count=0, copy current _drawImage into accumColor)
+        reset_mc_history(cmd);
+
+        // Reset/seed TAA history from current frame so blending starts clean
+        if (aaMode == AAMode::TAA) {
+            seed_taa_history(this, cmd);
+            _taaInitialized = true;
+        }
+        _resetAccumNextFrame = false;
+    }
+
     bool doProgressive = mcProgressive && (aaMode == AAMode::TAA ? !cameraMoving : true);
 
     // Bind descriptors for MC accumulation
@@ -847,36 +860,51 @@ void VulkanEngine::run()
 
         ImGui::NewFrame();
 
+        bool reset_accum = false;
+
         ImGui::Begin("Main Control");
 
-        ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
-        ImGui::Checkbox("Debug setting", &debugSetting);  // Used for anything
-        ImGui::Checkbox("Use Microfacet BRDF (GGX/Smith/Schlick)", &useMicrofacetBRDF);
+        reset_accum |= ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
+        reset_accum |= ImGui::Checkbox("Debug setting", &debugSetting);  // Used for anything
+        reset_accum |= ImGui::Checkbox("Use Microfacet BRDF (GGX/Smith/Schlick)", &useMicrofacetBRDF);
 		ImGui::Text("frametime %f ms", stats.frametime);
         glm::vec3 viewDir = mainCamera.getViewDirection();
         ImGui::Text("position: %f %f %f", mainCamera.position.x, mainCamera.position.y, mainCamera.position.z);
         ImGui::Text("view direction: %f %f %f", viewDir.x, viewDir.y, viewDir.z);
         ImGui::Text("pitch and yaw: %f %f", mainCamera.pitch, mainCamera.yaw);
         if (ImGui::CollapsingHeader("Color & Tone", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::Checkbox("ACES + sRGB tonemap", &_enableTonemap);
-            ImGui::SliderFloat("Exposure", &exposure, 0.1f, 4.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+            reset_accum |= ImGui::Checkbox("ACES + sRGB tonemap", &_enableTonemap);
+            reset_accum |= ImGui::SliderFloat("Exposure", &exposure, 0.1f, 4.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
             ImGui::TextUnformatted(_enableTonemap ? "Output: tonemapped sRGB" : "Output: raw linear HDR (debug)");
         }
         ImGui::End();
 
         ImGui::Begin("Antialiasing");
         int aa = (aaMode == AAMode::TAA) ? 1 : 0;
-        if (ImGui::RadioButton("Adaptive MSAA", aa == 0)) { aa = 0; }
+
+        bool rb0 = ImGui::RadioButton("Adaptive MSAA", aa == 0);
+        if (rb0) {
+            aa = 0;
+        }
         ImGui::SameLine();
-        if (ImGui::RadioButton("TAA", aa == 1)) { aa = 1; }
-        aaMode = (aa == 1) ? AAMode::TAA : AAMode::AdaptiveMSAA;
+        bool rb1 = ImGui::RadioButton("TAA", aa == 1);
+        if (rb1) {
+            aa = 1;
+        }
+
+        AAMode newMode = (aa == 1) ? AAMode::TAA : AAMode::AdaptiveMSAA;
+        if (newMode != aaMode) {
+            aaMode = newMode;
+            reset_accum = true;
+        }
+
         ImGui::BeginDisabled();            // disable interactions, grays out
-        ImGui::Checkbox("Progressive Monte Carlo", &mcProgressive);
+        reset_accum |= ImGui::Checkbox("Progressive Monte Carlo", &mcProgressive);
         ImGui::EndDisabled();
         if (aaMode == AAMode::TAA) {
-            ImGui::SliderInt("MC per-frame spp", &mcPerFrame, 0, 20);
-            ImGui::SliderInt("MC reset frames", &mcResetFrames, 0, 8);
-            ImGui::SliderFloat("TAA alpha (still)", &taaAlpha, 0.0f, 0.99f);
+            reset_accum |= ImGui::SliderInt("MC per-frame spp", &mcPerFrame, 0, 20);
+            reset_accum |= ImGui::SliderInt("MC reset frames", &mcResetFrames, 0, 8);
+            reset_accum |= ImGui::SliderFloat("TAA alpha (still)", &taaAlpha, 0.0f, 0.99f);
             //ImGui::SliderFloat("TAA alpha (moving)", &taaMovingAlpha, 0.0f, 0.99f);
             //ImGui::SliderFloat("TAA vel thresh", &taaVelThreshold, 0.0f, 0.2f);
             //ImGui::SliderFloat("TAA rot thresh", &taaRotThreshold, 0.0f, 5.0f);
@@ -897,13 +925,13 @@ void VulkanEngine::run()
             auto& g_e_d = mp->g_emis_density_pad; // x=g, y=emission, z=densityScale
 
             ImGui::Text("Homogeneous Medium");
-            ImGui::DragFloat3("sigma_a (absorption)", &sigma_a.x, 0.001f, 0.0f, 5.0f);
-            ImGui::DragFloat3("sigma_s (scattering)", &sigma_s.x, 0.001f, 0.0f, 5.0f);
-            ImGui::DragFloat("stepSize", &sigma_a.w, 0.001f, 0.001f, 1.0f);
-            ImGui::DragFloat("maxT", &sigma_s.w, 1.0f, 0.0f, 20000.0f);
-            ImGui::DragFloat("g (anisotropy)", &g_e_d.x, 0.001f, -0.99f, 0.99f);
-            ImGui::DragFloat("emission", &g_e_d.y, 0.001f, 0.0f, 10.0f);
-            ImGui::DragFloat("densityScale", &g_e_d.z, 0.001f, 0.0f, 10.0f);
+            reset_accum |= ImGui::DragFloat3("sigma_a (absorption)", &sigma_a.x, 0.001f, 0.0f, 5.0f);
+            reset_accum |= ImGui::DragFloat3("sigma_s (scattering)", &sigma_s.x, 0.001f, 0.0f, 5.0f);
+            reset_accum |= ImGui::DragFloat("stepSize", &sigma_a.w, 0.001f, 0.001f, 1.0f);
+            reset_accum |= ImGui::DragFloat("maxT", &sigma_s.w, 1.0f, 0.0f, 20000.0f);
+            reset_accum |= ImGui::DragFloat("g (anisotropy)", &g_e_d.x, 0.001f, -0.99f, 0.99f);
+            reset_accum |= ImGui::DragFloat("emission", &g_e_d.y, 0.001f, 0.0f, 10.0f);
+            reset_accum |= ImGui::DragFloat("densityScale", &g_e_d.z, 0.001f, 0.0f, 10.0f);
 
             {
                 auto* mp = (GPUMediumParams*)_volume.mediumParams.allocation->GetMappedData();
@@ -943,6 +971,10 @@ void VulkanEngine::run()
         ImGui::End();
 
 		ImGui::Render();
+
+        if (reset_accum) {
+            request_accum_reset();
+        }
 
         // imgui commands
         // ImGui::ShowDemoWindow();
@@ -2193,6 +2225,10 @@ void VulkanEngine::init_postprocess() {
 
 void VulkanEngine::destroy_postprocess() {
     // handled by deletion queue; nothing extra needed for live-recreate
+}
+
+void VulkanEngine::request_accum_reset() {
+    _resetAccumNextFrame = true;
 }
 
 void VulkanEngine::init_volume_descriptors() {
