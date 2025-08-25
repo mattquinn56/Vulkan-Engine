@@ -364,6 +364,28 @@ void VulkanEngine::draw()
     }
 
     if (aaMode == AAMode::TAA) {
+        // Make RT writes visible to compute reads
+        VkImageMemoryBarrier2 imgBarrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+        imgBarrier.srcStageMask = VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR; // or COLOR_ATTACHMENT_OUTPUT if raster
+        imgBarrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+        imgBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        imgBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+        imgBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+        imgBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        imgBarrier.image = _drawImage.image;
+        imgBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+        VkDependencyInfo dep{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+        dep.imageMemoryBarrierCount = 1;
+        dep.pImageMemoryBarriers = &imgBarrier;
+        vkCmdPipelineBarrier2(cmd, &dep);
+    }
+
+    if (aaMode == AAMode::TAA) {
+        if (!_taaInitialized) {
+            seed_taa_history(this, cmd);
+            _taaInitialized = true;
+        }
         int prev = _taaIndex;
         int next = 1 - _taaIndex;
 
@@ -394,6 +416,21 @@ void VulkanEngine::draw()
         uint32_t gx = (_windowExtent.width + 7) / 8;
         uint32_t gy = (_windowExtent.height + 7) / 8;
         vkCmdDispatch(cmd, gx, gy, 1);
+
+        VkImageMemoryBarrier2 histBarrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+        histBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        histBarrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+        histBarrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+        histBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+        histBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+        histBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        histBarrier.image = _taaHistory[next].image;
+        histBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+        VkDependencyInfo dep{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+        dep.imageMemoryBarrierCount = 1;
+        dep.pImageMemoryBarriers = &histBarrier;
+        vkCmdPipelineBarrier2(cmd, &dep);
 
         vkutil::transition_image(cmd, _taaHistory[next].image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -677,16 +714,13 @@ void VulkanEngine::run()
 
         ImGui::NewFrame();
 
-        ImGui::Begin("Stats");
+        ImGui::Begin("Main Control");
 
         ImGui::Checkbox("Ray Tracer mode", &useRaytracer);  // Switch between raster and ray tracing
         ImGui::SliderInt("Monte Carlo Samples", &computeMonteCarlo, 0, 500); // Run monte carlo sampling
         ImGui::Checkbox("Debug setting", &debugSetting);  // Used for anything
 
 		ImGui::Text("frametime %f ms", stats.frametime);
-		ImGui::Text("drawtime %f ms", stats.mesh_draw_time);
-		ImGui::Text("triangles %i", stats.triangle_count);
-		ImGui::Text("draws %i", stats.drawcall_count);
         glm::vec3 viewDir = mainCamera.getViewDirection();
         ImGui::Text("position: %f %f %f", mainCamera.position.x, mainCamera.position.y, mainCamera.position.z);
         ImGui::Text("view direction: %f %f %f", viewDir.x, viewDir.y, viewDir.z);
@@ -706,8 +740,6 @@ void VulkanEngine::run()
             ImGui::SliderFloat("TAA rot thresh", &taaRotThreshold, 0.0f, 5.0f);
             ImGui::Text("Camera moving: %s", cameraMoving ? "yes" : "no");
         }
-        if (aaMode == AAMode::AdaptiveMSAA)
-            ImGui::SliderInt("MSAA Divisions", &msaaSetting, 1, 3);
         ImGui::End();
 
         ImGui::Begin("Medium");

@@ -339,8 +339,9 @@ public:
     float taaClampK = 0.10f;   // neighborhood clamps
 
     float taaMovingAlpha = 0.0f;   // alpha when moving (0 = full reset behavior)
-    float taaVelThreshold = 0.002f;  // world units / frame
-    float taaRotThreshold = 0.5f;   // degrees / frame
+    float taaVelThreshold = 0.0001f;  // world units / frame
+    float taaRotThreshold = 0.1f;   // degrees / frame
+    bool _taaInitialized = false;
 
     bool  cameraMoving = false;
     glm::vec3 _prevCamPos = {};
