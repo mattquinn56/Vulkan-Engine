@@ -1028,8 +1028,8 @@ void VulkanEngine::update_scene()
 
     glm::mat4 view = mainCamera.getViewMatrix();
     glm::mat4 projection = glm::perspective(glm::radians(70.f),
-        (float)_windowExtent.width / (float)_windowExtent.height,
-        0.1f, 10000.f);
+        (float)_windowExtent.width / (float)_windowExtent.height, 10000.f,
+        0.1f);
     projection[1][1] *= -1;
 
     // motion detection
