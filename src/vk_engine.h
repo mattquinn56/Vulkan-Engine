@@ -377,9 +377,24 @@ public:
     void init_mc_resources();
     void destroy_mc_resources();
     void reset_mc_history(VkCommandBuffer cmd);
+    
+    // Post-tonemap (ACES + sRGB) pass
+    VkDescriptorSetLayout _postSetLayout = VK_NULL_HANDLE;
+    VkPipelineLayout      _postPipeLayout = VK_NULL_HANDLE;
+    VkPipeline            _postPipeline = VK_NULL_HANDLE;
+    VkDescriptorSet       _postSet = VK_NULL_HANDLE;
+    bool _enableTonemap = true;   // default ON
+    bool _ldrNeedsInit = true;    // first-use transition
+    float exposure = 1.0f;
+
+    // LDR target we write into (we’ll copy this to swapchain)
+    AllocatedImage        _ldrImage;
+    void init_postprocess();
+    void destroy_postprocess();
 
     // volumetric additions
     void setMediumParams(const GPUMediumParams& p);
+
 
 private:
     void init_vulkan();

@@ -68,6 +68,8 @@ void VulkanEngine::init()
 
     init_pipelines();
 
+    init_postprocess();
+
     init_default_data();
 
     init_raytracing();
@@ -476,12 +478,108 @@ void VulkanEngine::draw()
         _taaIndex = next;
     }
 
-    // Copy the rendered image into the swapchain image
-    vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    vkutil::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    // --- POST: ACES + sRGB (optional) ---
+    if (_enableTonemap) {
+        // Make sure _drawImage writes are visible to compute
+        {
+            VkImageMemoryBarrier2 b{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+            b.srcStageMask = VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR
+                | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT
+                | VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+            b.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+            b.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+            b.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+            b.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+            b.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+            b.image = _drawImage.image;
+            b.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+            VkDependencyInfo dep{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+            dep.imageMemoryBarrierCount = 1; dep.pImageMemoryBarriers = &b;
+            vkCmdPipelineBarrier2(cmd, &dep);
+        }
 
-    VkExtent2D extent{ _windowExtent.width, _windowExtent.height };
-    vkutil::copy_image_to_image(cmd, _drawImage.image, _swapchainImages[imageIndex], extent, extent);
+        // Transition _ldrImage to GENERAL on first use (or from last frame's TRANSFER_SRC)
+        {
+            VkImageMemoryBarrier2 b{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+            b.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+            b.srcAccessMask = 0;
+            b.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+            b.dstAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_SHADER_READ_BIT;
+            b.oldLayout = _ldrNeedsInit ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            b.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+            b.image = _ldrImage.image;
+            b.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+            VkDependencyInfo dep{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+            dep.imageMemoryBarrierCount = 1; dep.pImageMemoryBarriers = &b;
+            vkCmdPipelineBarrier2(cmd, &dep);
+            _ldrNeedsInit = false;
+        }
+
+        // Bind descriptors and dispatch post compute
+        {
+            DescriptorWriter w;
+            w.write_image(0, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+            w.write_image(1, _ldrImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+            w.update_set(_device, _postSet);
+        }
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _postPipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _postPipeLayout, 0, 1, &_postSet, 0, nullptr);
+
+        vkCmdPushConstants(cmd, _postPipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float), &exposure);
+
+        uint32_t gx = (_windowExtent.width + 7) / 8;
+        uint32_t gy = (_windowExtent.height + 7) / 8;
+        vkCmdDispatch(cmd, gx, gy, 1);
+
+        // Make post writes visible for copy, set _ldrImage → TRANSFER_SRC
+        {
+            VkImageMemoryBarrier2 b{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+            b.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+            b.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+            b.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+            b.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+            b.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+            b.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            b.image = _ldrImage.image;
+            b.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+            VkDependencyInfo dep{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+            dep.imageMemoryBarrierCount = 1; dep.pImageMemoryBarriers = &b;
+            vkCmdPipelineBarrier2(cmd, &dep);
+        }
+
+        // Transition swapchain to DST, copy LDR → swapchain
+        vkutil::transition_image(cmd, _swapchainImages[imageIndex],
+            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        VkExtent2D extent{ _windowExtent.width, _windowExtent.height };
+        vkutil::copy_image_to_image(cmd, _ldrImage.image, _swapchainImages[imageIndex], extent, extent);
+    }
+    else {
+        // No tonemap: copy HDR directly (debug)
+        {
+            VkImageMemoryBarrier2 b{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+            b.srcStageMask = VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR
+                | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT
+                | VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+            b.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+            b.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+            b.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+            b.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+            b.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            b.image = _drawImage.image;
+            b.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+            VkDependencyInfo dep{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+            dep.imageMemoryBarrierCount = 1; dep.pImageMemoryBarriers = &b;
+            vkCmdPipelineBarrier2(cmd, &dep);
+        }
+
+        vkutil::transition_image(cmd, _swapchainImages[imageIndex],
+            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        VkExtent2D extent{ _windowExtent.width, _windowExtent.height };
+        vkutil::copy_image_to_image(cmd, _drawImage.image, _swapchainImages[imageIndex], extent, extent);
+    }
 
     // Draw ImGui on the swapchain image
     vkutil::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
@@ -759,6 +857,11 @@ void VulkanEngine::run()
         ImGui::Text("position: %f %f %f", mainCamera.position.x, mainCamera.position.y, mainCamera.position.z);
         ImGui::Text("view direction: %f %f %f", viewDir.x, viewDir.y, viewDir.z);
         ImGui::Text("pitch and yaw: %f %f", mainCamera.pitch, mainCamera.yaw);
+        if (ImGui::CollapsingHeader("Color & Tone", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::Checkbox("ACES + sRGB tonemap", &_enableTonemap);
+            ImGui::SliderFloat("Exposure", &exposure, 0.1f, 4.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+            ImGui::TextUnformatted(_enableTonemap ? "Output: tonemapped sRGB" : "Output: raw linear HDR (debug)");
+        }
         ImGui::End();
 
         ImGui::Begin("Antialiasing");
@@ -1276,6 +1379,14 @@ void VulkanEngine::init_swapchain()
 
 	VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_depthImage.imageView));
 
+    // LDR target (we’ll store ACES+sRGB here)
+    _ldrImage = create_image(
+        VkExtent3D{ _windowExtent.width, _windowExtent.height, 1 },
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
+    );
+    _ldrNeedsInit = true;
+
 
 	//add to deletion queues
 	_mainDeletionQueue.push_function([=]() {
@@ -1284,6 +1395,8 @@ void VulkanEngine::init_swapchain()
 
 		vkDestroyImageView(_device, _depthImage.imageView, nullptr);
 		vmaDestroyImage(_allocator, _depthImage.image, _depthImage.allocation);
+
+        destroy_image(_ldrImage);
 	});
 }
 
@@ -1330,6 +1443,19 @@ void VulkanEngine::resize_swapchain()
 	SDL_GetWindowSize(_window, &w, &h);
 	_windowExtent.width = w;
 	_windowExtent.height = h;
+
+    // destroy old _ldrImage if you didn't already
+    destroy_image(_ldrImage);
+    _ldrImage = create_image(
+        VkExtent3D{ _windowExtent.width, _windowExtent.height, 1 },
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
+    );
+    _ldrNeedsInit = true;
+
+    immediate_submit([&](VkCommandBuffer cmd) {
+        vkutil::transition_image(cmd, _ldrImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    });
 
 	create_swapchain(_windowExtent.width, _windowExtent.height);
     init_mc_resources();
@@ -2020,6 +2146,54 @@ void VulkanEngine::reset_mc_history(VkCommandBuffer cmd) {
     vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
 }
 
+void VulkanEngine::init_postprocess() {
+    // descriptor layout: hdrIn (0), ldrOut (1)
+    DescriptorLayoutBuilder b;
+    b.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    b.add_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    _postSetLayout = b.build(_device, VK_SHADER_STAGE_COMPUTE_BIT);
+    _mainDeletionQueue.push_function([=]() { vkDestroyDescriptorSetLayout(_device, _postSetLayout, nullptr); });
+
+    _postSet = globalDescriptorAllocator.allocate(_device, _postSetLayout);
+
+    // pipeline layout (no push constants needed here)
+    VkPipelineLayoutCreateInfo pli{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+    pli.setLayoutCount = 1; pli.pSetLayouts = &_postSetLayout;
+    VK_CHECK(vkCreatePipelineLayout(_device, &pli, nullptr, &_postPipeLayout));
+    _mainDeletionQueue.push_function([=]() { vkDestroyPipelineLayout(_device, _postPipeLayout, nullptr); });
+
+    {
+        VkPushConstantRange pc{};
+        pc.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        pc.offset = 0;
+        pc.size = sizeof(float);
+
+        VkPipelineLayoutCreateInfo pli{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+        pli.setLayoutCount = 1;
+        pli.pSetLayouts = &_postSetLayout;
+        pli.pushConstantRangeCount = 1;
+        pli.pPushConstantRanges = &pc;
+
+        VK_CHECK(vkCreatePipelineLayout(_device, &pli, nullptr, &_postPipeLayout));
+        _mainDeletionQueue.push_function([=]() { vkDestroyPipelineLayout(_device, _postPipeLayout, nullptr); });
+    }
+
+    VkShaderModule cs;
+    if (!vkutil::load_shader_module("../../shaders/post_tonemap.comp.spv", _device, &cs)) {
+        throw std::runtime_error("failed to load post_tonemap.comp.spv");
+    }
+    VkComputePipelineCreateInfo ci{ VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
+    VkPipelineShaderStageCreateInfo ss{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+    ss.stage = VK_SHADER_STAGE_COMPUTE_BIT; ss.module = cs; ss.pName = "main";
+    ci.stage = ss; ci.layout = _postPipeLayout;
+    VK_CHECK(vkCreateComputePipelines(_device, VK_NULL_HANDLE, 1, &ci, nullptr, &_postPipeline));
+    vkDestroyShaderModule(_device, cs, nullptr);
+    _mainDeletionQueue.push_function([=]() { vkDestroyPipeline(_device, _postPipeline, nullptr); });
+}
+
+void VulkanEngine::destroy_postprocess() {
+    // handled by deletion queue; nothing extra needed for live-recreate
+}
 
 void VulkanEngine::init_volume_descriptors() {
     // Create std140 medium UBO (persistently mapped CPU->GPU)
