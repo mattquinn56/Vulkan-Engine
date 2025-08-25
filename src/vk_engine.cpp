@@ -770,7 +770,7 @@ void VulkanEngine::run()
         if (ImGui::RadioButton("TAA", aa == 1)) { aa = 1; }
         aaMode = (aa == 1) ? AAMode::TAA : AAMode::AdaptiveMSAA;
         ImGui::BeginDisabled();            // disable interactions, grays out
-        ImGui::Checkbox("Progressive MC", &mcProgressive);
+        ImGui::Checkbox("Progressive Monte Carlo", &mcProgressive);
         ImGui::EndDisabled();
         if (aaMode == AAMode::TAA) {
             ImGui::SliderInt("MC per-frame spp", &mcPerFrame, 0, 20);
@@ -782,7 +782,6 @@ void VulkanEngine::run()
             ImGui::Text("Camera moving: %s", cameraMoving ? "yes" : "no");
             mcProgressive = true;
         } else {
-            ImGui::SliderInt("MC per-frame spp", &mcPerFrame, 0, 20);
             mcProgressive = false;
         }
         ImGui::End();
