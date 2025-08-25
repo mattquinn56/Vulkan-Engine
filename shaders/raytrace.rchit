@@ -155,7 +155,6 @@ void main()
 
             // Calculate by type
             if (type == POINT) {
-            /*
                 float dist = length(lpos - worldPos);
 		        vec3 lightDir = normalize(lpos - worldPos);
                 bool shadowed = isOccluded(worldPos, lightDir, dist);
@@ -169,12 +168,10 @@ void main()
 					float specular = computeSpecularIntensity(gl_WorldRayDirectionEXT, lightDir, worldNrm, roughness);
 					outColor += specular * lcolor * intensity;
 			    }
-                */
 	        } else if (type == AMBIENT) {
-		        //outColor += vec3(texColor * intensity * lcolor);
+		        outColor += vec3(texColor * intensity * lcolor);
 
 	        } else if (type == DIRECTIONAL) {
-            /*
 		        vec3 lightDir = normalize(lpos);
                 bool shadowed = isOccluded(worldPos, lightDir, T_MAX);
                 if (!shadowed) {
@@ -187,7 +184,6 @@ void main()
 					float specular = computeSpecularIntensity(gl_WorldRayDirectionEXT, lightDir, worldNrm, roughness);
 					outColor += specular * lcolor * intensity;
                 }
-                */
 	        } else if (type == AREA) {
                 if (int(sceneData.data.y) == 0) {
 					continue;

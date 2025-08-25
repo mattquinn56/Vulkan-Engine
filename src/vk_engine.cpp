@@ -28,8 +28,6 @@
 
 constexpr bool bUseValidationLayers = true;
 
-// we want to immediately abort when there is an error. In normal engines this
-// would give an error message to the user, or perform a dump of state.
 using namespace std;
 
 #define CHAPTER_STAGE 1
@@ -84,10 +82,10 @@ void VulkanEngine::init()
     _isInitialized = true;
 
     mainCamera.velocity = glm::vec3(0.f);
-    mainCamera.position = glm::vec3(.53, 1.84, 2.88);
+    mainCamera.position = glm::vec3(.406, 2.346, 5.630);
 
-    mainCamera.pitch = 70;
-    mainCamera.yaw = 30;
+    mainCamera.pitch = -.349;
+    mainCamera.yaw = .005;
 }
 
 void VulkanEngine::init_default_data() {
@@ -399,7 +397,6 @@ void VulkanEngine::draw()
         // Note: mc resolve writes back into _drawImage (binding 3), so TAA will consume it next
     }
     else {
-        // Not progressive: legacy per-frame heavy sampling; ensure MC history is reset so we don't mix modes
         reset_mc_history(cmd);
     }
 
@@ -761,6 +758,7 @@ void VulkanEngine::run()
         glm::vec3 viewDir = mainCamera.getViewDirection();
         ImGui::Text("position: %f %f %f", mainCamera.position.x, mainCamera.position.y, mainCamera.position.z);
         ImGui::Text("view direction: %f %f %f", viewDir.x, viewDir.y, viewDir.z);
+        ImGui::Text("pitch and yaw: %f %f", mainCamera.pitch, mainCamera.yaw);
         ImGui::End();
 
         ImGui::Begin("Antialiasing");
@@ -2060,7 +2058,7 @@ void VulkanEngine::create_default_volume() {
     GPUMediumParams p{};
     p.sigma_a_step = { 0.02f, 0.02f, 0.02f, 0.02f }; // stepSize as .w
     p.sigma_s_maxT = { 0.00f, 0.00f, 0.00f, 200.0f };
-    p.g_emis_density_pad = { 0.0f, 0.1f, 1.0f, 0.0f }; // ... , fogEnvFlag=0 (skip fog on env)
+    p.g_emis_density_pad = { 0.0f, 0.0f, 1.0f, 0.0f }; // ... , fogEnvFlag=0 (skip fog on env)
     setMediumParams(p);
 }
 

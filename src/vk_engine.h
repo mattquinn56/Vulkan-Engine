@@ -335,7 +335,7 @@ public:
     // antialiasing
     enum class AAMode : int { AdaptiveMSAA = 0, TAA = 1 };
     AAMode aaMode = AAMode::TAA;
-    float taaAlpha = 0.9f;     // history weight
+    float taaAlpha = 0.99f;     // history weight
     float taaClampK = 0.10f;   // neighborhood clamps
 
     float taaMovingAlpha = 0.0f;   // alpha when moving (0 = full reset behavior)
@@ -362,7 +362,7 @@ public:
 
     // progressive mc things
     bool  mcProgressive = true;     // enable progressive MC accumulation
-    int   mcPerFrame = 1;        // samples per pixel per frame (1–2 is plenty)
+    int   mcPerFrame = 5;        // samples per pixel per frame (1–2 is plenty)
     int   mcResetFrames = 2;        // clear history this many frames after motion
 
     AllocatedImage _mcAccumColor;   // rgba16f, running average
