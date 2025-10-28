@@ -1341,6 +1341,11 @@ void VulkanEngine::init_vulkan()
     _device = vkbDevice.device;
     _chosenGPU = physicalDevice.physical_device;
 
+    // DEBUG: print GPU name
+    VkPhysicalDeviceProperties deviceProperties;
+    vkGetPhysicalDeviceProperties(_chosenGPU, &deviceProperties);
+    printf("GPU: %s\n", deviceProperties.deviceName);
+
     // use vkbootstrap to get a Graphics queue
     _graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
 
@@ -1476,7 +1481,6 @@ void VulkanEngine::resize_swapchain()
 	_windowExtent.width = w;
 	_windowExtent.height = h;
 
-    // destroy old _ldrImage if you didn't already
     destroy_image(_ldrImage);
     _ldrImage = create_image(
         VkExtent3D{ _windowExtent.width, _windowExtent.height, 1 },

@@ -182,7 +182,7 @@ public:
     bool lastMonteCarlo = -1; // not controlled by UI
     int lastMSAA = -1; // not controlled by UI
 
-    VkExtent2D _windowExtent { 2500, 1250 };
+    VkExtent2D _windowExtent { 1250, 800 };
 
     std::string structurePath;
     std::string lightPath;

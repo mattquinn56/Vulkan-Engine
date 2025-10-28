@@ -519,7 +519,7 @@ void VulkanRayTracer::createRtMaterialDescriptorSet() {
     m_rtMatDescSetLayout = m_rtMatDescLayoutBuilder.build(engine->_device, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
     m_rtMatDescSet = m_rtMatDescAllocator.allocate(engine->_device, m_rtMatDescSetLayout);
 
-    // pad your current arrays to TEX_MAX
+    // resize current arrays to TEX_MAX
     m_colTextures.resize(TEX_MAX, engine->_whiteImage.imageView);
     m_colSamplers.resize(TEX_MAX, engine->_defaultSamplerLinear);
     m_metalRoughTextures.resize(TEX_MAX, engine->_whiteImage.imageView);

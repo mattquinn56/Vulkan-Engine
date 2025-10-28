@@ -45,7 +45,7 @@ layout(set = 2, binding = 0, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
 //layout(set = 3, binding = 0, scalar) buffer ColImage2D { sampler2d i[]; };
 //layout(set = 3, binding = 1, scalar) buffer MetalRoughImage2D { sampler2d i[]; };
 
-const int TEX_MAX = 256; // pick something safe for your GPU
+const int TEX_MAX = 256;
 layout(set = 3, binding = 0) uniform sampler2D ColImage2D[TEX_MAX];
 layout(set = 3, binding = 1) uniform sampler2D MetalRoughImage2D[TEX_MAX];
 
