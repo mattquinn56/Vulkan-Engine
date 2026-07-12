@@ -53,8 +53,6 @@ class VulkanRayTracer
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR _rayTracingProperties{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
 
-    //-------------------- BLAS Creation --------------------//
-
     BlasInput object_to_vk_geometry(const RenderObject object);
 
     void create_bottom_level_acceleration_structures();
@@ -78,8 +76,6 @@ class VulkanRayTracer
         return (item & flag) == flag;
     }
 
-    //-------------------- TLAS Creation --------------------//
-
     void create_top_level_acceleration_structure();
 
     VkTransformMatrixKHR to_transform_matrix(glm::mat4 matrix);
@@ -93,8 +89,6 @@ class VulkanRayTracer
                                           VkDeviceAddress instBufferAddr, AllocatedBuffer& scratchBuffer,
                                           VkBuildAccelerationStructureFlagsKHR flags, bool update, bool motion);
 
-    //-------------------- Ray Tracing Descriptor Set Creation --------------------//
-
     void create_descriptor_set();
 
     DescriptorAllocator _descriptorAllocator;
@@ -104,8 +98,6 @@ class VulkanRayTracer
     VkDescriptorSet _descriptorSet;
 
     void update_output_descriptor();
-
-    //-------------------- Ray Tracing Pipeline Creation --------------------//
 
     void create_pipeline();
 
@@ -127,8 +119,6 @@ class VulkanRayTracer
     // Push constant for ray tracer
     PushConstantRay _pushConstants{};
 
-    //-------------------- Binding Table Creation --------------------//
-
     void create_shader_binding_table();
 
     AllocatedBuffer _shaderBindingTableBuffer;
@@ -136,8 +126,6 @@ class VulkanRayTracer
     VkStridedDeviceAddressRegionKHR _missRegion{};
     VkStridedDeviceAddressRegionKHR _hitRegion{};
     VkStridedDeviceAddressRegionKHR _callableRegion{};
-
-    //-------------------- Material Creation --------------------//
 
     struct MaterialRT
     {
@@ -160,8 +148,6 @@ class VulkanRayTracer
     VkDeviceAddress upload_material(MaterialRT mat);
 
     void create_material_descriptor_set();
-
-    //-------------------- Ray Tracing Computation --------------------//
 
     void raytrace(const VkCommandBuffer& cmdBuf);
 };

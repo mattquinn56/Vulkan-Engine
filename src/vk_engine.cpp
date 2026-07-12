@@ -603,7 +603,7 @@ void VulkanEngine::draw()
         uint32_t gy = (_windowExtent.height + 7) / 8;
         vkCmdDispatch(cmd, gx, gy, 1);
 
-        // Make post writes visible for copy, set _ldrImage → TRANSFER_SRC
+        // Make post-process writes visible before copying from the LDR image.
         {
             VkImageMemoryBarrier2 b{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
             b.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
@@ -620,7 +620,7 @@ void VulkanEngine::draw()
             vkCmdPipelineBarrier2(cmd, &dep);
         }
 
-        // Transition swapchain to DST, copy LDR → swapchain
+        // Transition the swapchain image before copying the LDR result into it.
         vkutil::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED,
                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
@@ -688,8 +688,6 @@ void VulkanEngine::draw()
 
     _frameNumber++;
 }
-
-//> visfn
 bool is_visible(const RenderObject& obj, const glm::mat4& viewproj)
 {
     std::array<glm::vec3, 8> corners{
@@ -722,7 +720,6 @@ bool is_visible(const RenderObject& obj, const glm::mat4& viewproj)
         return true;
     }
 }
-//< visfn
 
 void VulkanEngine::update_global_descriptor()
 {
@@ -852,10 +849,6 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd)
     for (auto& r : opaque_draws) {
         draw(_drawContext.opaqueSurfaces[r]);
     }
-
-    //for (auto& r : _drawContext.TransparentSurfaces) {
-    //    draw(r);
-    //}
 }
 
 void VulkanEngine::run()
@@ -865,13 +858,10 @@ void VulkanEngine::run()
     bool cursorLocked = true;
     _renderingFrozen = false;
 
-    // main loop
     while (!bQuit) {
         auto start = std::chrono::system_clock::now();
 
-        // Handle events on queue
         while (SDL_PollEvent(&e) != 0) {
-            // close the window when user alt-f4s or clicks the X button
             if (e.type == SDL_QUIT)
                 bQuit = true;
 
@@ -888,10 +878,8 @@ void VulkanEngine::run()
                 }
             }
 
-            // Check if the user has pressed left alt
             if (e.type == SDL_KEYDOWN && e.key.keysym.scancode == SDL_SCANCODE_LALT) {
                 SDL_SetRelativeMouseMode(cursorLocked ? SDL_FALSE : SDL_TRUE);
-                // Set cursor to the center of the window
                 SDL_WarpMouseInWindow(_window, _windowExtent.width / 2, _windowExtent.height / 2);
                 cursorLocked = !cursorLocked;
             }
@@ -915,7 +903,6 @@ void VulkanEngine::run()
             }
         }
 
-        // imgui new frame
         ImGui_ImplVulkan_NewFrame();
         ImGui_ImplSDL2_NewFrame(_window);
 
@@ -925,8 +912,8 @@ void VulkanEngine::run()
 
         ImGui::Begin("Main Control");
 
-        reset_accum |= ImGui::Checkbox("Ray Tracer mode", &_useRayTracing); // Switch between raster and ray tracing
-        reset_accum |= ImGui::Checkbox("Debug setting", &_debugEnabled);    // Used for anything
+        reset_accum |= ImGui::Checkbox("Ray Tracer mode", &_useRayTracing);
+        reset_accum |= ImGui::Checkbox("Debug setting", &_debugEnabled);
         reset_accum |= ImGui::Checkbox("Use Microfacet BRDF (GGX/Smith/Schlick)", &_useMicrofacetBrdf);
         ImGui::Text("frameTime %f ms", _stats.frameTime);
         glm::vec3 viewDir = _mainCamera.get_view_direction();
@@ -959,16 +946,13 @@ void VulkanEngine::run()
             reset_accum = true;
         }
 
-        ImGui::BeginDisabled(); // disable interactions, grays out
+        ImGui::BeginDisabled();
         reset_accum |= ImGui::Checkbox("Progressive Monte Carlo", &_progressiveMonteCarlo);
         ImGui::EndDisabled();
         if (_aaMode == AAMode::TAA) {
             reset_accum |= ImGui::SliderInt("MC per-frame spp", &_monteCarloSamplesPerFrame, 0, 20);
             reset_accum |= ImGui::SliderInt("MC reset frames", &_monteCarloResetFrames, 0, 8);
             reset_accum |= ImGui::SliderFloat("TAA alpha (still)", &_taaAlpha, 0.0f, 0.99f);
-            //ImGui::SliderFloat("TAA alpha (moving)", &_taaMovingAlpha, 0.0f, 0.99f);
-            //ImGui::SliderFloat("TAA vel thresh", &_taaVelocityThreshold, 0.0f, 0.2f);
-            //ImGui::SliderFloat("TAA rot thresh", &_taaRotationThreshold, 0.0f, 5.0f);
             ImGui::Text("Camera moving: %s", _cameraMoving ? "yes" : "no");
             _progressiveMonteCarlo = true;
         } else {
@@ -1037,7 +1021,6 @@ void VulkanEngine::run()
         }
 
         // imgui commands
-        // ImGui::ShowDemoWindow();
 
         update_scene();
 
@@ -1180,8 +1163,6 @@ AllocatedImage VulkanEngine::create_image(VkExtent3D size, VkFormat format, VkIm
     VK_CHECK(vkCreateImageView(_device, &view_info, nullptr, &newImage.imageView));
     return newImage;
 }
-
-//> create_mip_2
 AllocatedImage VulkanEngine::create_image(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage,
                                           bool mipmapped)
 {
@@ -1223,7 +1204,6 @@ AllocatedImage VulkanEngine::create_image(void* data, VkExtent3D size, VkFormat 
     destroy_buffer(uploadbuffer);
     return new_image;
 }
-//< create_mip_2
 
 GPUMeshBuffers VulkanEngine::upload_mesh(std::span<uint32_t> indices, std::span<Vertex> vertices)
 {
@@ -1505,7 +1485,7 @@ void VulkanEngine::create_render_targets()
 
     VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_depthImage.imageView));
 
-    // LDR target (we’ll store ACES+sRGB here)
+    // LDR target for the tonemapped sRGB result.
     _ldrImage =
         create_image(VkExtent3D{_windowExtent.width, _windowExtent.height, 1}, VK_FORMAT_R16G16B16A16_SFLOAT,
                      VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
@@ -1933,7 +1913,7 @@ void VulkanEngine::init_descriptors()
     _mainDeletionQueue.push_function(
         [this, volumeLayout]() { vkDestroyDescriptorSetLayout(_device, volumeLayout, nullptr); });
 
-    // Allocate once globally; we’ll update buffer contents when params change.
+    // Allocate once and update the buffer contents when parameters change.
     _volumeSet = _globalDescriptorAllocator.allocate(_device, _volumeSetLayout);
 
     init_volume_descriptors();
@@ -2137,10 +2117,7 @@ VkDeviceAddress VulkanEngine::get_buffer_device_address(VkDevice device, VkBuffe
     info.buffer = buffer;
     return vkGetBufferDeviceAddress(device, &info);
 }
-
-//--------------------------------------------------------------------------------------------------
 // Creates a buffer with data mapped in
-//
 AllocatedBuffer VulkanEngine::create_buffer_data(VkDeviceSize size, const void* data, VkBufferUsageFlags usage,
                                                  const VmaMemoryUsage memUsage)
 {

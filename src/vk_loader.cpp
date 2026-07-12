@@ -14,8 +14,6 @@
 #include <fastgltf/tools.hpp>
 #include <fastgltf/util.hpp>
 #include <nlohmann/json.hpp>
-
-//> loadimg
 std::optional<AllocatedImage> load_image(VulkanEngine* engine, fastgltf::Asset& asset, fastgltf::Image& image)
 {
     AllocatedImage newImage{};
@@ -89,16 +87,13 @@ std::optional<AllocatedImage> load_image(VulkanEngine* engine, fastgltf::Asset& 
                },
                image.data);
 
-    // if any of the attempts to load the data failed, we havent written the image
-    // so handle is null
+    // A null image indicates that every supported loading path failed.
     if (newImage.image == VK_NULL_HANDLE) {
         return {};
     } else {
         return newImage;
     }
 }
-//< loadimg
-//> filters
 VkFilter extract_filter(fastgltf::Filter filter)
 {
     switch (filter) {
@@ -130,7 +125,6 @@ VkSamplerMipmapMode extract_mipmap_mode(fastgltf::Filter filter)
         return VK_SAMPLER_MIPMAP_MODE_LINEAR;
     }
 }
-//< filters
 
 std::vector<RenderLight> load_lights(std::string filePath)
 {
@@ -209,7 +203,6 @@ std::vector<RenderLight> load_lights(std::string filePath)
 
 std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::string_view filePath)
 {
-    //> load_1
     fmt::print("Loading GLTF: {}\n", filePath);
 
     std::shared_ptr<LoadedGLTF> scene = std::make_shared<LoadedGLTF>();
@@ -220,7 +213,6 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
 
     constexpr auto gltfOptions = fastgltf::Options::DontRequireValidAssetMember | fastgltf::Options::AllowDouble |
                                  fastgltf::Options::LoadGLBBuffers | fastgltf::Options::LoadExternalBuffers;
-    // fastgltf::Options::LoadExternalImages;
 
     fastgltf::GltfDataBuffer data;
     data.loadFromFile(filePath);
@@ -250,16 +242,12 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
         std::cerr << "Failed to determine glTF container" << std::endl;
         return {};
     }
-    //< load_1
-    //> load_2
-    // we can stimate the descriptors we will need accurately
+    // The asset contents provide an accurate descriptor count estimate.
     std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> sizes = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3},
                                                                      {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3},
                                                                      {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1}};
 
     file.descriptorPool.init(engine->_device, gltf.materials.size(), sizes);
-    //< load_2
-    //> load_samplers
 
     // load samplers
     for (fastgltf::Sampler& sampler : gltf.samplers) {
@@ -278,14 +266,11 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
 
         file.samplers.push_back(newSampler);
     }
-    //< load_samplers
-    //> load_arrays
     // temporal arrays for all the objects to use while creating the GLTF data
     std::vector<std::shared_ptr<MeshAsset>> meshes;
     std::vector<std::shared_ptr<Node>> nodes;
     std::vector<AllocatedImage> images;
     std::vector<std::shared_ptr<GLTFMaterial>> materials;
-    //< load_arrays
 
     // load all textures
     for (fastgltf::Image& image : gltf.images) {
@@ -301,8 +286,6 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
             std::cout << "gltf failed to load texture " << image.name << std::endl;
         }
     }
-
-    //> load_buffer
     // create buffer to hold the material data
     file.materialDataBuffer =
         engine->create_buffer(sizeof(GLTFMetallic_Roughness::MaterialConstants) * gltf.materials.size(),
@@ -310,9 +293,6 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
     int data_index = 0;
     GLTFMetallic_Roughness::MaterialConstants* sceneMaterialConstants =
         (GLTFMetallic_Roughness::MaterialConstants*)file.materialDataBuffer.info.pMappedData;
-    //< load_buffer
-    //
-    //> load_material
     engine->_rayTracer->_colorTextures.clear();
     engine->_rayTracer->_metalRoughTextures.clear();
     engine->_rayTracer->_colorSamplers.clear();
@@ -375,10 +355,8 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
 
         data_index++;
     }
-    //< load_material
 
-    // use the same vectors for all meshes so that the memory doesnt reallocate as
-    // often
+    // Reuse these vectors across meshes to reduce allocations.
     std::vector<uint32_t> indices;
     std::vector<Vertex> vertices;
 
@@ -388,7 +366,7 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
         file.meshes[mesh.name.c_str()] = newmesh;
         newmesh->name = mesh.name;
 
-        // clear the mesh arrays each mesh, we dont want to merge them by error
+        // Reset temporary geometry so adjacent meshes are not merged.
         indices.clear();
         vertices.clear();
 
@@ -474,7 +452,6 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
 
         newmesh->meshBuffers = engine->upload_mesh(indices, vertices);
     }
-    //> load_nodes
     // load all nodes and their meshes
     for (fastgltf::Node& node : gltf.nodes) {
         std::shared_ptr<Node> newNode;
@@ -515,8 +492,6 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
                                      }},
                    node.transform);
     }
-    //< load_nodes
-    //> load_graph
     // run loop again to setup transform hierarchy
     for (int i = 0; i < gltf.nodes.size(); i++) {
         fastgltf::Node& node = gltf.nodes[i];
@@ -536,12 +511,11 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
         }
     }
     return scene;
-    //< load_graph
 }
 
 void LoadedGLTF::draw(const glm::mat4& topMatrix, DrawContext& ctx)
 {
-    // create renderables from the scenenodes
+    // Create renderables from the scene nodes.
     for (auto& n : topNodes) {
         n->draw(topMatrix, ctx);
     }
@@ -560,7 +534,7 @@ void LoadedGLTF::clear_all()
     for (auto& [k, v] : images) {
 
         if (v.image == creator->_errorCheckerboardImage.image) {
-            // dont destroy the default images
+            // Default images are owned by the engine.
             continue;
         }
         creator->destroy_image(v);

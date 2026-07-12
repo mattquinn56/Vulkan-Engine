@@ -1,6 +1,4 @@
-// vulkan_guide.h : Include file for standard system include files,
 // or project specific include files.
-//> intro
 #pragma once
 
 #include <memory>
@@ -20,7 +18,6 @@
 
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
-//< intro
 
 // we will add our main reusable types here
 struct AllocatedImage
@@ -65,8 +62,6 @@ struct GPUSceneData
     glm::mat4 viewproj;
     glm::vec4 data; // x is sin(time)
 };
-
-//> mat_types
 enum class MaterialPass : uint8_t
 {
     MainColor,
@@ -85,8 +80,6 @@ struct MaterialInstance
     VkDescriptorSet materialSet;
     MaterialPass passType;
 };
-//< mat_types
-//> vbuf_types
 struct Vertex
 {
 
@@ -115,9 +108,6 @@ struct GPUDrawPushConstants
     VkDeviceAddress lightBuffer;
     int numLights;
 };
-//< vbuf_types
-
-//> node_types
 struct DrawContext;
 
 // base class for a renderable dynamic object
@@ -162,8 +152,6 @@ struct Node : public IRenderable
         }
     }
 };
-//< node_types
-//> intro
 #define VK_CHECK(x)                                                                                                    \
     do {                                                                                                               \
         VkResult err = x;                                                                                              \
@@ -172,4 +160,3 @@ struct Node : public IRenderable
             abort();                                                                                                   \
         }                                                                                                              \
     } while (0)
-//< intro

@@ -4,9 +4,7 @@
 
 glm::mat4 Camera::get_view_matrix() const
 {
-    // to create a correct model view, we need to move the world in opposite
-    // direction to the camera
-    //  so we will create the camera model matrix and invert
+    // Invert the camera transform to move the world relative to the camera.
     glm::mat4 cameraTranslation = glm::translate(glm::mat4(1.f), position);
     glm::mat4 cameraRotation = get_rotation_matrix();
     return glm::inverse(cameraTranslation * cameraRotation);
@@ -14,9 +12,7 @@ glm::mat4 Camera::get_view_matrix() const
 
 glm::mat4 Camera::get_rotation_matrix() const
 {
-    // fairly typical FPS style camera. we join the pitch and yaw rotations into
-    // the final rotation matrix
-
+    // Apply yaw before pitch for an FPS-style camera.
     glm::quat pitchRotation = glm::angleAxis(pitch, glm::vec3{1.f, 0.f, 0.f});
     glm::quat yawRotation = glm::angleAxis(yaw, glm::vec3{0.f, -1.f, 0.f});
 
@@ -25,15 +21,6 @@ glm::mat4 Camera::get_rotation_matrix() const
 
 glm::vec3 Camera::get_view_direction() const
 {
-    /*
-    glm::vec3 viewDir = glm::vec3();
-	return glm::vec3(get_view_matrix() * glm::vec4(0, 0, -1, 0));
-    viewDir.x = -viewDir.x;
-    viewDir.y = -viewDir.y;
-    return viewDir;
-    */
-
-    // Calculate the direction vector
     glm::vec3 direction;
     direction.x = sin(yaw);
     direction.y = sin(pitch);

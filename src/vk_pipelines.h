@@ -1,10 +1,9 @@
-﻿#pragma once
+#pragma once
 
 #include <vk_types.h>
 
 class PipelineBuilder
 {
-    //> pipeline
   public:
     std::vector<VkPipelineShaderStageCreateInfo> _shaderStages;
 
@@ -25,7 +24,6 @@ class PipelineBuilder
     void clear();
 
     VkPipeline build_pipeline(VkDevice device);
-    //< pipeline
     void set_shaders(VkShaderModule vertexShader, VkShaderModule fragmentShader);
     void set_input_topology(VkPrimitiveTopology topology);
     void set_polygon_mode(VkPolygonMode mode);

@@ -1,4 +1,3 @@
-// vulkan_guide.h : Include file for standard system include files,
 // or project specific include files.
 
 #pragma once
@@ -383,7 +382,7 @@ class VulkanEngine
 
     // progressive mc things
     bool _progressiveMonteCarlo = true; // enable progressive MC accumulation
-    int _monteCarloSamplesPerFrame = 5; // samples per pixel per frame (1–2 is plenty)
+    int _monteCarloSamplesPerFrame = 5; // Samples per pixel per frame.
     int _monteCarloResetFrames = 2;     // clear history this many frames after motion
 
     AllocatedImage _mcAccumColor; // rgba16f, running average
@@ -409,7 +408,7 @@ class VulkanEngine
     bool _ldrNeedsInit = true;  // first-use transition
     float _exposure = 1.0f;
 
-    // LDR target we write into (we’ll copy this to swapchain)
+    // LDR target copied to the swapchain after tonemapping.
     AllocatedImage _ldrImage;
     void init_postprocess();
     void destroy_postprocess();

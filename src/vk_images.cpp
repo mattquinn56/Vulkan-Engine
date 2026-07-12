@@ -3,8 +3,6 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
-
-//> transition
 #include <vk_initializers.h>
 
 void vkutil::transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout)
@@ -34,8 +32,6 @@ void vkutil::transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout 
 
     vkCmdPipelineBarrier2(cmd, &depInfo);
 }
-//< transition
-//> copyimg
 void vkutil::copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize,
                                  VkExtent2D dstSize)
 {
@@ -70,8 +66,6 @@ void vkutil::copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage de
 
     vkCmdBlitImage2(cmd, &blitInfo);
 }
-//< copyimg
-//> copy buffer
 
 void vkutil::copy_buffer_to_image(VkCommandBuffer cmd, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
 {
@@ -94,8 +88,6 @@ void vkutil::copy_buffer_to_image(VkCommandBuffer cmd, VkBuffer buffer, VkImage 
 
     vkCmdCopyBufferToImage(cmd, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 }
-//< copy buffer
-//> mipgen
 void vkutil::generate_mipmaps(VkCommandBuffer cmd, VkImage image, VkExtent2D imageSize)
 {
     int mipLevels = int(std::floor(std::log2(std::max(imageSize.width, imageSize.height)))) + 1;
@@ -163,11 +155,9 @@ void vkutil::generate_mipmaps(VkCommandBuffer cmd, VkImage image, VkExtent2D ima
         }
     }
 
-    // transition all mip levels into the final read_only layout
+    // Transition all mip levels to their final shader-readable layout.
     transition_image(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
-//< mipgen
-//> clear image
 
 void vkutil::clear_color_image_uint(VkCommandBuffer cmd, VkImage image, uint32_t r, uint32_t g, uint32_t b, uint32_t a)
 {
@@ -186,4 +176,3 @@ void vkutil::clear_color_image_uint(VkCommandBuffer cmd, VkImage image, uint32_t
 
     vkCmdClearColorImage(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue, 1, &range);
 }
-//< clear image

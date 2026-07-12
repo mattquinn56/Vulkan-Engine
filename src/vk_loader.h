@@ -1,4 +1,3 @@
-// vulkan_guide.h : Include file for standard system include files,
 // or project specific include files.
 
 #pragma once
@@ -51,7 +50,7 @@ struct LoadedGLTF : public IRenderable
     std::unordered_map<std::string, std::shared_ptr<GLTFMaterial>> materials;
     std::vector<RenderLight> lights;
 
-    // nodes that dont have a parent, for iterating through the file in tree order
+    // Root nodes used to traverse the scene in tree order.
     std::vector<std::shared_ptr<Node>> topNodes;
 
     std::vector<VkSampler> samplers;
