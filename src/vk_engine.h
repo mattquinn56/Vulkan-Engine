@@ -321,8 +321,8 @@ public:
     void destroy_image(const AllocatedImage& img);
     void destroy_buffer(const AllocatedBuffer& buffer);
 
-    bool resize_requested;
-    bool freeze_rendering;
+    bool resize_requested{ false };
+    bool freeze_rendering{ false };
 
     VkDeviceAddress getBufferDeviceAddress(VkDevice device, VkBuffer buffer);
 
@@ -358,6 +358,7 @@ public:
 
     // helpers
     void init_taa_resources();
+    void create_taa_images();
     void destroy_taa_resources();
 
     // progressive mc things
@@ -375,6 +376,7 @@ public:
 
     // helpers
     void init_mc_resources();
+    void create_mc_images();
     void destroy_mc_resources();
     void reset_mc_history(VkCommandBuffer cmd);
     
@@ -410,9 +412,13 @@ private:
 
     void init_swapchain();
 
+    void create_render_targets();
+
+    void destroy_render_targets();
+
     void create_swapchain(uint32_t width, uint32_t height);
 
-	void resize_swapchain();
+	bool resize_swapchain();
 
     void destroy_swapchain();
 

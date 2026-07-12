@@ -192,9 +192,12 @@ void VulkanEngine::cleanup()
             frame._deletionQueue.flush();
         }
 
-        _mainDeletionQueue.flush();
-
+        destroy_taa_resources();
+        destroy_mc_resources();
+        destroy_render_targets();
         destroy_swapchain();
+
+        _mainDeletionQueue.flush();
 
         vkDestroySurfaceKHR(_instance, _surface, nullptr);
 
@@ -840,7 +843,8 @@ void VulkanEngine::run()
 
             if (e.type == SDL_WINDOWEVENT) {
 
-				if (e.window.event == SDL_WINDOWEVENT_RESIZED) {
+				if (e.window.event == SDL_WINDOWEVENT_RESIZED ||
+                    e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
                     resize_requested = true;
 				}
 				if (e.window.event == SDL_WINDOWEVENT_MINIMIZED) {
@@ -871,7 +875,9 @@ void VulkanEngine::run()
         if (freeze_rendering) continue;
 
 		if (resize_requested) {
-			resize_swapchain();
+			if (!resize_swapchain()) {
+                continue;
+            }
             if (createdAS) {
                 rayTracer->updateRtDescriptorSet();
             }
@@ -1391,6 +1397,11 @@ void VulkanEngine::init_raytracing() {
 void VulkanEngine::init_swapchain()
 {
     create_swapchain(_windowExtent.width, _windowExtent.height);
+    create_render_targets();
+}
+
+void VulkanEngine::create_render_targets()
+{
 
 	//depth image size will match the window
 	VkExtent3D drawImageExtent = {
@@ -1447,18 +1458,16 @@ void VulkanEngine::init_swapchain()
         VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
     );
     _ldrNeedsInit = true;
+}
 
-
-	//add to deletion queues
-	_mainDeletionQueue.push_function([=]() {
-		vkDestroyImageView(_device, _drawImage.imageView, nullptr);
-		vmaDestroyImage(_allocator, _drawImage.image, _drawImage.allocation);
-
-		vkDestroyImageView(_device, _depthImage.imageView, nullptr);
-		vmaDestroyImage(_allocator, _depthImage.image, _depthImage.allocation);
-
-        destroy_image(_ldrImage);
-	});
+void VulkanEngine::destroy_render_targets()
+{
+    destroy_image(_drawImage);
+    destroy_image(_depthImage);
+    destroy_image(_ldrImage);
+    _drawImage = {};
+    _depthImage = {};
+    _ldrImage = {};
 }
 
 
@@ -1482,45 +1491,54 @@ void VulkanEngine::create_swapchain(uint32_t width, uint32_t height)
 	_swapchain = vkbSwapchain.swapchain;
 	_swapchainImages = vkbSwapchain.get_images().value();
 	_swapchainImageViews = vkbSwapchain.get_image_views().value();
+	_windowExtent = vkbSwapchain.extent;
 }
 void VulkanEngine::destroy_swapchain()
 {
-	vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+	for (VkImageView imageView : _swapchainImageViews) {
+		vkDestroyImageView(_device, imageView, nullptr);
+	}
+	_swapchainImageViews.clear();
+	_swapchainImages.clear();
 
-	// destroy swapchain resources
-	for (int i = 0; i < _swapchainImageViews.size(); i++) {
-
-		vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
+	if (_swapchain != VK_NULL_HANDLE) {
+		vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+		_swapchain = VK_NULL_HANDLE;
 	}
 }
 
-void VulkanEngine::resize_swapchain()
+bool VulkanEngine::resize_swapchain()
 {
-	vkDeviceWaitIdle(_device);
+	int w, h;
+	SDL_Vulkan_GetDrawableSize(_window, &w, &h);
+	if (w <= 0 || h <= 0) {
+        return false;
+    }
 
+	VK_CHECK(vkDeviceWaitIdle(_device));
+
+    destroy_taa_resources();
+    destroy_mc_resources();
+    destroy_render_targets();
 	destroy_swapchain();
 
-	int w, h;
-	SDL_GetWindowSize(_window, &w, &h);
-	_windowExtent.width = w;
-	_windowExtent.height = h;
+	create_swapchain(static_cast<uint32_t>(w), static_cast<uint32_t>(h));
+    create_render_targets();
+    create_mc_images();
+    create_taa_images();
 
-    destroy_image(_ldrImage);
-    _ldrImage = create_image(
-        VkExtent3D{ _windowExtent.width, _windowExtent.height, 1 },
-        VK_FORMAT_R16G16B16A16_SFLOAT,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
-    );
-    _ldrNeedsInit = true;
+    DescriptorWriter drawImageWriter;
+    drawImageWriter.write_image(0, _drawImage.imageView, VK_NULL_HANDLE,
+        VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    drawImageWriter.update_set(_device, _drawImageDescriptors);
 
-    immediate_submit([&](VkCommandBuffer cmd) {
-        vkutil::transition_image(cmd, _ldrImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    });
-
-	create_swapchain(_windowExtent.width, _windowExtent.height);
-    init_mc_resources();
-    init_taa_resources();
+    _taaIndex = 0;
+    _taaInitialized = false;
+    _resetAccumNextFrame = true;
+    lastMonteCarlo = (computeMonteCarlo == 0);
+    lastMSAA = -1;
 	resize_requested = false;
+    return true;
 }
 
 void VulkanEngine::init_commands()
@@ -2096,18 +2114,7 @@ AllocatedBuffer VulkanEngine::create_buffer_data(VkDeviceSize size, const void* 
 }
 
 void VulkanEngine::init_taa_resources() {
-    VkExtent3D ext{ _windowExtent.width, _windowExtent.height, 1 };
-    auto make_history = [&](AllocatedImage& img) {
-        img = create_image(ext, VK_FORMAT_R16G16B16A16_SFLOAT,
-            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
-        immediate_submit([&](VkCommandBuffer cmd) {
-            vkutil::transition_image(cmd, img.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-            });
-        const AllocatedImage historyImage = img;
-        _mainDeletionQueue.push_function([this, historyImage]() { destroy_image(historyImage); });
-        };
-    make_history(_taaHistory[0]);
-    make_history(_taaHistory[1]);
+    create_taa_images();
 
     // Descriptor set layout: curr, prev, out = 3 storage images
     DescriptorLayoutBuilder b;
@@ -2118,7 +2125,7 @@ void VulkanEngine::init_taa_resources() {
     const VkDescriptorSetLayout taaSetLayout = _taaSetLayout;
     _mainDeletionQueue.push_function([this, taaSetLayout]() { vkDestroyDescriptorSetLayout(_device, taaSetLayout, nullptr); });
 
-    // Allocate two descriptor sets (we’ll ping-pong prev/out between histories)
+    // Allocate two descriptor sets (we'll ping-pong prev/out between histories)
     _taaSet[0] = globalDescriptorAllocator.allocate(_device, _taaSetLayout);
     _taaSet[1] = globalDescriptorAllocator.allocate(_device, _taaSetLayout);
 
@@ -2153,37 +2160,28 @@ void VulkanEngine::init_taa_resources() {
     _mainDeletionQueue.push_function([this, taaPipeline]() { vkDestroyPipeline(_device, taaPipeline, nullptr); });
 }
 
+void VulkanEngine::create_taa_images() {
+    VkExtent3D ext{ _windowExtent.width, _windowExtent.height, 1 };
+    auto make_history = [&](AllocatedImage& img) {
+        img = create_image(ext, VK_FORMAT_R16G16B16A16_SFLOAT,
+            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+        immediate_submit([&](VkCommandBuffer cmd) {
+            vkutil::transition_image(cmd, img.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+            });
+        };
+    make_history(_taaHistory[0]);
+    make_history(_taaHistory[1]);
+}
+
 void VulkanEngine::destroy_taa_resources() {
-    // handled by deletion queue
+    destroy_image(_taaHistory[0]);
+    destroy_image(_taaHistory[1]);
+    _taaHistory[0] = {};
+    _taaHistory[1] = {};
 }
 
 void VulkanEngine::init_mc_resources() {
-    // destroy old (handled by deletion queue on app close; here we re-create)
-    destroy_mc_resources();
-
-    VkExtent3D ext{ _windowExtent.width, _windowExtent.height, 1 };
-
-    // Accum color: running average
-    _mcAccumColor = create_image(ext, VK_FORMAT_R16G16B16A16_SFLOAT,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
-    immediate_submit([&](VkCommandBuffer cmd) {
-        vkutil::transition_image(cmd, _mcAccumColor.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-        });
-    const AllocatedImage accumColor = _mcAccumColor;
-    _mainDeletionQueue.push_function([this, accumColor]() { destroy_image(accumColor); });
-
-    // Accum count: number of accumulated samples per pixel
-    _mcAccumCount = create_image(ext, VK_FORMAT_R32_UINT,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
-    immediate_submit([&](VkCommandBuffer cmd) {
-        vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-        // zero it
-        vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        vkutil::clear_color_image_uint(cmd, _mcAccumCount.image, 0, 0, 0, 0); // helper: vkCmdClearColorImage for UINT
-        vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
-    });
-    const AllocatedImage accumCount = _mcAccumCount;
-    _mainDeletionQueue.push_function([this, accumCount]() { destroy_image(accumCount); });
+    create_mc_images();
 
     // Descriptor set layout: currColor, accumColor, accumCount, outColor
     DescriptorLayoutBuilder b;
@@ -2220,8 +2218,34 @@ void VulkanEngine::init_mc_resources() {
     _mainDeletionQueue.push_function([this, mcPipeline]() { vkDestroyPipeline(_device, mcPipeline, nullptr); });
 }
 
+void VulkanEngine::create_mc_images() {
+
+    VkExtent3D ext{ _windowExtent.width, _windowExtent.height, 1 };
+
+    // Accum color: running average
+    _mcAccumColor = create_image(ext, VK_FORMAT_R16G16B16A16_SFLOAT,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+    immediate_submit([&](VkCommandBuffer cmd) {
+        vkutil::transition_image(cmd, _mcAccumColor.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        });
+
+    // Accum count: number of accumulated samples per pixel
+    _mcAccumCount = create_image(ext, VK_FORMAT_R32_UINT,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+    immediate_submit([&](VkCommandBuffer cmd) {
+        vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        // zero it
+        vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        vkutil::clear_color_image_uint(cmd, _mcAccumCount.image, 0, 0, 0, 0); // helper: vkCmdClearColorImage for UINT
+        vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+    });
+}
+
 void VulkanEngine::destroy_mc_resources() {
-    // resources are freed by deletion queue on shutdown; nothing to do here for live-recreate
+    destroy_image(_mcAccumColor);
+    destroy_image(_mcAccumCount);
+    _mcAccumColor = {};
+    _mcAccumCount = {};
 }
 
 void VulkanEngine::reset_mc_history(VkCommandBuffer cmd) {
