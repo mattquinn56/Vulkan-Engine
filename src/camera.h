@@ -11,9 +11,9 @@ class Camera
     // horizontal rotation
     float yaw{0.f};
 
-    float fastSpeed = 0.25f;
     float normalSpeed = 0.025f;
-    float slowSpeed = 0.0025f;
+    float fastSpeed = normalSpeed * 4.f;
+    float slowSpeed = normalSpeed * 0.1f;
     float currentSpeed = normalSpeed;
 
     glm::mat4 get_view_matrix() const;

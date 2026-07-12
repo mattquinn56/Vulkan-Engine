@@ -14,8 +14,8 @@ bool configure_engine(VulkanEngine& engine, int argc, char* argv[])
             engine._useRayTracing = false;
         } else if (argument == "--aa=taa") {
             engine._aaMode = VulkanEngine::AAMode::TAA;
-        } else if (argument == "--aa=adaptive") {
-            engine._aaMode = VulkanEngine::AAMode::AdaptiveMSAA;
+        } else if (argument == "--aa=none") {
+            engine._aaMode = VulkanEngine::AAMode::None;
         } else if (argument == "--tonemap=on") {
             engine._enableTonemap = true;
         } else if (argument == "--tonemap=off") {
@@ -28,7 +28,7 @@ bool configure_engine(VulkanEngine& engine, int argc, char* argv[])
 
     fmt::println(
         "Startup configuration: render_path={} aa={} tonemap={}", engine._useRayTracing ? "raytrace" : "raster",
-        engine._aaMode == VulkanEngine::AAMode::TAA ? "taa" : "adaptive", engine._enableTonemap ? "on" : "off");
+        engine._aaMode == VulkanEngine::AAMode::TAA ? "taa" : "none", engine._enableTonemap ? "on" : "off");
     return true;
 }
 } // namespace

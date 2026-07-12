@@ -929,7 +929,7 @@ void VulkanEngine::run()
         ImGui::Begin("Antialiasing");
         int aa = (_aaMode == AAMode::TAA) ? 1 : 0;
 
-        bool rb0 = ImGui::RadioButton("Adaptive MSAA", aa == 0);
+        bool rb0 = ImGui::RadioButton("None", aa == 0);
         if (rb0) {
             aa = 0;
         }
@@ -939,7 +939,7 @@ void VulkanEngine::run()
             aa = 1;
         }
 
-        AAMode newMode = (aa == 1) ? AAMode::TAA : AAMode::AdaptiveMSAA;
+        AAMode newMode = (aa == 1) ? AAMode::TAA : AAMode::None;
         if (newMode != _aaMode) {
             _aaMode = newMode;
             reset_accum = true;
