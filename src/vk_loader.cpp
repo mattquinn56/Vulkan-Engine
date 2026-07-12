@@ -1,5 +1,4 @@
 #include "stb_image.h"
-#include <iostream>
 #include <fstream>
 #include <vk_loader.h>
 
@@ -133,7 +132,7 @@ std::vector<RenderLight> load_lights(std::string filePath)
     std::stringstream strStream;
 
     if (!inFile.is_open()) {
-        std::cerr << "Failed to open file: " << filePath << std::endl;
+        fmt::print(stderr, "Failed to open file: {}\n", filePath);
         return {};
     }
 
@@ -157,7 +156,7 @@ std::vector<RenderLight> load_lights(std::string filePath)
         } else if (item["type"] == "area") {
             light.color.a = 3.0f;
         } else {
-            std::cerr << "Unknown light type: " << item["type"] << std::endl;
+            fmt::print(stderr, "Unknown light type: {}\n", item["type"].dump());
             light.color.a = -1.0f;
         }
 
@@ -203,7 +202,7 @@ std::vector<RenderLight> load_lights(std::string filePath)
 
 std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::string_view filePath)
 {
-    fmt::print("Loading GLTF: {}\n", filePath);
+    fmt::println("Loading GLTF: {}", filePath);
 
     std::shared_ptr<LoadedGLTF> scene = std::make_shared<LoadedGLTF>();
     scene->creator = engine;
@@ -227,7 +226,7 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
         if (load) {
             gltf = std::move(load.get());
         } else {
-            std::cerr << "Failed to load glTF: " << fastgltf::to_underlying(load.error()) << std::endl;
+            fmt::print(stderr, "Failed to load glTF: {}\n", fastgltf::to_underlying(load.error()));
             return {};
         }
     } else if (type == fastgltf::GltfType::GLB) {
@@ -235,11 +234,11 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
         if (load) {
             gltf = std::move(load.get());
         } else {
-            std::cerr << "Failed to load glTF: " << fastgltf::to_underlying(load.error()) << std::endl;
+            fmt::print(stderr, "Failed to load glTF: {}\n", fastgltf::to_underlying(load.error()));
             return {};
         }
     } else {
-        std::cerr << "Failed to determine glTF container" << std::endl;
+        fmt::print(stderr, "Failed to determine glTF container\n");
         return {};
     }
     // The asset contents provide an accurate descriptor count estimate.
@@ -283,7 +282,7 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
             // we failed to load, so lets give the slot a default white texture to not
             // completely break loading
             images.push_back(engine->_errorCheckerboardImage);
-            std::cout << "gltf failed to load texture " << image.name << std::endl;
+            fmt::print(stderr, "glTF failed to load texture {}\n", image.name);
         }
     }
     // create buffer to hold the material data

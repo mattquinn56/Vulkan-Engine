@@ -7,8 +7,12 @@
 #include <vector>
 #include <span>
 #include <array>
+#include <cstdlib>
+#include <cstdio>
 #include <functional>
 #include <deque>
+#include <source_location>
+#include <string_view>
 
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>
@@ -150,11 +154,16 @@ struct Node : public IRenderable
         }
     }
 };
-#define VK_CHECK(x)                                                                                                    \
-    do {                                                                                                               \
-        VkResult err = x;                                                                                              \
-        if (err) {                                                                                                     \
-            fmt::print("Detected Vulkan error: {}", string_VkResult(err));                                             \
-            abort();                                                                                                   \
-        }                                                                                                              \
-    } while (0)
+inline void check_vk_result(VkResult result, std::string_view expression,
+                            std::source_location location = std::source_location::current())
+{
+    if (result == VK_SUCCESS) {
+        return;
+    }
+
+    fmt::print(stderr, "Vulkan call failed: {} returned {} at {}:{}\n", expression, string_VkResult(result),
+               location.file_name(), location.line());
+    std::abort();
+}
+
+#define VK_CHECK(expression) check_vk_result((expression), #expression)

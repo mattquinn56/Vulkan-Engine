@@ -1,5 +1,4 @@
 #include "vk_raytracer.h"
-#include <iostream>
 
 VulkanRayTracer::VulkanRayTracer(VulkanEngine* owner)
 {

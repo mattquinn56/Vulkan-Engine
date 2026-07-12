@@ -22,7 +22,6 @@
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 
-#include <iostream>
 #include <stb_image.h>
 #include <fastgltf/parser.hpp>
 
@@ -231,12 +230,12 @@ void VulkanEngine::init_background_pipelines()
 
     VkShaderModule gradientShader;
     if (!vkutil::load_shader_module("../../shaders/gradient_color.comp.spv", _device, &gradientShader)) {
-        fmt::print("Error when building the compute shader \n");
+        fmt::print(stderr, "Failed to build gradient compute shader\n");
     }
 
     VkShaderModule skyShader;
     if (!vkutil::load_shader_module("../../shaders/sky.comp.spv", _device, &skyShader)) {
-        fmt::print("Error when building the compute shader\n");
+        fmt::print(stderr, "Failed to build sky compute shader\n");
     }
 
     VkPipelineShaderStageCreateInfo stageinfo{};
@@ -1332,7 +1331,7 @@ void VulkanEngine::check_extensions()
         }
     }
 
-    std::cout << "All needed device extensions found" << std::endl;
+    fmt::println("All required device extensions found");
 }
 
 void VulkanEngine::init_vulkan()
@@ -1408,7 +1407,7 @@ void VulkanEngine::init_vulkan()
     // DEBUG: print GPU name
     VkPhysicalDeviceProperties deviceProperties;
     vkGetPhysicalDeviceProperties(_chosenGPU, &deviceProperties);
-    printf("GPU: %s\n", deviceProperties.deviceName);
+    fmt::println("GPU: {}", deviceProperties.deviceName);
 
     // use vkbootstrap to get a Graphics queue
     _graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
@@ -1745,7 +1744,7 @@ void VulkanEngine::init_lights()
 {
     std::vector<RenderLight> parsedLights = load_lights(_lightPath);
     _lightCount = static_cast<int>(parsedLights.size());
-    std::cout << "Loaded " << _lightCount << " lights" << std::endl;
+    fmt::println("Loaded {} lights", _lightCount);
 
     // create a buffer for the lights
     VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
@@ -1923,12 +1922,12 @@ void GLTFMetallic_Roughness::build_pipelines(VulkanEngine* engine)
 {
     VkShaderModule meshFragShader;
     if (!vkutil::load_shader_module("../../shaders/mesh.frag.spv", engine->_device, &meshFragShader)) {
-        fmt::println("Error when building the triangle fragment shader module");
+        fmt::print(stderr, "Failed to build triangle fragment shader module\n");
     }
 
     VkShaderModule meshVertexShader;
     if (!vkutil::load_shader_module("../../shaders/mesh.vert.spv", engine->_device, &meshVertexShader)) {
-        fmt::println("Error when building the triangle vertex shader module");
+        fmt::print(stderr, "Failed to build triangle vertex shader module\n");
     }
 
     VkPushConstantRange matrixRange{};

@@ -1,6 +1,5 @@
 #include <vk_engine.h>
 
-#include <iostream>
 #include <string_view>
 
 namespace {
@@ -22,14 +21,14 @@ bool configure_engine(VulkanEngine& engine, int argc, char* argv[])
         } else if (argument == "--tonemap=off") {
             engine._enableTonemap = false;
         } else {
-            std::cerr << "Unknown startup option: " << argument << '\n';
+            fmt::print(stderr, "Unknown startup option: {}\n", argument);
             return false;
         }
     }
 
-    std::cout << "Startup configuration: render_path=" << (engine._useRayTracing ? "raytrace" : "raster")
-              << " aa=" << (engine._aaMode == VulkanEngine::AAMode::TAA ? "taa" : "adaptive")
-              << " tonemap=" << (engine._enableTonemap ? "on" : "off") << '\n';
+    fmt::println(
+        "Startup configuration: render_path={} aa={} tonemap={}", engine._useRayTracing ? "raytrace" : "raster",
+        engine._aaMode == VulkanEngine::AAMode::TAA ? "taa" : "adaptive", engine._enableTonemap ? "on" : "off");
     return true;
 }
 } // namespace
