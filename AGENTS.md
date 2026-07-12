@@ -44,3 +44,12 @@ On 2026-07-11, a 15-second Debug run initialized on an NVIDIA GeForce RTX 4080 S
 - `VUID-VkBlitImageInfo2-dstImage-00224`: that same image is used as a blit destination without `VK_IMAGE_USAGE_TRANSFER_DST_BIT`.
 
 Treat this list as a dated baseline, not an allowlist. Re-run and deduplicate validation output after every fix because later errors may be masked by earlier invalid state.
+
+The maintained scenario baseline is in `docs/validation-baseline.md`. Raw logs,
+event timelines, and screenshots belong under ignored `out/validation-baseline/`.
+Use `tools/summarize-validation.ps1` to count validation message identifiers
+without double-counting the VUID repeated in each message's specification URL.
+
+For deterministic diagnostic runs, `engine.exe` accepts
+`--render-path=raytrace|raster`, `--aa=taa|adaptive`, and
+`--tonemap=on|off`. Invalid options exit with status 2 before Vulkan starts.
