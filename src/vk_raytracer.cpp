@@ -464,7 +464,7 @@ void VulkanRayTracer::createRtDescriptorSet()
     DescriptorLayoutBuilder m_rtDescLayoutBuilder;
     m_rtDescLayoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);  // TLAS
     m_rtDescLayoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);  // Output image
-    m_rtDescLayoutBuilder.add_binding(2, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);  // Environment map
+    m_rtDescLayoutBuilder.add_binding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);  // Environment map
 
     std::vector<DescriptorAllocator::PoolSizeRatio> rt_pool_sizes = {
         { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
@@ -492,7 +492,8 @@ void VulkanRayTracer::createRtDescriptorSet()
     m_rtDescWriter.writes[0].pNext = &descASInfo;
     m_rtDescWriter.writes[0].pBufferInfo = nullptr;
     m_rtDescWriter.write_image(1, engine->_drawImage.imageView, {}, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-    m_rtDescWriter.write_image(2, engine->environmentMap.imageView, {}, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+    m_rtDescWriter.write_image(2, engine->environmentMap.imageView, engine->_defaultSamplerLinear,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     m_rtDescWriter.update_set(engine->_device, m_rtDescSet);
 
     // add all to deletion queue
@@ -567,7 +568,7 @@ void VulkanRayTracer::createRtPipeline() {
     // Clear in case this is called more than once
     m_rtShaderGroups.clear();
 
-    // Load shaders or die early (don’t proceed with junk)
+    // Load shaders or die early (don't proceed with junk)
     auto load_or_bail = [&](const char* path, VkShaderStageFlagBits stg) {
         VkPipelineShaderStageCreateInfo s{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
         s.stage = stg;

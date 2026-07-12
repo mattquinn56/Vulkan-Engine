@@ -53,3 +53,6 @@ without double-counting the VUID repeated in each message's specification URL.
 For deterministic diagnostic runs, `engine.exe` accepts
 `--render-path=raytrace|raster`, `--aa=taa|adaptive`, and
 `--tonemap=on|off`. Invalid options exit with status 2 before Vulkan starts.
+
+Phase 2 verification is recorded in `docs/validation-phase2.md`. Its raw logs are
+under ignored `out/validation-phase2/`.
