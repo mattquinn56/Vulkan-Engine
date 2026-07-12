@@ -105,10 +105,12 @@ void VulkanRayTracer::createBottomLevelAS()
 
 
     // cleanup
-    engine->_mainDeletionQueue.push_function([=]() {
-        for (auto& blas : m_blas)
+    const auto blasToDestroy = m_blas;
+    const auto destroyAccelerationStructure = pfnDestroyAccelerationStructureKHR;
+    engine->_mainDeletionQueue.push_function([engine = engine, blasToDestroy, destroyAccelerationStructure]() {
+        for (const auto& blas : blasToDestroy)
 		{
-            pfnDestroyAccelerationStructureKHR(engine->_device, blas.accel, nullptr);
+            destroyAccelerationStructure(engine->_device, blas.accel, nullptr);
 			engine->destroy_buffer(blas.buffer);
 		}
 	});
@@ -333,9 +335,11 @@ void VulkanRayTracer::createTopLevelAS()
     buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR, false, false);
 
     // cleanup
-    engine->_mainDeletionQueue.push_function([=]() {
-        pfnDestroyAccelerationStructureKHR(engine->_device, m_tlas.accel, nullptr);
-		engine->destroy_buffer(m_tlas.buffer);
+    const AccelKHR tlasToDestroy = m_tlas;
+    const auto destroyAccelerationStructure = pfnDestroyAccelerationStructureKHR;
+    engine->_mainDeletionQueue.push_function([engine = engine, tlasToDestroy, destroyAccelerationStructure]() {
+        destroyAccelerationStructure(engine->_device, tlasToDestroy.accel, nullptr);
+		engine->destroy_buffer(tlasToDestroy.buffer);
     });
 }
 
@@ -497,10 +501,11 @@ void VulkanRayTracer::createRtDescriptorSet()
     m_rtDescWriter.update_set(engine->_device, m_rtDescSet);
 
     // add all to deletion queue
-    engine->_mainDeletionQueue.push_function([=]() {
-        vkDestroyDescriptorPool(engine->_device, m_rtDescPool, nullptr);
-        vkDestroyDescriptorSetLayout(engine->_device, m_rtDescSetLayout, nullptr);
-        m_rtDescAllocator.destroy_pool(engine->_device);
+    const VkDescriptorPool descriptorPool = m_rtDescPool;
+    const VkDescriptorSetLayout descriptorLayout = m_rtDescSetLayout;
+    engine->_mainDeletionQueue.push_function([engine = engine, descriptorPool, descriptorLayout]() {
+        vkDestroyDescriptorPool(engine->_device, descriptorPool, nullptr);
+        vkDestroyDescriptorSetLayout(engine->_device, descriptorLayout, nullptr);
 	});
 }
 
@@ -533,10 +538,10 @@ void VulkanRayTracer::createRtMaterialDescriptorSet() {
     m_rtMatDescWriter.update_set(engine->_device, m_rtMatDescSet);
 
     // add all to deletion queue
-    engine->_mainDeletionQueue.push_function([=]() {
-        vkDestroyDescriptorPool(engine->_device, m_rtMatDescPool, nullptr);
-        vkDestroyDescriptorSetLayout(engine->_device, m_rtMatDescSetLayout, nullptr);
+    const VkDescriptorSetLayout materialDescriptorLayout = m_rtMatDescSetLayout;
+    engine->_mainDeletionQueue.push_function([this, materialDescriptorLayout]() {
         m_rtMatDescAllocator.destroy_pools(engine->_device);
+        vkDestroyDescriptorSetLayout(engine->_device, materialDescriptorLayout, nullptr);
     });
 }
 
@@ -669,9 +674,11 @@ void VulkanRayTracer::createRtPipeline() {
     }
 
     // Deletion hooks
-    engine->_mainDeletionQueue.push_function([&]() {
-        vkDestroyPipeline(engine->_device, m_rtPipeline, nullptr);
-        vkDestroyPipelineLayout(engine->_device, m_rtPipelineLayout, nullptr);
+    const VkPipeline pipeline = m_rtPipeline;
+    const VkPipelineLayout pipelineLayout = m_rtPipelineLayout;
+    engine->_mainDeletionQueue.push_function([engine = engine, pipeline, pipelineLayout]() {
+        vkDestroyPipeline(engine->_device, pipeline, nullptr);
+        vkDestroyPipelineLayout(engine->_device, pipelineLayout, nullptr);
     });
 }
 
@@ -751,9 +758,10 @@ void VulkanRayTracer::createRtShaderBindingTable()
     }
 
     // Cleanup
-    engine->_mainDeletionQueue.push_function([&]() {
-        vmaUnmapMemory(engine->_allocator, m_rtSBTBuffer.allocation);
-        engine->destroy_buffer(m_rtSBTBuffer);
+    const AllocatedBuffer sbtBuffer = m_rtSBTBuffer;
+    engine->_mainDeletionQueue.push_function([engine = engine, sbtBuffer]() {
+        vmaUnmapMemory(engine->_allocator, sbtBuffer.allocation);
+        engine->destroy_buffer(sbtBuffer);
     });
 }
 
@@ -764,6 +772,10 @@ VkDeviceAddress VulkanRayTracer::uploadMaterial(MaterialRT mat)
 {
     VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
     AllocatedBuffer materialBuffer = engine->create_buffer_data(sizeof(MaterialRT), &mat, usage, VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+    engine->_mainDeletionQueue.push_function([engine = engine, materialBuffer]() {
+        engine->destroy_buffer(materialBuffer);
+    });
 
     return engine->getBufferDeviceAddress(engine->_device, materialBuffer.buffer);
 }
