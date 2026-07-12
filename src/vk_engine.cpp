@@ -84,10 +84,10 @@ void VulkanEngine::init()
     _isInitialized = true;
 
     _mainCamera.velocity = glm::vec3(0.f);
-    _mainCamera.position = glm::vec3(.406, 2.346, 5.630);
+    _mainCamera.position = glm::vec3(.406f, 2.346f, 5.630f);
 
-    _mainCamera.pitch = -.349;
-    _mainCamera.yaw = .005;
+    _mainCamera.pitch = -.349f;
+    _mainCamera.yaw = .005f;
 }
 
 void VulkanEngine::init_default_data()
@@ -308,7 +308,7 @@ void VulkanEngine::draw_main(VkCommandBuffer cmd)
     vkCmdPushConstants(cmd, _gradientPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants),
                        &effect.data);
     // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
-    vkCmdDispatch(cmd, std::ceil(_windowExtent.width / 16.0), std::ceil(_windowExtent.height / 16.0), 1);
+    vkCmdDispatch(cmd, (_windowExtent.width + 15) / 16, (_windowExtent.height + 15) / 16, 1);
 
     //draw the triangle
 
@@ -995,7 +995,7 @@ void VulkanEngine::run()
 
             ImGui::Text("Selected background: ", selected.name);
 
-            ImGui::SliderInt("Effect", &_currentBackgroundEffect, 0, _backgroundEffects.size() - 1);
+            ImGui::SliderInt("Effect", &_currentBackgroundEffect, 0, static_cast<int>(_backgroundEffects.size()) - 1);
 
             ImGui::InputFloat4("Top Gradient", (float*)&selected.data.data1);
             ImGui::InputFloat4("Bottom Gradient", (float*)&selected.data.data2);
@@ -1212,7 +1212,7 @@ GPUMeshBuffers VulkanEngine::upload_mesh(std::span<uint32_t> indices, std::span<
 
     GPUMeshBuffers newSurface;
 
-    newSurface.vertexCount = vertices.size();
+    newSurface.vertexCount = static_cast<int>(vertices.size());
 
     newSurface.vertexBuffer = create_buffer(vertexBufferSize,
                                             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
@@ -1743,9 +1743,8 @@ void VulkanEngine::init_renderables()
 
 void VulkanEngine::init_lights()
 {
-std:
-    vector<RenderLight> parsedLights = load_lights(_lightPath);
-    _lightCount = size(parsedLights);
+    std::vector<RenderLight> parsedLights = load_lights(_lightPath);
+    _lightCount = static_cast<int>(parsedLights.size());
     std::cout << "Loaded " << _lightCount << " lights" << std::endl;
 
     // create a buffer for the lights

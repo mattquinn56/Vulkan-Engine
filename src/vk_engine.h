@@ -192,7 +192,7 @@ class VulkanEngine
     int _msaaSamples = 1;
     bool _debugEnabled = false;
 
-    bool _lastMonteCarlo = -1; // not controlled by UI
+    int _lastMonteCarlo = -1;  // Not controlled by the UI.
     int _lastMsaaSamples = -1; // not controlled by UI
 
     VkExtent2D _windowExtent{1250, 800};
