@@ -155,7 +155,7 @@ void DescriptorWriter::update_set(VkDevice device, VkDescriptorSet set)
 
     vkUpdateDescriptorSets(device, (uint32_t)writes.size(), writes.data(), 0, nullptr);
 }
-void DescriptorAllocatorGrowable::init(VkDevice device, uint32_t maxSets, std::span<PoolSizeRatio> poolRatios)
+void DescriptorAllocatorGrowable::init_pools(VkDevice device, uint32_t maxSets, std::span<PoolSizeRatio> poolRatios)
 {
     ratios.clear();
 

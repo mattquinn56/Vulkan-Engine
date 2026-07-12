@@ -67,7 +67,7 @@ void VulkanEngine::init()
 
     init_pipelines();
 
-    init_postprocess();
+    create_postprocess_resources();
 
     init_default_data();
 
@@ -191,8 +191,8 @@ void VulkanEngine::cleanup()
             frame._deletionQueue.flush();
         }
 
-        destroy_taa_resources();
-        destroy_mc_resources();
+        destroy_taa_history_images();
+        destroy_monte_carlo_images();
         destroy_render_targets();
         destroy_swapchain();
 
@@ -406,7 +406,7 @@ void VulkanEngine::draw()
     // If UI changed something that affects appearance, clear histories now
     if (_resetAccumNextFrame) {
         // Reset MC accumulators (count=0, copy current _drawImage into accumColor)
-        reset_mc_history(cmd);
+        reset_monte_carlo_history(cmd);
 
         // Reset/seed TAA history from current frame so blending starts clean
         if (_aaMode == AAMode::TAA) {
@@ -438,7 +438,7 @@ void VulkanEngine::draw()
         if (_cameraMoving)
             resetCooldown = _monteCarloResetFrames;
         if (resetCooldown > 0) {
-            reset_mc_history(cmd);
+            reset_monte_carlo_history(cmd);
             resetCooldown--;
         }
 
@@ -458,7 +458,7 @@ void VulkanEngine::draw()
 
         // Note: mc resolve writes back into _drawImage (binding 3), so TAA will consume it next
     } else {
-        reset_mc_history(cmd);
+        reset_monte_carlo_history(cmd);
     }
 
     if (_aaMode == AAMode::TAA) {
@@ -1300,13 +1300,19 @@ void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& f
 
 void VulkanEngine::destroy_image(const AllocatedImage& img)
 {
-    vkDestroyImageView(_device, img.imageView, nullptr);
-    vmaDestroyImage(_allocator, img.image, img.allocation);
+    if (img.imageView != VK_NULL_HANDLE) {
+        vkDestroyImageView(_device, img.imageView, nullptr);
+    }
+    if (img.image != VK_NULL_HANDLE) {
+        vmaDestroyImage(_allocator, img.image, img.allocation);
+    }
 }
 
 void VulkanEngine::destroy_buffer(const AllocatedBuffer& buffer)
 {
-    vmaDestroyBuffer(_allocator, buffer.buffer, buffer.allocation);
+    if (buffer.buffer != VK_NULL_HANDLE) {
+        vmaDestroyBuffer(_allocator, buffer.buffer, buffer.allocation);
+    }
 }
 
 void VulkanEngine::check_extensions()
@@ -1549,15 +1555,15 @@ bool VulkanEngine::resize_swapchain()
 
     VK_CHECK(vkDeviceWaitIdle(_device));
 
-    destroy_taa_resources();
-    destroy_mc_resources();
+    destroy_taa_history_images();
+    destroy_monte_carlo_images();
     destroy_render_targets();
     destroy_swapchain();
 
     create_swapchain(static_cast<uint32_t>(w), static_cast<uint32_t>(h));
     create_render_targets();
-    create_mc_images();
-    create_taa_images();
+    create_monte_carlo_images();
+    create_taa_history_images();
 
     DescriptorWriter drawImageWriter;
     drawImageWriter.write_image(0, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
@@ -1825,9 +1831,9 @@ void VulkanEngine::init_pipelines()
 
     _metalRoughMaterial.build_pipelines(this);
 
-    init_mc_resources();
+    create_monte_carlo_pipeline_resources();
 
-    init_taa_resources();
+    create_taa_pipeline_resources();
 }
 
 void VulkanEngine::init_descriptors()
@@ -1891,7 +1897,7 @@ void VulkanEngine::init_descriptors()
         };
 
         _frames[i]._frameDescriptors = DescriptorAllocatorGrowable{};
-        _frames[i]._frameDescriptors.init(_device, 1000, frame_sizes);
+        _frames[i]._frameDescriptors.init_pools(_device, 1000, frame_sizes);
         _mainDeletionQueue.push_function([&, i]() { _frames[i]._frameDescriptors.destroy_pools(_device); });
     }
 
@@ -1914,8 +1920,8 @@ void VulkanEngine::init_descriptors()
     // Allocate once and update the buffer contents when parameters change.
     _volumeSet = _globalDescriptorAllocator.allocate(_device, _volumeSetLayout);
 
-    init_volume_descriptors();
-    create_default_volume();
+    create_volume_resources();
+    initialize_default_medium();
 }
 
 void GLTFMetallic_Roughness::build_pipelines(VulkanEngine* engine)
@@ -2006,8 +2012,6 @@ void GLTFMetallic_Roughness::build_pipelines(VulkanEngine* engine)
             vkDestroyDescriptorSetLayout(engine->_device, layoutToDestroy, nullptr);
         });
 }
-
-void GLTFMetallic_Roughness::clear_resources(VkDevice device) {}
 
 MaterialInstance GLTFMetallic_Roughness::write_material(VkDevice device, MaterialPass pass,
                                                         const MaterialResources& resources,
@@ -2153,9 +2157,9 @@ AllocatedBuffer VulkanEngine::create_buffer_data(VkDeviceSize size, const void* 
     return resultBuffer;
 }
 
-void VulkanEngine::init_taa_resources()
+void VulkanEngine::create_taa_pipeline_resources()
 {
-    create_taa_images();
+    create_taa_history_images();
 
     // Descriptor set layout: curr, prev, out = 3 storage images
     DescriptorLayoutBuilder b;
@@ -2203,7 +2207,7 @@ void VulkanEngine::init_taa_resources()
     _mainDeletionQueue.push_function([this, taaPipeline]() { vkDestroyPipeline(_device, taaPipeline, nullptr); });
 }
 
-void VulkanEngine::create_taa_images()
+void VulkanEngine::create_taa_history_images()
 {
     VkExtent3D ext{_windowExtent.width, _windowExtent.height, 1};
     auto make_history = [&](AllocatedImage& img) {
@@ -2218,7 +2222,7 @@ void VulkanEngine::create_taa_images()
     make_history(_taaHistory[1]);
 }
 
-void VulkanEngine::destroy_taa_resources()
+void VulkanEngine::destroy_taa_history_images()
 {
     destroy_image(_taaHistory[0]);
     destroy_image(_taaHistory[1]);
@@ -2226,9 +2230,9 @@ void VulkanEngine::destroy_taa_resources()
     _taaHistory[1] = {};
 }
 
-void VulkanEngine::init_mc_resources()
+void VulkanEngine::create_monte_carlo_pipeline_resources()
 {
-    create_mc_images();
+    create_monte_carlo_images();
 
     // Descriptor set layout: currColor, accumColor, accumCount, outColor
     DescriptorLayoutBuilder b;
@@ -2272,7 +2276,7 @@ void VulkanEngine::init_mc_resources()
     _mainDeletionQueue.push_function([this, mcPipeline]() { vkDestroyPipeline(_device, mcPipeline, nullptr); });
 }
 
-void VulkanEngine::create_mc_images()
+void VulkanEngine::create_monte_carlo_images()
 {
 
     VkExtent3D ext{_windowExtent.width, _windowExtent.height, 1};
@@ -2300,7 +2304,7 @@ void VulkanEngine::create_mc_images()
     });
 }
 
-void VulkanEngine::destroy_mc_resources()
+void VulkanEngine::destroy_monte_carlo_images()
 {
     destroy_image(_mcAccumColor);
     destroy_image(_mcAccumCount);
@@ -2308,7 +2312,7 @@ void VulkanEngine::destroy_mc_resources()
     _mcAccumCount = {};
 }
 
-void VulkanEngine::reset_mc_history(VkCommandBuffer cmd)
+void VulkanEngine::reset_monte_carlo_history(VkCommandBuffer cmd)
 {
     // Clear count=0 and copy current draw into accumColor so the first blend is stable
     vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -2322,7 +2326,7 @@ void VulkanEngine::reset_mc_history(VkCommandBuffer cmd)
     vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
 }
 
-void VulkanEngine::init_postprocess()
+void VulkanEngine::create_postprocess_resources()
 {
     // descriptor layout: hdrIn (0), ldrOut (1)
     DescriptorLayoutBuilder b;
@@ -2370,17 +2374,12 @@ void VulkanEngine::init_postprocess()
     _mainDeletionQueue.push_function([this, postPipeline]() { vkDestroyPipeline(_device, postPipeline, nullptr); });
 }
 
-void VulkanEngine::destroy_postprocess()
-{
-    // handled by deletion queue; nothing extra needed for live-recreate
-}
-
 void VulkanEngine::request_accum_reset()
 {
     _resetAccumNextFrame = true;
 }
 
-void VulkanEngine::init_volume_descriptors()
+void VulkanEngine::create_volume_resources()
 {
     // Create std140 medium UBO (persistently mapped CPU->GPU)
     if (_volume.mediumParams.buffer == VK_NULL_HANDLE) {
@@ -2412,7 +2411,7 @@ void VulkanEngine::init_volume_descriptors()
     }
 }
 
-void VulkanEngine::create_default_volume()
+void VulkanEngine::initialize_default_medium()
 {
     // No 3D density bound initially; homogeneous only.
     _volume.hasDensity = false;
@@ -2425,7 +2424,7 @@ void VulkanEngine::create_default_volume()
     set_medium_params(p);
 }
 
-void VulkanEngine::upload_volume_3d(const void* voxels, VkExtent3D extent, VkFormat fmt)
+void VulkanEngine::upload_volume_density(const void* voxels, VkExtent3D extent, VkFormat fmt)
 {
     // Create a 3D image (R16_SFLOAT or R8_UNORM or R32_SFLOAT)
     VkImageUsageFlags usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;

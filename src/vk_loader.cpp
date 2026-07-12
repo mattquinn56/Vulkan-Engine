@@ -246,7 +246,7 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
                                                                      {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3},
                                                                      {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1}};
 
-    file.descriptorPool.init(engine->_device, static_cast<uint32_t>(gltf.materials.size()), sizes);
+    file.descriptorPool.init_pools(engine->_device, static_cast<uint32_t>(gltf.materials.size()), sizes);
 
     // load samplers
     for (fastgltf::Sampler& sampler : gltf.samplers) {
@@ -521,8 +521,12 @@ void LoadedGLTF::draw(const glm::mat4& topMatrix, DrawContext& ctx)
     }
 }
 
-void LoadedGLTF::clear_all()
+void LoadedGLTF::destroy_owned_resources()
 {
+    if (creator == nullptr) {
+        return;
+    }
+
     VkDevice dv = creator->_device;
 
     for (auto& [k, v] : meshes) {
@@ -544,10 +548,7 @@ void LoadedGLTF::clear_all()
         vkDestroySampler(dv, sampler, nullptr);
     }
 
-    auto materialBuffer = materialDataBuffer;
-    auto samplersToDestroy = samplers;
-
     descriptorPool.destroy_pools(dv);
 
-    creator->destroy_buffer(materialBuffer);
+    creator->destroy_buffer(materialDataBuffer);
 }

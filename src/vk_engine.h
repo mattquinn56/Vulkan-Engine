@@ -28,21 +28,21 @@ struct Mesh;
 
 struct DeletionQueue
 {
-    std::deque<std::function<void()>> deletors;
+    std::deque<std::function<void()>> callbacks;
 
     void push_function(std::function<void()>&& function)
     {
-        deletors.push_back(function);
+        callbacks.push_back(function);
     }
 
     void flush()
     {
         // reverse iterate the deletion queue to execute all the functions
-        for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
+        for (auto it = callbacks.rbegin(); it != callbacks.rend(); it++) {
             (*it)(); // call functors
         }
 
-        deletors.clear();
+        callbacks.clear();
     }
 };
 
@@ -147,8 +147,6 @@ struct GLTFMetallic_Roughness
     DescriptorWriter writer;
 
     void build_pipelines(VulkanEngine* engine);
-    void clear_resources(VkDevice device);
-
     MaterialInstance write_material(VkDevice device, MaterialPass pass, const MaterialResources& resources,
                                     DescriptorAllocatorGrowable& descriptorAllocator);
 };
@@ -377,9 +375,9 @@ class VulkanEngine
     VkDescriptorSet _taaSet[2]{}; // 2 sets for ping-pong
 
     // helpers
-    void init_taa_resources();
-    void create_taa_images();
-    void destroy_taa_resources();
+    void create_taa_pipeline_resources();
+    void create_taa_history_images();
+    void destroy_taa_history_images();
 
     // progressive mc things
     bool _progressiveMonteCarlo{true}; // enable progressive MC accumulation
@@ -395,10 +393,10 @@ class VulkanEngine
     VkDescriptorSet _mcSet{VK_NULL_HANDLE};
 
     // helpers
-    void init_mc_resources();
-    void create_mc_images();
-    void destroy_mc_resources();
-    void reset_mc_history(VkCommandBuffer cmd);
+    void create_monte_carlo_pipeline_resources();
+    void create_monte_carlo_images();
+    void destroy_monte_carlo_images();
+    void reset_monte_carlo_history(VkCommandBuffer cmd);
 
     // Post-tonemap (ACES + sRGB) pass
     VkDescriptorSetLayout _postSetLayout{VK_NULL_HANDLE};
@@ -411,8 +409,7 @@ class VulkanEngine
 
     // LDR target copied to the swapchain after tonemapping.
     AllocatedImage _ldrImage;
-    void init_postprocess();
-    void destroy_postprocess();
+    void create_postprocess_resources();
 
     // Microfacet addition
     bool _useMicrofacetBrdf{true};
@@ -463,7 +460,7 @@ class VulkanEngine
     void recursively_render_node(std::shared_ptr<LoadedGLTF> scene, std::shared_ptr<Node> node);
 
     // volumetric additions
-    void init_volume_descriptors();
-    void create_default_volume();                                               // start with homogeneous only
-    void upload_volume_3d(const void* voxels, VkExtent3D extent, VkFormat fmt); // later for grids
+    void create_volume_resources();
+    void initialize_default_medium();
+    void upload_volume_density(const void* voxels, VkExtent3D extent, VkFormat fmt);
 };

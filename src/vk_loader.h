@@ -63,13 +63,13 @@ struct LoadedGLTF : public IRenderable
 
     ~LoadedGLTF()
     {
-        clear_all();
+        destroy_owned_resources();
     };
 
     virtual void draw(const glm::mat4& topMatrix, DrawContext& ctx);
 
   private:
-    void clear_all();
+    void destroy_owned_resources();
 };
 
 std::vector<RenderLight> load_lights(std::string filePath);

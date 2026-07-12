@@ -510,7 +510,7 @@ void VulkanRayTracer::create_material_descriptor_set()
 
     std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> rt_mat_pool_sizes = {
         {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, float(TEX_MAX) * 2.0f}};
-    _materialDescriptorAllocator.init(_engine->_device, 1, rt_mat_pool_sizes);
+    _materialDescriptorAllocator.init_pools(_engine->_device, 1, rt_mat_pool_sizes);
     _materialDescriptorSetLayout =
         materialDescriptorLayoutBuilder.build(_engine->_device, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
     _materialDescriptorSet = _materialDescriptorAllocator.allocate(_engine->_device, _materialDescriptorSetLayout);
