@@ -15,7 +15,7 @@ struct DescriptorLayoutBuilder
 };
 struct DescriptorWriter
 {
-    int index;
+    int index{0};
     std::vector<std::pair<int, int>> writeArrayIndices; // writes index, imageInfosArray index
     std::deque<VkDescriptorImageInfo> imageInfos;
     std::vector<VkDescriptorImageInfo> imageInfosArray;
@@ -35,11 +35,11 @@ struct DescriptorAllocator
 
     struct PoolSizeRatio
     {
-        VkDescriptorType type;
-        float ratio;
+        VkDescriptorType type{VK_DESCRIPTOR_TYPE_MAX_ENUM};
+        float ratio{0.0f};
     };
 
-    VkDescriptorPool pool;
+    VkDescriptorPool pool{VK_NULL_HANDLE};
 
     void init_pool(VkDevice device, uint32_t maxSets, std::span<PoolSizeRatio> poolRatios);
     void clear_descriptors(VkDevice device);
@@ -52,8 +52,8 @@ struct DescriptorAllocatorGrowable
   public:
     struct PoolSizeRatio
     {
-        VkDescriptorType type;
-        float ratio;
+        VkDescriptorType type{VK_DESCRIPTOR_TYPE_MAX_ENUM};
+        float ratio{0.0f};
     };
 
     void init(VkDevice device, uint32_t initialSets, std::span<PoolSizeRatio> poolRatios);
@@ -69,5 +69,5 @@ struct DescriptorAllocatorGrowable
     std::vector<PoolSizeRatio> ratios;
     std::vector<VkDescriptorPool> fullPools;
     std::vector<VkDescriptorPool> readyPools;
-    uint32_t setsPerPool;
+    uint32_t setsPerPool{0};
 };

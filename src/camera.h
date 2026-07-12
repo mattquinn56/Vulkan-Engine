@@ -4,8 +4,8 @@
 class Camera
 {
   public:
-    glm::vec3 velocity;
-    glm::vec3 position;
+    glm::vec3 velocity{};
+    glm::vec3 position{};
     // vertical rotation
     float pitch{0.f};
     // horizontal rotation

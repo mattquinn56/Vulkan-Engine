@@ -22,45 +22,43 @@
 // we will add our main reusable types here
 struct AllocatedImage
 {
-    VkImage image;
-    VkImageView imageView;
-    VmaAllocation allocation;
-    VkExtent3D imageExtent;
-    VkFormat imageFormat;
+    VkImage image{VK_NULL_HANDLE};
+    VkImageView imageView{VK_NULL_HANDLE};
+    VmaAllocation allocation{VK_NULL_HANDLE};
+    VkExtent3D imageExtent{};
+    VkFormat imageFormat{VK_FORMAT_UNDEFINED};
 };
 
 struct AllocatedBuffer
 {
-    VkBuffer buffer;
-    VmaAllocation allocation;
-    VmaAllocationInfo info;
+    VkBuffer buffer{VK_NULL_HANDLE};
+    VmaAllocation allocation{VK_NULL_HANDLE};
+    VmaAllocationInfo info{};
 };
 
 struct GPUGLTFMaterial
 {
-    glm::vec4 colorFactors;
-    glm::vec4 metalRoughFactors;
-    glm::vec4 extra[14];
+    glm::vec4 colorFactors{};
+    glm::vec4 metalRoughFactors{};
+    glm::vec4 extra[14]{};
 };
 
 static_assert(sizeof(GPUGLTFMaterial) == 256);
 
 struct RenderLight
 {
-    glm::vec4
-        position; // if directional light, this is direction. if area light, this is v2. alpha channel is intensity
-    glm::vec4
-        color; // alpha is type, 0 is point, 1 is ambient (no pos data used), 2 is directional (pos data is direction), 3 is area
-    glm::vec4 v0; // this and below is only populated if area light
-    glm::vec4 v1;
+    glm::vec4 position{};
+    glm::vec4 color{};
+    glm::vec4 v0{};
+    glm::vec4 v1{};
 };
 
 struct GPUSceneData
 {
-    glm::mat4 view;
-    glm::mat4 proj;
-    glm::mat4 viewproj;
-    glm::vec4 data; // x is sin(time)
+    glm::mat4 view{1.0f};
+    glm::mat4 proj{1.0f};
+    glm::mat4 viewproj{1.0f};
+    glm::vec4 data{};
 };
 enum class MaterialPass : uint8_t
 {
@@ -70,24 +68,24 @@ enum class MaterialPass : uint8_t
 };
 struct MaterialPipeline
 {
-    VkPipeline pipeline;
-    VkPipelineLayout layout;
+    VkPipeline pipeline{VK_NULL_HANDLE};
+    VkPipelineLayout layout{VK_NULL_HANDLE};
 };
 
 struct MaterialInstance
 {
-    MaterialPipeline* pipeline;
-    VkDescriptorSet materialSet;
-    MaterialPass passType;
+    MaterialPipeline* pipeline{nullptr};
+    VkDescriptorSet materialSet{VK_NULL_HANDLE};
+    MaterialPass passType{MaterialPass::Other};
 };
 struct Vertex
 {
 
-    glm::vec3 position;
-    float uvX;
-    glm::vec3 normal;
-    float uvY;
-    glm::vec4 color;
+    glm::vec3 position{};
+    float uvX{0.0f};
+    glm::vec3 normal{};
+    float uvY{0.0f};
+    glm::vec4 color{};
 };
 
 // holds the resources needed for a mesh
@@ -96,17 +94,17 @@ struct GPUMeshBuffers
 
     AllocatedBuffer indexBuffer;
     AllocatedBuffer vertexBuffer;
-    VkDeviceAddress vertexBufferAddress;
-    int vertexCount;
+    VkDeviceAddress vertexBufferAddress{0};
+    int vertexCount{0};
 };
 
 // push constants for our mesh object draws
 struct GPUDrawPushConstants
 {
-    glm::mat4 worldMatrix;
-    VkDeviceAddress vertexBuffer;
-    VkDeviceAddress lightBuffer;
-    int numLights;
+    glm::mat4 worldMatrix{1.0f};
+    VkDeviceAddress vertexBuffer{0};
+    VkDeviceAddress lightBuffer{0};
+    int numLights{0};
 };
 struct DrawContext;
 
@@ -127,14 +125,14 @@ struct Node : public IRenderable
 {
 
     // pointer to main engine
-    VulkanEngine* engine;
+    VulkanEngine* engine{nullptr};
 
     // parent pointer must be a weak pointer to avoid circular dependencies
     std::weak_ptr<Node> parent;
     std::vector<std::shared_ptr<Node>> children;
 
-    glm::mat4 localTransform;
-    glm::mat4 worldTransform;
+    glm::mat4 localTransform{1.0f};
+    glm::mat4 worldTransform{1.0f};
 
     void refresh_transform(const glm::mat4& parentMatrix)
     {

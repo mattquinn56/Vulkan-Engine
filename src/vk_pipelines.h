@@ -7,14 +7,14 @@ class PipelineBuilder
   public:
     std::vector<VkPipelineShaderStageCreateInfo> _shaderStages;
 
-    VkPipelineInputAssemblyStateCreateInfo _inputAssembly;
-    VkPipelineRasterizationStateCreateInfo _rasterizer;
-    VkPipelineColorBlendAttachmentState _colorBlendAttachment;
-    VkPipelineMultisampleStateCreateInfo _multisampling;
-    VkPipelineLayout _pipelineLayout;
-    VkPipelineDepthStencilStateCreateInfo _depthStencil;
-    VkPipelineRenderingCreateInfo _renderInfo;
-    VkFormat _colorAttachmentformat;
+    VkPipelineInputAssemblyStateCreateInfo _inputAssembly{};
+    VkPipelineRasterizationStateCreateInfo _rasterizer{};
+    VkPipelineColorBlendAttachmentState _colorBlendAttachment{};
+    VkPipelineMultisampleStateCreateInfo _multisampling{};
+    VkPipelineLayout _pipelineLayout{VK_NULL_HANDLE};
+    VkPipelineDepthStencilStateCreateInfo _depthStencil{};
+    VkPipelineRenderingCreateInfo _renderInfo{};
+    VkFormat _colorAttachmentformat{VK_FORMAT_UNDEFINED};
 
     PipelineBuilder()
     {

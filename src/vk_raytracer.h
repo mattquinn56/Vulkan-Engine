@@ -21,7 +21,7 @@ struct BuildAccelerationStructure
     VkAccelerationStructureBuildGeometryInfoKHR buildInfo{
         VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
     VkAccelerationStructureBuildSizesInfoKHR sizeInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
-    const VkAccelerationStructureBuildRangeInfoKHR* rangeInfo;
+    const VkAccelerationStructureBuildRangeInfoKHR* rangeInfo{nullptr};
     AccelKHR as; // result acceleration structure
     AccelKHR cleanupAS;
 };
@@ -30,21 +30,21 @@ class VulkanRayTracer
 {
   public:
     // pointer to main engine
-    VulkanEngine* _engine;
+    VulkanEngine* _engine{nullptr};
 
     // pointers to extension functions
-    PFN_vkGetAccelerationStructureBuildSizesKHR _vkGetAccelerationStructureBuildSizes;
-    PFN_vkCmdBuildAccelerationStructuresKHR _vkCmdBuildAccelerationStructures;
-    PFN_vkCmdCopyAccelerationStructureKHR _vkCmdCopyAccelerationStructure;
-    PFN_vkCmdWriteAccelerationStructuresPropertiesKHR _vkCmdWriteAccelerationStructuresProperties;
-    PFN_vkCreateAccelerationStructureKHR _vkCreateAccelerationStructure;
-    PFN_vkDestroyAccelerationStructureKHR _vkDestroyAccelerationStructure;
-    PFN_vkGetAccelerationStructureDeviceAddressKHR _vkGetAccelerationStructureDeviceAddress;
-    PFN_vkCreateRayTracingPipelinesKHR _vkCreateRayTracingPipelines;
-    PFN_vkGetRayTracingShaderGroupHandlesKHR _vkGetRayTracingShaderGroupHandles;
-    PFN_vkCmdTraceRaysKHR _vkCmdTraceRays;
+    PFN_vkGetAccelerationStructureBuildSizesKHR _vkGetAccelerationStructureBuildSizes{nullptr};
+    PFN_vkCmdBuildAccelerationStructuresKHR _vkCmdBuildAccelerationStructures{nullptr};
+    PFN_vkCmdCopyAccelerationStructureKHR _vkCmdCopyAccelerationStructure{nullptr};
+    PFN_vkCmdWriteAccelerationStructuresPropertiesKHR _vkCmdWriteAccelerationStructuresProperties{nullptr};
+    PFN_vkCreateAccelerationStructureKHR _vkCreateAccelerationStructure{nullptr};
+    PFN_vkDestroyAccelerationStructureKHR _vkDestroyAccelerationStructure{nullptr};
+    PFN_vkGetAccelerationStructureDeviceAddressKHR _vkGetAccelerationStructureDeviceAddress{nullptr};
+    PFN_vkCreateRayTracingPipelinesKHR _vkCreateRayTracingPipelines{nullptr};
+    PFN_vkGetRayTracingShaderGroupHandlesKHR _vkGetRayTracingShaderGroupHandles{nullptr};
+    PFN_vkCmdTraceRaysKHR _vkCmdTraceRays{nullptr};
 
-    VkPhysicalDeviceAccelerationStructurePropertiesKHR _accelerationStructureProperties;
+    VkPhysicalDeviceAccelerationStructurePropertiesKHR _accelerationStructureProperties{};
 
     std::vector<AccelKHR> _bottomLevelStructures; // Bottom-level acceleration structure
     AccelKHR _topLevelStructure;                  // Top-level acceleration structure
@@ -93,9 +93,9 @@ class VulkanRayTracer
 
     DescriptorAllocator _descriptorAllocator;
     DescriptorWriter _descriptorWriter;
-    VkDescriptorPool _descriptorPool;
-    VkDescriptorSetLayout _descriptorSetLayout;
-    VkDescriptorSet _descriptorSet;
+    VkDescriptorPool _descriptorPool{VK_NULL_HANDLE};
+    VkDescriptorSetLayout _descriptorSetLayout{VK_NULL_HANDLE};
+    VkDescriptorSet _descriptorSet{VK_NULL_HANDLE};
 
     void update_output_descriptor();
 
@@ -104,16 +104,16 @@ class VulkanRayTracer
     const int MAX_RAY_RECURSION_DEPTH = 4;
 
     std::vector<VkRayTracingShaderGroupCreateInfoKHR> _shaderGroups;
-    VkPipelineLayout _pipelineLayout;
-    VkPipeline _pipeline;
+    VkPipelineLayout _pipelineLayout{VK_NULL_HANDLE};
+    VkPipeline _pipeline{VK_NULL_HANDLE};
 
     // Push constant structure for the ray tracer
     struct PushConstantRay
     {
-        glm::vec4 clearColor;
-        uint64_t lightAddress;
-        int numLights;
-        int useMicrofacet; // 0 = legacy, 1 = GGX+Smith+Schlick
+        glm::vec4 clearColor{};
+        uint64_t lightAddress{0};
+        int numLights{0};
+        int useMicrofacet{0}; // 0 = legacy, 1 = GGX+Smith+Schlick
     };
 
     // Push constant for ray tracer
@@ -121,7 +121,7 @@ class VulkanRayTracer
 
     void create_shader_binding_table();
 
-    AllocatedBuffer _shaderBindingTableBuffer;
+    AllocatedBuffer _shaderBindingTableBuffer{};
     VkStridedDeviceAddressRegionKHR _rayGenerationRegion{};
     VkStridedDeviceAddressRegionKHR _missRegion{};
     VkStridedDeviceAddressRegionKHR _hitRegion{};
@@ -129,9 +129,9 @@ class VulkanRayTracer
 
     struct MaterialRT
     {
-        glm::vec4 colorFactors;
-        glm::vec4 metalRoughFactors;
-        int textureID;
+        glm::vec4 colorFactors{};
+        glm::vec4 metalRoughFactors{};
+        int textureID{0};
     };
 
     std::vector<VkImageView> _colorTextures;
@@ -141,9 +141,9 @@ class VulkanRayTracer
 
     DescriptorAllocatorGrowable _materialDescriptorAllocator;
     DescriptorWriter _materialDescriptorWriter;
-    VkDescriptorPool _materialDescriptorPool;
-    VkDescriptorSetLayout _materialDescriptorSetLayout;
-    VkDescriptorSet _materialDescriptorSet;
+    VkDescriptorPool _materialDescriptorPool{VK_NULL_HANDLE};
+    VkDescriptorSetLayout _materialDescriptorSetLayout{VK_NULL_HANDLE};
+    VkDescriptorSet _materialDescriptorSet{VK_NULL_HANDLE};
 
     VkDeviceAddress upload_material(MaterialRT mat);
 

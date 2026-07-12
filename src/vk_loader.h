@@ -12,21 +12,21 @@ class VulkanEngine;
 
 struct Bounds
 {
-    glm::vec3 origin;
-    float sphereRadius;
-    glm::vec3 extents;
+    glm::vec3 origin{};
+    float sphereRadius{0.0f};
+    glm::vec3 extents{};
 };
 
 struct GLTFMaterial
 {
     MaterialInstance data;
-    VkDeviceAddress materialAddressRT;
+    VkDeviceAddress materialAddressRT{0};
 };
 
 struct GeoSurface
 {
-    uint32_t startIndex;
-    uint32_t count;
+    uint32_t startIndex{0};
+    uint32_t count{0};
     Bounds bounds;
     std::shared_ptr<GLTFMaterial> material;
 };
@@ -59,7 +59,7 @@ struct LoadedGLTF : public IRenderable
 
     AllocatedBuffer materialDataBuffer;
 
-    VulkanEngine* creator;
+    VulkanEngine* creator{nullptr};
 
     ~LoadedGLTF()
     {
