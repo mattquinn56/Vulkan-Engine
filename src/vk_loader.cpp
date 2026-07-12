@@ -1,4 +1,4 @@
-﻿#include "stb_image.h"
+#include "stb_image.h"
 #include <iostream>
 #include <fstream>
 #include <vk_loader.h>
@@ -132,7 +132,7 @@ VkSamplerMipmapMode extract_mipmap_mode(fastgltf::Filter filter)
 }
 //< filters
 
-std::vector<RenderLight> loadLights(std::string filePath)
+std::vector<RenderLight> load_lights(std::string filePath)
 {
     // Read json
     std::ifstream inFile(filePath);
@@ -207,7 +207,7 @@ std::vector<RenderLight> loadLights(std::string filePath)
     return lights;
 }
 
-std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::string_view filePath)
+std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::string_view filePath)
 {
     //> load_1
     fmt::print("Loading GLTF: {}\n", filePath);
@@ -313,10 +313,10 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::s
     //< load_buffer
     //
     //> load_material
-    engine->rayTracer->m_colTextures.clear();
-    engine->rayTracer->m_metalRoughTextures.clear();
-    engine->rayTracer->m_colSamplers.clear();
-    engine->rayTracer->m_metalRoughSamplers.clear();
+    engine->_rayTracer->_colorTextures.clear();
+    engine->_rayTracer->_metalRoughTextures.clear();
+    engine->_rayTracer->_colorSamplers.clear();
+    engine->_rayTracer->_metalRoughSamplers.clear();
     for (fastgltf::Material& mat : gltf.materials) {
         std::shared_ptr<GLTFMaterial> newMat = std::make_shared<GLTFMaterial>();
         materials.push_back(newMat);
@@ -328,8 +328,8 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::s
         constants.colorFactors.z = mat.pbrData.baseColorFactor[2];
         constants.colorFactors.w = mat.pbrData.baseColorFactor[3];
 
-        constants.metal_rough_factors.x = mat.pbrData.metallicFactor;
-        constants.metal_rough_factors.y = mat.pbrData.roughnessFactor;
+        constants.metalRoughFactors.x = mat.pbrData.metallicFactor;
+        constants.metalRoughFactors.y = mat.pbrData.roughnessFactor;
         // write material parameters to buffer
         sceneMaterialConstants[data_index] = constants;
 
@@ -357,21 +357,21 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::s
             materialResources.colorSampler = file.samplers[sampler];
         }
         // build material
-        newMat->data = engine->metalRoughMaterial.write_material(engine->_device, passType, materialResources,
-                                                                 file.descriptorPool);
+        newMat->data = engine->_metalRoughMaterial.write_material(engine->_device, passType, materialResources,
+                                                                  file.descriptorPool);
 
         // upload RT material
         VulkanRayTracer::MaterialRT rtMat;
         rtMat.colorFactors = constants.colorFactors;
-        rtMat.metal_rough_factors = constants.metal_rough_factors;
+        rtMat.metalRoughFactors = constants.metalRoughFactors;
         rtMat.textureID = data_index;
-        newMat->materialAddressRT = engine->rayTracer->uploadMaterial(rtMat);
+        newMat->materialAddressRT = engine->_rayTracer->upload_material(rtMat);
 
         // accumulate images for ray tracing textures
-        engine->rayTracer->m_colTextures.push_back(materialResources.colorImage.imageView);
-        engine->rayTracer->m_metalRoughTextures.push_back(materialResources.metalRoughImage.imageView);
-        engine->rayTracer->m_colSamplers.push_back(materialResources.colorSampler);
-        engine->rayTracer->m_metalRoughSamplers.push_back(materialResources.metalRoughSampler);
+        engine->_rayTracer->_colorTextures.push_back(materialResources.colorImage.imageView);
+        engine->_rayTracer->_metalRoughTextures.push_back(materialResources.metalRoughImage.imageView);
+        engine->_rayTracer->_colorSamplers.push_back(materialResources.colorSampler);
+        engine->_rayTracer->_metalRoughSamplers.push_back(materialResources.metalRoughSampler);
 
         data_index++;
     }
@@ -418,8 +418,8 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::s
                     newvtx.position = v;
                     newvtx.normal = {1, 0, 0};
                     newvtx.color = glm::vec4{1.f};
-                    newvtx.uv_x = 0;
-                    newvtx.uv_y = 0;
+                    newvtx.uvX = 0;
+                    newvtx.uvY = 0;
                     vertices[initial_vtx + index] = newvtx;
                 });
             }
@@ -439,8 +439,8 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::s
 
                 fastgltf::iterateAccessorWithIndex<glm::vec2>(gltf, gltf.accessors[(*uv).second],
                                                               [&](glm::vec2 v, size_t index) {
-                                                                  vertices[initial_vtx + index].uv_x = v.x;
-                                                                  vertices[initial_vtx + index].uv_y = v.y;
+                                                                  vertices[initial_vtx + index].uvX = v.x;
+                                                                  vertices[initial_vtx + index].uvY = v.y;
                                                               });
             }
 
@@ -472,7 +472,7 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::s
             newmesh->surfaces.push_back(newSurface);
         }
 
-        newmesh->meshBuffers = engine->uploadMesh(indices, vertices);
+        newmesh->meshBuffers = engine->upload_mesh(indices, vertices);
     }
     //> load_nodes
     // load all nodes and their meshes
@@ -532,22 +532,22 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::s
     for (auto& node : nodes) {
         if (node->parent.lock() == nullptr) {
             file.topNodes.push_back(node);
-            node->refreshTransform(glm::mat4{1.f});
+            node->refresh_transform(glm::mat4{1.f});
         }
     }
     return scene;
     //< load_graph
 }
 
-void LoadedGLTF::Draw(const glm::mat4& topMatrix, DrawContext& ctx)
+void LoadedGLTF::draw(const glm::mat4& topMatrix, DrawContext& ctx)
 {
     // create renderables from the scenenodes
     for (auto& n : topNodes) {
-        n->Draw(topMatrix, ctx);
+        n->draw(topMatrix, ctx);
     }
 }
 
-void LoadedGLTF::clearAll()
+void LoadedGLTF::clear_all()
 {
     VkDevice dv = creator->_device;
 

@@ -14,6 +14,8 @@
 - `src/meshes.cpp` contains generated mesh tables and is excluded via `.clang-format-ignore`.
 - Use four spaces, LF line endings, attached control-flow braces, and braces on the next line for functions and types.
 - `.editorconfig` defines the whitespace and line-ending defaults for supported editors.
+- Use `PascalCase` for types, `snake_case` for functions, `camelCase` for locals and data-struct fields, and
+  `_camelCase` for class data members. Boolean names should describe a state or capability.
 
 ## Running and validation output
 

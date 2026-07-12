@@ -1,4 +1,4 @@
-﻿// vulkan_guide.h : Include file for standard system include files,
+// vulkan_guide.h : Include file for standard system include files,
 // or project specific include files.
 
 #pragma once
@@ -97,7 +97,7 @@ constexpr unsigned int FRAME_OVERLAP = 2;
 
 struct ObjDesc
 {
-    // a buffer with a vector of these objects `m_bObjDesc` will be passed to the ray tracing closest hit shader
+    // a buffer with a vector of these objects `_objectDescriptionBuffer` will be passed to the ray tracing closest hit shader
     uint64_t vertexAddress;   // Address of the vertex buffer
     uint64_t indexAddress;    // Address of the index buffer
     uint64_t materialAddress; // Address of the material buffer
@@ -106,17 +106,17 @@ struct ObjDesc
 struct DrawContext
 {
     // Only drawing + using RT for opaque surfaces
-    std::vector<RenderObject> OpaqueSurfaces;
-    std::vector<ObjDesc> m_objDesc; // Model description for device access, opaque surfaces
+    std::vector<RenderObject> opaqueSurfaces;
+    std::vector<ObjDesc> objectDescriptions; // Model descriptions for device access by opaque surfaces.
     std::vector<RenderObject> TransparentSurfaces;
 };
 
 struct EngineStats
 {
-    float frametime;
-    int triangle_count;
-    int drawcall_count;
-    float mesh_draw_time;
+    float frameTime;
+    int triangleCount;
+    int drawCallCount;
+    float meshDrawTime;
 };
 
 struct GLTFMetallic_Roughness
@@ -129,7 +129,7 @@ struct GLTFMetallic_Roughness
     struct MaterialConstants
     {
         glm::vec4 colorFactors;
-        glm::vec4 metal_rough_factors;
+        glm::vec4 metalRoughFactors;
         //padding, we need it anyway for uniform buffers
         glm::vec4 extra[14];
     };
@@ -158,7 +158,7 @@ struct MeshNode : public Node
 
     std::shared_ptr<MeshAsset> mesh;
 
-    virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) override;
+    virtual void draw(const glm::mat4& topMatrix, DrawContext& ctx) override;
 };
 
 // volumetric additions
@@ -186,26 +186,26 @@ class VulkanEngine
     std::vector<const char*> _deviceExtensions{VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
                                                VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
                                                VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME};
-    bool createdAS{false};
+    bool _accelerationStructuresCreated{false};
     int _frameNumber{0};
-    bool useRaytracer = true;
-    int computeMonteCarlo = 0;
-    int msaaSetting = 1;
-    bool debugSetting = false;
+    bool _useRayTracing = true;
+    int _monteCarloSamples = 0;
+    int _msaaSamples = 1;
+    bool _debugEnabled = false;
 
-    bool lastMonteCarlo = -1; // not controlled by UI
-    int lastMSAA = -1;        // not controlled by UI
+    bool _lastMonteCarlo = -1; // not controlled by UI
+    int _lastMsaaSamples = -1; // not controlled by UI
 
     VkExtent2D _windowExtent{1250, 800};
 
-    std::string structurePath;
-    std::string lightPath;
-    std::string envMapPath;
+    std::string _structurePath;
+    std::string _lightPath;
+    std::string _environmentMapPath;
 
     struct SDL_Window* _window{nullptr};
 
     VkInstance _instance;
-    VkDebugUtilsMessengerEXT _debug_messenger;
+    VkDebugUtilsMessengerEXT _debugMessenger;
     VkPhysicalDevice _chosenGPU;
     VkDevice _device;
 
@@ -213,9 +213,9 @@ class VulkanEngine
     uint32_t _graphicsQueueFamily;
 
     AllocatedBuffer _defaultGLTFMaterialData;
-    AllocatedBuffer m_bObjDesc;
-    AllocatedBuffer m_lightBuffer;
-    int m_numLights;
+    AllocatedBuffer _objectDescriptionBuffer;
+    AllocatedBuffer _lightBuffer;
+    int _lightCount;
 
     FrameData _frames[FRAME_OVERLAP];
 
@@ -225,9 +225,9 @@ class VulkanEngine
 
     VkDescriptorPool _descriptorPool;
 
-    DescriptorAllocator globalDescriptorAllocator;
+    DescriptorAllocator _globalDescriptorAllocator;
 
-    VulkanRayTracer* rayTracer;
+    VulkanRayTracer* _rayTracer;
 
     VkPipeline _gradientPipeline;
     VkPipelineLayout _gradientPipelineLayout;
@@ -251,7 +251,7 @@ class VulkanEngine
     VkDescriptorSetLayout _objDescLayout;
     VkDescriptorSet _objDescSet;
 
-    GLTFMetallic_Roughness metalRoughMaterial;
+    GLTFMetallic_Roughness _metalRoughMaterial;
 
     // draw resources
     AllocatedImage _drawImage;
@@ -266,30 +266,30 @@ class VulkanEngine
     AllocatedImage _blackImage;
     AllocatedImage _greyImage;
     AllocatedImage _errorCheckerboardImage;
-    AllocatedImage environmentMap;
+    AllocatedImage _environmentMap;
 
     VkSampler _defaultSamplerLinear;
     VkSampler _defaultSamplerNearest;
 
-    GPUMeshBuffers rectangle;
-    DrawContext drawCommands;
+    GPUMeshBuffers _defaultRectangle;
+    DrawContext _drawContext;
 
-    GPUSceneData sceneData;
+    GPUSceneData _sceneData;
 
-    Camera mainCamera;
+    Camera _mainCamera;
 
-    EngineStats stats;
+    EngineStats _stats;
 
     // some volumetric additions
     VkDescriptorSetLayout _volumeSetLayout = {VK_NULL_HANDLE};
     VkDescriptorSet _volumeSet = {VK_NULL_HANDLE};
     VolumeResources _volume{};
 
-    std::vector<ComputeEffect> backgroundEffects;
-    int currentBackgroundEffect{0};
+    std::vector<ComputeEffect> _backgroundEffects;
+    int _currentBackgroundEffect{0};
 
     // singleton style getter.multiple engines is not supported
-    static VulkanEngine& Get();
+    static VulkanEngine& get();
 
     // initializes everything in the engine
     void init();
@@ -317,7 +317,7 @@ class VulkanEngine
 
     // upload a mesh into a pair of gpu buffers. If descriptor allocator is not
     // null, it will also create a descriptor that points to the vertex buffer
-    GPUMeshBuffers uploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
+    GPUMeshBuffers upload_mesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
 
     FrameData& get_current_frame();
     FrameData& get_last_frame();
@@ -330,23 +330,23 @@ class VulkanEngine
 
     void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
 
-    std::unordered_map<std::string, std::shared_ptr<LoadedGLTF>> loadedScenes;
-    std::vector<std::shared_ptr<LoadedGLTF>> brickadiaScene;
+    std::unordered_map<std::string, std::shared_ptr<LoadedGLTF>> _loadedScenes;
+    std::vector<std::shared_ptr<LoadedGLTF>> _brickadiaScene;
 
     void destroy_image(const AllocatedImage& img);
     void destroy_buffer(const AllocatedBuffer& buffer);
 
-    bool resize_requested{false};
-    bool freeze_rendering{false};
+    bool _resizeRequested{false};
+    bool _renderingFrozen{false};
 
-    VkDeviceAddress getBufferDeviceAddress(VkDevice device, VkBuffer buffer);
+    VkDeviceAddress get_buffer_device_address(VkDevice device, VkBuffer buffer);
 
     AllocatedBuffer create_buffer_data(VkDeviceSize size, const void* data, VkBufferUsageFlags usage,
                                        const VmaMemoryUsage memUsage);
 
-    AllocatedBuffer allocateAndBindBuffer(VkBuffer buffer, VmaMemoryUsage memoryUsage);
+    AllocatedBuffer allocate_and_bind_buffer(VkBuffer buffer, VmaMemoryUsage memoryUsage);
 
-    AllocatedImage loadImageFromFile(std::string path);
+    AllocatedImage load_image_from_file(std::string path);
 
     // antialiasing
     enum class AAMode : int
@@ -354,16 +354,16 @@ class VulkanEngine
         AdaptiveMSAA = 0,
         TAA = 1
     };
-    AAMode aaMode = AAMode::TAA;
-    float taaAlpha = 0.99f;  // history weight
-    float taaClampK = 0.10f; // neighborhood clamps
+    AAMode _aaMode = AAMode::TAA;
+    float _taaAlpha = 0.99f; // history weight
+    float _taaClamp = 0.10f; // neighborhood clamps
 
-    float taaMovingAlpha = 0.0f;     // alpha when moving (0 = full reset behavior)
-    float taaVelThreshold = 0.0001f; // world units / frame
-    float taaRotThreshold = 0.1f;    // degrees / frame
+    float _taaMovingAlpha = 0.0f;          // alpha when moving (0 = full reset behavior)
+    float _taaVelocityThreshold = 0.0001f; // world units / frame
+    float _taaRotationThreshold = 0.1f;    // degrees / frame
     bool _taaInitialized = false;
 
-    bool cameraMoving = false;
+    bool _cameraMoving = false;
     glm::vec3 _prevCamPos = {};
     glm::vec3 _prevViewDir = {};
     bool _hasPrevCamera = false;
@@ -382,9 +382,9 @@ class VulkanEngine
     void destroy_taa_resources();
 
     // progressive mc things
-    bool mcProgressive = true; // enable progressive MC accumulation
-    int mcPerFrame = 5;        // samples per pixel per frame (1–2 is plenty)
-    int mcResetFrames = 2;     // clear history this many frames after motion
+    bool _progressiveMonteCarlo = true; // enable progressive MC accumulation
+    int _monteCarloSamplesPerFrame = 5; // samples per pixel per frame (1–2 is plenty)
+    int _monteCarloResetFrames = 2;     // clear history this many frames after motion
 
     AllocatedImage _mcAccumColor; // rgba16f, running average
     AllocatedImage _mcAccumCount; // r32ui, sample counts
@@ -407,7 +407,7 @@ class VulkanEngine
     VkDescriptorSet _postSet = VK_NULL_HANDLE;
     bool _enableTonemap = true; // default ON
     bool _ldrNeedsInit = true;  // first-use transition
-    float exposure = 1.0f;
+    float _exposure = 1.0f;
 
     // LDR target we write into (we’ll copy this to swapchain)
     AllocatedImage _ldrImage;
@@ -415,14 +415,14 @@ class VulkanEngine
     void destroy_postprocess();
 
     // Microfacet addition
-    bool useMicrofacetBRDF = true;
+    bool _useMicrofacetBrdf = true;
 
     // Force reset of MC/TAA history on the next draw()
     void request_accum_reset();
     bool _resetAccumNextFrame = false;
 
     // volumetric additions
-    void setMediumParams(const GPUMediumParams& p);
+    void set_medium_params(const GPUMediumParams& p);
 
   private:
     void init_vulkan();

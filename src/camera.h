@@ -16,11 +16,11 @@ class Camera
     float slowSpeed = 0.0025f;
     float currentSpeed = normalSpeed;
 
-    glm::mat4 getViewMatrix() const;
-    glm::mat4 getRotationMatrix() const;
-    glm::vec3 getViewDirection() const;
+    glm::mat4 get_view_matrix() const;
+    glm::mat4 get_rotation_matrix() const;
+    glm::vec3 get_view_direction() const;
 
-    void processSDLEvent(SDL_Event& e);
+    void process_sdl_event(SDL_Event& e);
 
     void update();
 };

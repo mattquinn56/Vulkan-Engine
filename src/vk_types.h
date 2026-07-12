@@ -1,4 +1,4 @@
-﻿// vulkan_guide.h : Include file for standard system include files,
+// vulkan_guide.h : Include file for standard system include files,
 // or project specific include files.
 //> intro
 #pragma once
@@ -42,7 +42,7 @@ struct AllocatedBuffer
 struct GPUGLTFMaterial
 {
     glm::vec4 colorFactors;
-    glm::vec4 metal_rough_factors;
+    glm::vec4 metalRoughFactors;
     glm::vec4 extra[14];
 };
 
@@ -91,9 +91,9 @@ struct Vertex
 {
 
     glm::vec3 position;
-    float uv_x;
+    float uvX;
     glm::vec3 normal;
-    float uv_y;
+    float uvY;
     glm::vec4 color;
 };
 
@@ -124,7 +124,7 @@ struct DrawContext;
 class IRenderable
 {
 
-    virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) = 0;
+    virtual void draw(const glm::mat4& topMatrix, DrawContext& ctx) = 0;
 };
 
 // to declare that the engine class will exist
@@ -146,19 +146,19 @@ struct Node : public IRenderable
     glm::mat4 localTransform;
     glm::mat4 worldTransform;
 
-    void refreshTransform(const glm::mat4& parentMatrix)
+    void refresh_transform(const glm::mat4& parentMatrix)
     {
         worldTransform = parentMatrix * localTransform;
         for (auto c : children) {
-            c->refreshTransform(worldTransform);
+            c->refresh_transform(worldTransform);
         }
     }
 
-    virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx)
+    virtual void draw(const glm::mat4& topMatrix, DrawContext& ctx)
     {
         // draw children
         for (auto& c : children) {
-            c->Draw(topMatrix, ctx);
+            c->draw(topMatrix, ctx);
         }
     }
 };

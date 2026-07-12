@@ -30,89 +30,90 @@ class VulkanRayTracer
 {
   public:
     // pointer to main engine
-    VulkanEngine* engine;
+    VulkanEngine* _engine;
 
     // pointers to extension functions
-    PFN_vkGetAccelerationStructureBuildSizesKHR pfnGetAccelerationStructureBuildSizesKHR;
-    PFN_vkCmdBuildAccelerationStructuresKHR pfnCmdBuildAccelerationStructuresKHR;
-    PFN_vkCmdCopyAccelerationStructureKHR pfnCmdCopyAccelerationStructureKHR;
-    PFN_vkCmdWriteAccelerationStructuresPropertiesKHR pfnCmdWriteAccelerationStructuresPropertiesKHR;
-    PFN_vkCreateAccelerationStructureKHR pfnCreateAccelerationStructureKHR;
-    PFN_vkDestroyAccelerationStructureKHR pfnDestroyAccelerationStructureKHR;
-    PFN_vkGetAccelerationStructureDeviceAddressKHR pfnGetAccelerationStructureDeviceAddressKHR;
-    PFN_vkCreateRayTracingPipelinesKHR pfnCreateRayTracingPipelinesKHR;
-    PFN_vkGetRayTracingShaderGroupHandlesKHR pfnGetRayTracingShaderGroupHandlesKHR;
-    PFN_vkCmdTraceRaysKHR pfnCmdTraceRaysKHR;
+    PFN_vkGetAccelerationStructureBuildSizesKHR _vkGetAccelerationStructureBuildSizes;
+    PFN_vkCmdBuildAccelerationStructuresKHR _vkCmdBuildAccelerationStructures;
+    PFN_vkCmdCopyAccelerationStructureKHR _vkCmdCopyAccelerationStructure;
+    PFN_vkCmdWriteAccelerationStructuresPropertiesKHR _vkCmdWriteAccelerationStructuresProperties;
+    PFN_vkCreateAccelerationStructureKHR _vkCreateAccelerationStructure;
+    PFN_vkDestroyAccelerationStructureKHR _vkDestroyAccelerationStructure;
+    PFN_vkGetAccelerationStructureDeviceAddressKHR _vkGetAccelerationStructureDeviceAddress;
+    PFN_vkCreateRayTracingPipelinesKHR _vkCreateRayTracingPipelines;
+    PFN_vkGetRayTracingShaderGroupHandlesKHR _vkGetRayTracingShaderGroupHandles;
+    PFN_vkCmdTraceRaysKHR _vkCmdTraceRays;
 
-    VkPhysicalDeviceAccelerationStructurePropertiesKHR accelerationStructureProperties;
+    VkPhysicalDeviceAccelerationStructurePropertiesKHR _accelerationStructureProperties;
 
-    std::vector<AccelKHR> m_blas; // Bottom-level acceleration structure
-    AccelKHR m_tlas;              // Top-level acceleration structure
+    std::vector<AccelKHR> _bottomLevelStructures; // Bottom-level acceleration structure
+    AccelKHR _topLevelStructure;                  // Top-level acceleration structure
 
-    VulkanRayTracer(VulkanEngine* engine);
-    VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rtProperties{
+    VulkanRayTracer(VulkanEngine* owner);
+    VkPhysicalDeviceRayTracingPipelinePropertiesKHR _rayTracingProperties{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
 
     //-------------------- BLAS Creation --------------------//
 
-    BlasInput objectToVkGeometryKHR(const RenderObject object);
+    BlasInput object_to_vk_geometry(const RenderObject object);
 
-    void createBottomLevelAS();
+    void create_bottom_level_acceleration_structures();
 
-    AccelKHR createAcceleration(VkAccelerationStructureCreateInfoKHR& accel_);
+    AccelKHR create_acceleration_structure(VkAccelerationStructureCreateInfoKHR& accel_);
 
-    void cmdCreateBlas(VkCommandBuffer cmdBuf, std::vector<uint32_t> indices,
-                       std::vector<BuildAccelerationStructure>& buildAs, VkDeviceAddress scratchAddress,
-                       VkQueryPool queryPool);
+    void record_blas_build(VkCommandBuffer cmdBuf, std::vector<uint32_t> indices,
+                           std::vector<BuildAccelerationStructure>& buildAs, VkDeviceAddress scratchAddress,
+                           VkQueryPool queryPool);
 
-    void cmdCompactBlas(VkCommandBuffer cmdBuf, std::vector<uint32_t> indices,
-                        std::vector<BuildAccelerationStructure>& buildAs, VkQueryPool queryPool);
+    void record_blas_compaction(VkCommandBuffer cmdBuf, std::vector<uint32_t> indices,
+                                std::vector<BuildAccelerationStructure>& buildAs, VkQueryPool queryPool);
 
-    void destroyNonCompacted(std::vector<uint32_t> indices, std::vector<BuildAccelerationStructure>& buildAs);
+    void destroy_non_compacted_structures(std::vector<uint32_t> indices,
+                                          std::vector<BuildAccelerationStructure>& buildAs);
 
-    void buildBlas(const std::vector<BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags);
+    void build_bottom_level_structures(const std::vector<BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags);
 
-    bool hasFlag(VkFlags item, VkFlags flag)
+    bool has_flag(VkFlags item, VkFlags flag)
     {
         return (item & flag) == flag;
     }
 
     //-------------------- TLAS Creation --------------------//
 
-    void createTopLevelAS();
+    void create_top_level_acceleration_structure();
 
-    VkTransformMatrixKHR toTransformMatrixKHR(glm::mat4 matrix);
+    VkTransformMatrixKHR to_transform_matrix(glm::mat4 matrix);
 
-    VkDeviceAddress getBlasDeviceAddress(uint32_t blasId);
+    VkDeviceAddress get_blas_device_address(uint32_t blasId);
 
-    void buildTlas(const std::vector<VkAccelerationStructureInstanceKHR>& instances,
-                   VkBuildAccelerationStructureFlagsKHR flags, bool update, bool motion);
+    void build_top_level_structure(const std::vector<VkAccelerationStructureInstanceKHR>& instances,
+                                   VkBuildAccelerationStructureFlagsKHR flags, bool update, bool motion);
 
-    void cmdCreateTlas(VkCommandBuffer cmdBuf, uint32_t countInstance, VkDeviceAddress instBufferAddr,
-                       AllocatedBuffer& scratchBuffer, VkBuildAccelerationStructureFlagsKHR flags, bool update,
-                       bool motion);
+    void record_top_level_structure_build(VkCommandBuffer cmdBuf, uint32_t countInstance,
+                                          VkDeviceAddress instBufferAddr, AllocatedBuffer& scratchBuffer,
+                                          VkBuildAccelerationStructureFlagsKHR flags, bool update, bool motion);
 
     //-------------------- Ray Tracing Descriptor Set Creation --------------------//
 
-    void createRtDescriptorSet();
+    void create_descriptor_set();
 
-    DescriptorAllocator m_rtDescAllocator;
-    DescriptorWriter m_rtDescWriter;
-    VkDescriptorPool m_rtDescPool;
-    VkDescriptorSetLayout m_rtDescSetLayout;
-    VkDescriptorSet m_rtDescSet;
+    DescriptorAllocator _descriptorAllocator;
+    DescriptorWriter _descriptorWriter;
+    VkDescriptorPool _descriptorPool;
+    VkDescriptorSetLayout _descriptorSetLayout;
+    VkDescriptorSet _descriptorSet;
 
-    void updateRtDescriptorSet();
+    void update_output_descriptor();
 
     //-------------------- Ray Tracing Pipeline Creation --------------------//
 
-    void createRtPipeline();
+    void create_pipeline();
 
-    const int MAX_RECURSION = 4;
+    const int MAX_RAY_RECURSION_DEPTH = 4;
 
-    std::vector<VkRayTracingShaderGroupCreateInfoKHR> m_rtShaderGroups;
-    VkPipelineLayout m_rtPipelineLayout;
-    VkPipeline m_rtPipeline;
+    std::vector<VkRayTracingShaderGroupCreateInfoKHR> _shaderGroups;
+    VkPipelineLayout _pipelineLayout;
+    VkPipeline _pipeline;
 
     // Push constant structure for the ray tracer
     struct PushConstantRay
@@ -124,41 +125,41 @@ class VulkanRayTracer
     };
 
     // Push constant for ray tracer
-    PushConstantRay m_pcRay{};
+    PushConstantRay _pushConstants{};
 
     //-------------------- Binding Table Creation --------------------//
 
-    void createRtShaderBindingTable();
+    void create_shader_binding_table();
 
-    AllocatedBuffer m_rtSBTBuffer;
-    VkStridedDeviceAddressRegionKHR m_rgenRegion{};
-    VkStridedDeviceAddressRegionKHR m_missRegion{};
-    VkStridedDeviceAddressRegionKHR m_hitRegion{};
-    VkStridedDeviceAddressRegionKHR m_callRegion{};
+    AllocatedBuffer _shaderBindingTableBuffer;
+    VkStridedDeviceAddressRegionKHR _rayGenerationRegion{};
+    VkStridedDeviceAddressRegionKHR _missRegion{};
+    VkStridedDeviceAddressRegionKHR _hitRegion{};
+    VkStridedDeviceAddressRegionKHR _callableRegion{};
 
     //-------------------- Material Creation --------------------//
 
     struct MaterialRT
     {
         glm::vec4 colorFactors;
-        glm::vec4 metal_rough_factors;
+        glm::vec4 metalRoughFactors;
         int textureID;
     };
 
-    std::vector<VkImageView> m_colTextures;
-    std::vector<VkImageView> m_metalRoughTextures;
-    std::vector<VkSampler> m_colSamplers;
-    std::vector<VkSampler> m_metalRoughSamplers;
+    std::vector<VkImageView> _colorTextures;
+    std::vector<VkImageView> _metalRoughTextures;
+    std::vector<VkSampler> _colorSamplers;
+    std::vector<VkSampler> _metalRoughSamplers;
 
-    DescriptorAllocatorGrowable m_rtMatDescAllocator;
-    DescriptorWriter m_rtMatDescWriter;
-    VkDescriptorPool m_rtMatDescPool;
-    VkDescriptorSetLayout m_rtMatDescSetLayout;
-    VkDescriptorSet m_rtMatDescSet;
+    DescriptorAllocatorGrowable _materialDescriptorAllocator;
+    DescriptorWriter _materialDescriptorWriter;
+    VkDescriptorPool _materialDescriptorPool;
+    VkDescriptorSetLayout _materialDescriptorSetLayout;
+    VkDescriptorSet _materialDescriptorSet;
 
-    VkDeviceAddress uploadMaterial(MaterialRT mat);
+    VkDeviceAddress upload_material(MaterialRT mat);
 
-    void createRtMaterialDescriptorSet();
+    void create_material_descriptor_set();
 
     //-------------------- Ray Tracing Computation --------------------//
 

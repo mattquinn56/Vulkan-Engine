@@ -1,4 +1,4 @@
-﻿// vulkan_guide.h : Include file for standard system include files,
+// vulkan_guide.h : Include file for standard system include files,
 // or project specific include files.
 
 #pragma once
@@ -64,14 +64,14 @@ struct LoadedGLTF : public IRenderable
 
     ~LoadedGLTF()
     {
-        clearAll();
+        clear_all();
     };
 
-    virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx);
+    virtual void draw(const glm::mat4& topMatrix, DrawContext& ctx);
 
   private:
-    void clearAll();
+    void clear_all();
 };
 
-std::vector<RenderLight> loadLights(std::string filePath);
-std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::string_view filePath);
+std::vector<RenderLight> load_lights(std::string filePath);
+std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::string_view filePath);

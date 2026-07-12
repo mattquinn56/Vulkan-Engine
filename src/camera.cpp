@@ -2,17 +2,17 @@
 #include "glm/gtx/quaternion.hpp"
 #include "glm/gtx/transform.hpp"
 
-glm::mat4 Camera::getViewMatrix() const
+glm::mat4 Camera::get_view_matrix() const
 {
     // to create a correct model view, we need to move the world in opposite
     // direction to the camera
     //  so we will create the camera model matrix and invert
     glm::mat4 cameraTranslation = glm::translate(glm::mat4(1.f), position);
-    glm::mat4 cameraRotation = getRotationMatrix();
+    glm::mat4 cameraRotation = get_rotation_matrix();
     return glm::inverse(cameraTranslation * cameraRotation);
 }
 
-glm::mat4 Camera::getRotationMatrix() const
+glm::mat4 Camera::get_rotation_matrix() const
 {
     // fairly typical FPS style camera. we join the pitch and yaw rotations into
     // the final rotation matrix
@@ -23,11 +23,11 @@ glm::mat4 Camera::getRotationMatrix() const
     return glm::toMat4(yawRotation) * glm::toMat4(pitchRotation);
 }
 
-glm::vec3 Camera::getViewDirection() const
+glm::vec3 Camera::get_view_direction() const
 {
     /*
     glm::vec3 viewDir = glm::vec3();
-	return glm::vec3(getViewMatrix() * glm::vec4(0, 0, -1, 0));
+	return glm::vec3(get_view_matrix() * glm::vec4(0, 0, -1, 0));
     viewDir.x = -viewDir.x;
     viewDir.y = -viewDir.y;
     return viewDir;
@@ -41,7 +41,7 @@ glm::vec3 Camera::getViewDirection() const
     return direction;
 }
 
-void Camera::processSDLEvent(SDL_Event& e)
+void Camera::process_sdl_event(SDL_Event& e)
 {
     if (e.type == SDL_KEYDOWN) {
         if (e.key.keysym.sym == SDLK_LSHIFT || e.key.keysym.sym == SDLK_RSHIFT) {
@@ -87,6 +87,6 @@ void Camera::processSDLEvent(SDL_Event& e)
 
 void Camera::update()
 {
-    glm::mat4 cameraRotation = getRotationMatrix();
+    glm::mat4 cameraRotation = get_rotation_matrix();
     position += glm::vec3(cameraRotation * glm::vec4(velocity * 0.5f, 0.f));
 }
