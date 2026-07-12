@@ -349,7 +349,7 @@ class VulkanEngine
     // antialiasing
     enum class AAMode : int
     {
-        None = 0,
+        AdaptiveMSAA = 0,
         TAA = 1
     };
     AAMode _aaMode{AAMode::TAA};
