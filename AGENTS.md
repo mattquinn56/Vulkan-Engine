@@ -8,6 +8,13 @@
 - Shader source changes require rebuilding the `Shaders` target. Adding a shader also requires rerunning CMake configure/generate because the root `CMakeLists.txt` uses a configure-time glob.
 - The Debug executable and runtime DLLs are written to `bin/Debug/`, not under `build/`.
 
+## C++ style
+
+- Format `src/*.cpp` and `src/*.h` with the repository `.clang-format` file before committing C++ changes.
+- `src/meshes.cpp` contains generated mesh tables and is excluded via `.clang-format-ignore`.
+- Use four spaces, LF line endings, attached control-flow braces, and braces on the next line for functions and types.
+- `.editorconfig` defines the whitespace and line-ending defaults for supported editors.
+
 ## Running and validation output
 
 - Run with `bin/Debug` as the working directory. Engine resource paths use `../../shaders` and `../../assets`; launching with the repository root as the working directory fails during initialization.

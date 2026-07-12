@@ -24,10 +24,11 @@ struct MeshAsset;
 class VulkanRayTracer;
 
 namespace fastgltf {
-    struct Mesh;
+struct Mesh;
 }
 
-struct DeletionQueue {
+struct DeletionQueue
+{
     std::deque<std::function<void()>> deletors;
 
     void push_function(std::function<void()>&& function)
@@ -46,27 +47,30 @@ struct DeletionQueue {
     }
 };
 
-struct ComputePushConstants {
-	glm::vec4 data1;
-	glm::vec4 data2;
-	glm::vec4 data3;
-	glm::vec4 data4;
+struct ComputePushConstants
+{
+    glm::vec4 data1;
+    glm::vec4 data2;
+    glm::vec4 data3;
+    glm::vec4 data4;
 };
 
-struct ComputeEffect {
-	const char* name;
+struct ComputeEffect
+{
+    const char* name;
 
-	VkPipeline pipeline;
-	VkPipelineLayout layout;
+    VkPipeline pipeline;
+    VkPipelineLayout layout;
 
-	ComputePushConstants data;
+    ComputePushConstants data;
 };
 
-struct RenderObject {
+struct RenderObject
+{
     uint32_t indexCount;
     uint32_t firstIndex;
     VkBuffer indexBuffer;
-    
+
     MaterialInstance* material;
     Bounds bounds;
     glm::mat4 transform;
@@ -74,12 +78,13 @@ struct RenderObject {
     VkDeviceAddress vertexBufferAddress;
     int vertexCount;
 
-    uint32_t blasIndex{ 0 };
+    uint32_t blasIndex{0};
 };
 
-struct FrameData {
-	VkSemaphore _swapchainSemaphore, _renderSemaphore;
-	VkFence _renderFence;
+struct FrameData
+{
+    VkSemaphore _swapchainSemaphore, _renderSemaphore;
+    VkFence _renderFence;
 
     DescriptorAllocatorGrowable _frameDescriptors;
     DeletionQueue _deletionQueue;
@@ -90,46 +95,52 @@ struct FrameData {
 
 constexpr unsigned int FRAME_OVERLAP = 2;
 
-struct ObjDesc {
+struct ObjDesc
+{
     // a buffer with a vector of these objects `m_bObjDesc` will be passed to the ray tracing closest hit shader
-    uint64_t vertexAddress; // Address of the vertex buffer
-    uint64_t indexAddress; // Address of the index buffer
+    uint64_t vertexAddress;   // Address of the vertex buffer
+    uint64_t indexAddress;    // Address of the index buffer
     uint64_t materialAddress; // Address of the material buffer
 };
 
-struct DrawContext {
+struct DrawContext
+{
     // Only drawing + using RT for opaque surfaces
     std::vector<RenderObject> OpaqueSurfaces;
     std::vector<ObjDesc> m_objDesc; // Model description for device access, opaque surfaces
     std::vector<RenderObject> TransparentSurfaces;
 };
 
-struct EngineStats {
+struct EngineStats
+{
     float frametime;
     int triangle_count;
     int drawcall_count;
     float mesh_draw_time;
 };
 
-struct GLTFMetallic_Roughness {
+struct GLTFMetallic_Roughness
+{
     MaterialPipeline opaquePipeline;
     MaterialPipeline transparentPipeline;
 
     VkDescriptorSetLayout materialLayout;
 
-    struct MaterialConstants {
-		glm::vec4 colorFactors;
-		glm::vec4 metal_rough_factors;
+    struct MaterialConstants
+    {
+        glm::vec4 colorFactors;
+        glm::vec4 metal_rough_factors;
         //padding, we need it anyway for uniform buffers
-		glm::vec4 extra[14];
+        glm::vec4 extra[14];
     };
 
-    struct MaterialResources {
-        AllocatedImage colorImage; 
+    struct MaterialResources
+    {
+        AllocatedImage colorImage;
         VkSampler colorSampler;
         AllocatedImage metalRoughImage;
         VkSampler metalRoughSampler;
-        VkBuffer dataBuffer; 
+        VkBuffer dataBuffer;
         uint32_t dataBufferOffset;
     };
 
@@ -138,57 +149,60 @@ struct GLTFMetallic_Roughness {
     void build_pipelines(VulkanEngine* engine);
     void clear_resources(VkDevice device);
 
-    MaterialInstance write_material(VkDevice device,MaterialPass pass,const MaterialResources& resources , DescriptorAllocatorGrowable& descriptorAllocator);
+    MaterialInstance write_material(VkDevice device, MaterialPass pass, const MaterialResources& resources,
+                                    DescriptorAllocatorGrowable& descriptorAllocator);
 };
 
-struct MeshNode : public Node {
+struct MeshNode : public Node
+{
 
-	std::shared_ptr<MeshAsset> mesh;
+    std::shared_ptr<MeshAsset> mesh;
 
-	virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) override;
+    virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) override;
 };
 
 // volumetric additions
 // Medium parameters for a homogeneous base + settings controlling ray marching
-struct GPUMediumParams {
-    glm::vec4 sigma_a_step;        // xyz = sigma_a, w = stepSize
-    glm::vec4 sigma_s_maxT;        // xyz = sigma_s, w = maxT
-    glm::vec4 g_emis_density_pad;  // x = g, y = emission, z = densityScale, w = fogEnvFlag (1=affect env, 0=skip)
+struct GPUMediumParams
+{
+    glm::vec4 sigma_a_step;       // xyz = sigma_a, w = stepSize
+    glm::vec4 sigma_s_maxT;       // xyz = sigma_s, w = maxT
+    glm::vec4 g_emis_density_pad; // x = g, y = emission, z = densityScale, w = fogEnvFlag (1=affect env, 0=skip)
 };
 
 // Volume resources: optional 3D density + sampler + params buffer
-struct VolumeResources {
-    AllocatedImage densityTex3D;  // R16F or R8_UNORM or R32F depending on memory
-    VkSampler      densitySampler;
+struct VolumeResources
+{
+    AllocatedImage densityTex3D; // R16F or R8_UNORM or R32F depending on memory
+    VkSampler densitySampler;
     AllocatedBuffer mediumParams; // sizeof(GPUMediumParams)
     bool hasDensity = false;
 };
 
-class VulkanEngine {
-public:
-    bool _isInitialized { false };
-    std::vector<const char*> _deviceExtensions{ 
-        VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, 
-        VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, 
-        VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME 
-    };
-    bool createdAS{ false };
-    int _frameNumber { 0 };
+class VulkanEngine
+{
+  public:
+    bool _isInitialized{false};
+    std::vector<const char*> _deviceExtensions{VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+                                               VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+                                               VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME};
+    bool createdAS{false};
+    int _frameNumber{0};
     bool useRaytracer = true;
     int computeMonteCarlo = 0;
     int msaaSetting = 1;
     bool debugSetting = false;
 
     bool lastMonteCarlo = -1; // not controlled by UI
-    int lastMSAA = -1; // not controlled by UI
+    int lastMSAA = -1;        // not controlled by UI
 
-    VkExtent2D _windowExtent { 1250, 800 };
+    VkExtent2D _windowExtent{1250, 800};
 
     std::string structurePath;
     std::string lightPath;
     std::string envMapPath;
 
-    struct SDL_Window* _window { nullptr };
+    struct SDL_Window* _window{nullptr};
 
     VkInstance _instance;
     VkDebugUtilsMessengerEXT _debug_messenger;
@@ -217,21 +231,21 @@ public:
 
     VkPipeline _gradientPipeline;
     VkPipelineLayout _gradientPipelineLayout;
-    
+
     std::vector<VkImage> _swapchainImages;
     std::vector<VkImageView> _swapchainImageViews;
 
     std::vector<VkSemaphore> _imageAcquireSems;
     std::vector<VkSemaphore> _imageRenderSems;
 
-	VkDescriptorSet _drawImageDescriptors;
-	VkDescriptorSetLayout _drawImageDescriptorLayout;
+    VkDescriptorSet _drawImageDescriptors;
+    VkDescriptorSetLayout _drawImageDescriptorLayout;
 
     DeletionQueue _mainDeletionQueue;
 
     VmaAllocator _allocator; // vma lib allocator
 
-	VkDescriptorSetLayout _gpuSceneDataDescriptorLayout;
+    VkDescriptorSetLayout _gpuSceneDataDescriptorLayout;
     VkDescriptorSet _globalDescriptor;
 
     VkDescriptorSetLayout _objDescLayout;
@@ -248,15 +262,15 @@ public:
     VkCommandBuffer _immCommandBuffer;
     VkCommandPool _immCommandPool;
 
-	AllocatedImage _whiteImage;
-	AllocatedImage _blackImage;
-	AllocatedImage _greyImage;
-	AllocatedImage _errorCheckerboardImage;
+    AllocatedImage _whiteImage;
+    AllocatedImage _blackImage;
+    AllocatedImage _greyImage;
+    AllocatedImage _errorCheckerboardImage;
     AllocatedImage environmentMap;
 
-	VkSampler _defaultSamplerLinear;
-	VkSampler _defaultSamplerNearest;
-	
+    VkSampler _defaultSamplerLinear;
+    VkSampler _defaultSamplerNearest;
+
     GPUMeshBuffers rectangle;
     DrawContext drawCommands;
 
@@ -268,11 +282,11 @@ public:
 
     // some volumetric additions
     VkDescriptorSetLayout _volumeSetLayout = {VK_NULL_HANDLE};
-    VkDescriptorSet       _volumeSet = {VK_NULL_HANDLE};
-    VolumeResources       _volume{};
+    VkDescriptorSet _volumeSet = {VK_NULL_HANDLE};
+    VolumeResources _volume{};
 
-	std::vector<ComputeEffect> backgroundEffects;
-	int currentBackgroundEffect{ 0 };
+    std::vector<ComputeEffect> backgroundEffects;
+    int currentBackgroundEffect{0};
 
     // singleton style getter.multiple engines is not supported
     static VulkanEngine& Get();
@@ -288,10 +302,10 @@ public:
 
     // draw loop
     void draw();
-	void draw_main(VkCommandBuffer cmd);
-	void draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView);
+    void draw_main(VkCommandBuffer cmd);
+    void draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView);
 
-	void render_nodes();
+    void render_nodes();
 
     void update_global_descriptor();
     void draw_geometry(VkCommandBuffer cmd);
@@ -303,15 +317,16 @@ public:
 
     // upload a mesh into a pair of gpu buffers. If descriptor allocator is not
     // null, it will also create a descriptor that points to the vertex buffer
-	GPUMeshBuffers uploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
+    GPUMeshBuffers uploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
 
     FrameData& get_current_frame();
     FrameData& get_last_frame();
 
     AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
 
-    AllocatedImage create_image(VkExtent3D size, VkFormat format, VkImageUsageFlags usage , bool mipmapped = false);
-    AllocatedImage create_image(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+    AllocatedImage create_image(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+    AllocatedImage create_image(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage,
+                                bool mipmapped = false);
 
     void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
 
@@ -321,29 +336,34 @@ public:
     void destroy_image(const AllocatedImage& img);
     void destroy_buffer(const AllocatedBuffer& buffer);
 
-    bool resize_requested{ false };
-    bool freeze_rendering{ false };
+    bool resize_requested{false};
+    bool freeze_rendering{false};
 
     VkDeviceAddress getBufferDeviceAddress(VkDevice device, VkBuffer buffer);
 
-    AllocatedBuffer create_buffer_data(VkDeviceSize size, const void* data, VkBufferUsageFlags usage, const VmaMemoryUsage memUsage);
+    AllocatedBuffer create_buffer_data(VkDeviceSize size, const void* data, VkBufferUsageFlags usage,
+                                       const VmaMemoryUsage memUsage);
 
     AllocatedBuffer allocateAndBindBuffer(VkBuffer buffer, VmaMemoryUsage memoryUsage);
 
     AllocatedImage loadImageFromFile(std::string path);
 
     // antialiasing
-    enum class AAMode : int { AdaptiveMSAA = 0, TAA = 1 };
+    enum class AAMode : int
+    {
+        AdaptiveMSAA = 0,
+        TAA = 1
+    };
     AAMode aaMode = AAMode::TAA;
-    float taaAlpha = 0.99f;     // history weight
-    float taaClampK = 0.10f;   // neighborhood clamps
+    float taaAlpha = 0.99f;  // history weight
+    float taaClampK = 0.10f; // neighborhood clamps
 
-    float taaMovingAlpha = 0.0f;   // alpha when moving (0 = full reset behavior)
-    float taaVelThreshold = 0.0001f;  // world units / frame
-    float taaRotThreshold = 0.1f;   // degrees / frame
+    float taaMovingAlpha = 0.0f;     // alpha when moving (0 = full reset behavior)
+    float taaVelThreshold = 0.0001f; // world units / frame
+    float taaRotThreshold = 0.1f;    // degrees / frame
     bool _taaInitialized = false;
 
-    bool  cameraMoving = false;
+    bool cameraMoving = false;
     glm::vec3 _prevCamPos = {};
     glm::vec3 _prevViewDir = {};
     bool _hasPrevCamera = false;
@@ -352,9 +372,9 @@ public:
     AllocatedImage _taaHistory[2];
     int _taaIndex = 0;
     VkDescriptorSetLayout _taaSetLayout = VK_NULL_HANDLE;
-    VkPipelineLayout      _taaPipelineLayout = VK_NULL_HANDLE;
-    VkPipeline            _taaPipeline = VK_NULL_HANDLE;
-    VkDescriptorSet       _taaSet[2]{};   // 2 sets for ping-pong
+    VkPipelineLayout _taaPipelineLayout = VK_NULL_HANDLE;
+    VkPipeline _taaPipeline = VK_NULL_HANDLE;
+    VkDescriptorSet _taaSet[2]{}; // 2 sets for ping-pong
 
     // helpers
     void init_taa_resources();
@@ -362,35 +382,35 @@ public:
     void destroy_taa_resources();
 
     // progressive mc things
-    bool  mcProgressive = true;     // enable progressive MC accumulation
-    int   mcPerFrame = 5;        // samples per pixel per frame (1–2 is plenty)
-    int   mcResetFrames = 2;        // clear history this many frames after motion
+    bool mcProgressive = true; // enable progressive MC accumulation
+    int mcPerFrame = 5;        // samples per pixel per frame (1–2 is plenty)
+    int mcResetFrames = 2;     // clear history this many frames after motion
 
-    AllocatedImage _mcAccumColor;   // rgba16f, running average
-    AllocatedImage _mcAccumCount;   // r32ui, sample counts
+    AllocatedImage _mcAccumColor; // rgba16f, running average
+    AllocatedImage _mcAccumCount; // r32ui, sample counts
 
     VkDescriptorSetLayout _mcSetLayout = VK_NULL_HANDLE;
-    VkPipelineLayout      _mcPipeLayout = VK_NULL_HANDLE;
-    VkPipeline            _mcPipeline = VK_NULL_HANDLE;
-    VkDescriptorSet       _mcSet = VK_NULL_HANDLE;
+    VkPipelineLayout _mcPipeLayout = VK_NULL_HANDLE;
+    VkPipeline _mcPipeline = VK_NULL_HANDLE;
+    VkDescriptorSet _mcSet = VK_NULL_HANDLE;
 
     // helpers
     void init_mc_resources();
     void create_mc_images();
     void destroy_mc_resources();
     void reset_mc_history(VkCommandBuffer cmd);
-    
+
     // Post-tonemap (ACES + sRGB) pass
     VkDescriptorSetLayout _postSetLayout = VK_NULL_HANDLE;
-    VkPipelineLayout      _postPipeLayout = VK_NULL_HANDLE;
-    VkPipeline            _postPipeline = VK_NULL_HANDLE;
-    VkDescriptorSet       _postSet = VK_NULL_HANDLE;
-    bool _enableTonemap = true;   // default ON
-    bool _ldrNeedsInit = true;    // first-use transition
+    VkPipelineLayout _postPipeLayout = VK_NULL_HANDLE;
+    VkPipeline _postPipeline = VK_NULL_HANDLE;
+    VkDescriptorSet _postSet = VK_NULL_HANDLE;
+    bool _enableTonemap = true; // default ON
+    bool _ldrNeedsInit = true;  // first-use transition
     float exposure = 1.0f;
 
     // LDR target we write into (we’ll copy this to swapchain)
-    AllocatedImage        _ldrImage;
+    AllocatedImage _ldrImage;
     void init_postprocess();
     void destroy_postprocess();
 
@@ -404,8 +424,7 @@ public:
     // volumetric additions
     void setMediumParams(const GPUMediumParams& p);
 
-
-private:
+  private:
     void init_vulkan();
 
     void init_raytracing();
@@ -418,7 +437,7 @@ private:
 
     void create_swapchain(uint32_t width, uint32_t height);
 
-	bool resize_swapchain();
+    bool resize_swapchain();
 
     void destroy_swapchain();
 
@@ -445,6 +464,6 @@ private:
 
     // volumetric additions
     void init_volume_descriptors();
-    void create_default_volume();                         // start with homogeneous only
+    void create_default_volume();                                               // start with homogeneous only
     void upload_volume_3d(const void* voxels, VkExtent3D extent, VkFormat fmt); // later for grids
 };

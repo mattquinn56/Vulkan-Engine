@@ -22,10 +22,9 @@
 #include <glm/vec4.hpp>
 //< intro
 
-
-
 // we will add our main reusable types here
-struct AllocatedImage {
+struct AllocatedImage
+{
     VkImage image;
     VkImageView imageView;
     VmaAllocation allocation;
@@ -33,13 +32,15 @@ struct AllocatedImage {
     VkFormat imageFormat;
 };
 
-struct AllocatedBuffer {
+struct AllocatedBuffer
+{
     VkBuffer buffer;
     VmaAllocation allocation;
     VmaAllocationInfo info;
 };
 
-struct GPUGLTFMaterial {
+struct GPUGLTFMaterial
+{
     glm::vec4 colorFactors;
     glm::vec4 metal_rough_factors;
     glm::vec4 extra[14];
@@ -47,14 +48,18 @@ struct GPUGLTFMaterial {
 
 static_assert(sizeof(GPUGLTFMaterial) == 256);
 
-struct RenderLight {
-    glm::vec4 position; // if directional light, this is direction. if area light, this is v2. alpha channel is intensity
-    glm::vec4 color; // alpha is type, 0 is point, 1 is ambient (no pos data used), 2 is directional (pos data is direction), 3 is area
+struct RenderLight
+{
+    glm::vec4
+        position; // if directional light, this is direction. if area light, this is v2. alpha channel is intensity
+    glm::vec4
+        color; // alpha is type, 0 is point, 1 is ambient (no pos data used), 2 is directional (pos data is direction), 3 is area
     glm::vec4 v0; // this and below is only populated if area light
     glm::vec4 v1;
 };
 
-struct GPUSceneData {
+struct GPUSceneData
+{
     glm::mat4 view;
     glm::mat4 proj;
     glm::mat4 viewproj;
@@ -62,34 +67,39 @@ struct GPUSceneData {
 };
 
 //> mat_types
-enum class MaterialPass :uint8_t {
+enum class MaterialPass : uint8_t
+{
     MainColor,
     Transparent,
     Other
 };
-struct MaterialPipeline {
-	VkPipeline pipeline;
-	VkPipelineLayout layout;
+struct MaterialPipeline
+{
+    VkPipeline pipeline;
+    VkPipelineLayout layout;
 };
 
-struct MaterialInstance {
+struct MaterialInstance
+{
     MaterialPipeline* pipeline;
     VkDescriptorSet materialSet;
     MaterialPass passType;
 };
 //< mat_types
 //> vbuf_types
-struct Vertex {
+struct Vertex
+{
 
-	glm::vec3 position;
-	float uv_x;
-	glm::vec3 normal;
-	float uv_y;
-	glm::vec4 color;
+    glm::vec3 position;
+    float uv_x;
+    glm::vec3 normal;
+    float uv_y;
+    glm::vec4 color;
 };
 
 // holds the resources needed for a mesh
-struct GPUMeshBuffers {
+struct GPUMeshBuffers
+{
 
     AllocatedBuffer indexBuffer;
     AllocatedBuffer vertexBuffer;
@@ -98,7 +108,8 @@ struct GPUMeshBuffers {
 };
 
 // push constants for our mesh object draws
-struct GPUDrawPushConstants {
+struct GPUDrawPushConstants
+{
     glm::mat4 worldMatrix;
     VkDeviceAddress vertexBuffer;
     VkDeviceAddress lightBuffer;
@@ -110,7 +121,8 @@ struct GPUDrawPushConstants {
 struct DrawContext;
 
 // base class for a renderable dynamic object
-class IRenderable {
+class IRenderable
+{
 
     virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) = 0;
 };
@@ -121,7 +133,8 @@ class VulkanEngine;
 // implementation of a drawable scene node.
 // the scene node can hold children and will also keep a transform to propagate
 // to them
-struct Node : public IRenderable {
+struct Node : public IRenderable
+{
 
     // pointer to main engine
     VulkanEngine* engine;
@@ -151,12 +164,12 @@ struct Node : public IRenderable {
 };
 //< node_types
 //> intro
-#define VK_CHECK(x)                                                     \
-    do {                                                                \
-        VkResult err = x;                                               \
-        if (err) {                                                      \
-             fmt::print("Detected Vulkan error: {}", string_VkResult(err)); \
-            abort();                                                    \
-        }                                                               \
+#define VK_CHECK(x)                                                                                                    \
+    do {                                                                                                               \
+        VkResult err = x;                                                                                              \
+        if (err) {                                                                                                     \
+            fmt::print("Detected Vulkan error: {}", string_VkResult(err));                                             \
+            abort();                                                                                                   \
+        }                                                                                                              \
     } while (0)
 //< intro

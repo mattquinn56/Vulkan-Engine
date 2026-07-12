@@ -11,33 +11,37 @@
 
 class VulkanEngine;
 
-struct Bounds {
+struct Bounds
+{
     glm::vec3 origin;
     float sphereRadius;
     glm::vec3 extents;
 };
 
-struct GLTFMaterial {
+struct GLTFMaterial
+{
     MaterialInstance data;
     VkDeviceAddress materialAddressRT;
 };
 
-struct GeoSurface {
+struct GeoSurface
+{
     uint32_t startIndex;
     uint32_t count;
     Bounds bounds;
-	std::shared_ptr<GLTFMaterial> material;
+    std::shared_ptr<GLTFMaterial> material;
 };
 
-struct MeshAsset {
+struct MeshAsset
+{
     std::string name;
 
-   
     std::vector<GeoSurface> surfaces;
     GPUMeshBuffers meshBuffers;
 };
 
-struct LoadedGLTF : public IRenderable {
+struct LoadedGLTF : public IRenderable
+{
 
     // storage for all the data on a given gltf file
     std::unordered_map<std::string, std::shared_ptr<MeshAsset>> meshes;
@@ -58,12 +62,14 @@ struct LoadedGLTF : public IRenderable {
 
     VulkanEngine* creator;
 
-    ~LoadedGLTF() { clearAll(); };
+    ~LoadedGLTF()
+    {
+        clearAll();
+    };
 
     virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx);
 
-private:
-
+  private:
     void clearAll();
 };
 

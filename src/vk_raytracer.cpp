@@ -3,22 +3,33 @@
 
 VulkanRayTracer::VulkanRayTracer(VulkanEngine* engine)
 {
-	VulkanRayTracer::engine = engine;
+    VulkanRayTracer::engine = engine;
 
     // Load extension functions
-    pfnGetAccelerationStructureBuildSizesKHR = reinterpret_cast<PFN_vkGetAccelerationStructureBuildSizesKHR>(vkGetDeviceProcAddr(engine->_device, "vkGetAccelerationStructureBuildSizesKHR"));
-    pfnCmdBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(vkGetDeviceProcAddr(engine->_device, "vkCmdBuildAccelerationStructuresKHR"));
-    pfnCmdCopyAccelerationStructureKHR = reinterpret_cast<PFN_vkCmdCopyAccelerationStructureKHR>(vkGetDeviceProcAddr(engine->_device, "vkCmdCopyAccelerationStructureKHR"));
-    pfnCmdWriteAccelerationStructuresPropertiesKHR = reinterpret_cast<PFN_vkCmdWriteAccelerationStructuresPropertiesKHR>(vkGetDeviceProcAddr(engine->_device, "vkCmdWriteAccelerationStructuresPropertiesKHR"));
-    pfnCreateAccelerationStructureKHR = reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(vkGetDeviceProcAddr(engine->_device, "vkCreateAccelerationStructureKHR"));
-    pfnDestroyAccelerationStructureKHR = reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(vkGetDeviceProcAddr(engine->_device, "vkDestroyAccelerationStructureKHR"));
-    pfnGetAccelerationStructureDeviceAddressKHR = reinterpret_cast<PFN_vkGetAccelerationStructureDeviceAddressKHR>(vkGetDeviceProcAddr(engine->_device, "vkGetAccelerationStructureDeviceAddressKHR"));
-    pfnCreateRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(vkGetDeviceProcAddr(engine->_device, "vkCreateRayTracingPipelinesKHR"));
-    pfnGetRayTracingShaderGroupHandlesKHR = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(vkGetDeviceProcAddr(engine->_device, "vkGetRayTracingShaderGroupHandlesKHR"));
-    pfnCmdTraceRaysKHR = reinterpret_cast<PFN_vkCmdTraceRaysKHR>(vkGetDeviceProcAddr(engine->_device, "vkCmdTraceRaysKHR"));
+    pfnGetAccelerationStructureBuildSizesKHR = reinterpret_cast<PFN_vkGetAccelerationStructureBuildSizesKHR>(
+        vkGetDeviceProcAddr(engine->_device, "vkGetAccelerationStructureBuildSizesKHR"));
+    pfnCmdBuildAccelerationStructuresKHR = reinterpret_cast<PFN_vkCmdBuildAccelerationStructuresKHR>(
+        vkGetDeviceProcAddr(engine->_device, "vkCmdBuildAccelerationStructuresKHR"));
+    pfnCmdCopyAccelerationStructureKHR = reinterpret_cast<PFN_vkCmdCopyAccelerationStructureKHR>(
+        vkGetDeviceProcAddr(engine->_device, "vkCmdCopyAccelerationStructureKHR"));
+    pfnCmdWriteAccelerationStructuresPropertiesKHR =
+        reinterpret_cast<PFN_vkCmdWriteAccelerationStructuresPropertiesKHR>(
+            vkGetDeviceProcAddr(engine->_device, "vkCmdWriteAccelerationStructuresPropertiesKHR"));
+    pfnCreateAccelerationStructureKHR = reinterpret_cast<PFN_vkCreateAccelerationStructureKHR>(
+        vkGetDeviceProcAddr(engine->_device, "vkCreateAccelerationStructureKHR"));
+    pfnDestroyAccelerationStructureKHR = reinterpret_cast<PFN_vkDestroyAccelerationStructureKHR>(
+        vkGetDeviceProcAddr(engine->_device, "vkDestroyAccelerationStructureKHR"));
+    pfnGetAccelerationStructureDeviceAddressKHR = reinterpret_cast<PFN_vkGetAccelerationStructureDeviceAddressKHR>(
+        vkGetDeviceProcAddr(engine->_device, "vkGetAccelerationStructureDeviceAddressKHR"));
+    pfnCreateRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(
+        vkGetDeviceProcAddr(engine->_device, "vkCreateRayTracingPipelinesKHR"));
+    pfnGetRayTracingShaderGroupHandlesKHR = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(
+        vkGetDeviceProcAddr(engine->_device, "vkGetRayTracingShaderGroupHandlesKHR"));
+    pfnCmdTraceRaysKHR =
+        reinterpret_cast<PFN_vkCmdTraceRaysKHR>(vkGetDeviceProcAddr(engine->_device, "vkCmdTraceRaysKHR"));
 
     // Requesting ray tracing properties
-    VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+    VkPhysicalDeviceProperties2 prop2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
     prop2.pNext = &m_rtProperties;
     vkGetPhysicalDeviceProperties2(engine->_chosenGPU, &prop2);
 
@@ -55,8 +66,9 @@ BlasInput VulkanRayTracer::objectToVkGeometryKHR(const RenderObject object)
     uint32_t maxPrimitiveCount = object.indexCount / 3;
 
     // Describe buffer as array of VertexObj.
-    VkAccelerationStructureGeometryTrianglesDataKHR triangles{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR };
-    triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;  // vec3 vertex position data.
+    VkAccelerationStructureGeometryTrianglesDataKHR triangles{
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
+    triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT; // vec3 vertex position data.
     triangles.vertexData.deviceAddress = vertexAddress;
     triangles.vertexStride = sizeof(Vertex);
     // Describe index data (32-bit unsigned int)
@@ -67,7 +79,7 @@ BlasInput VulkanRayTracer::objectToVkGeometryKHR(const RenderObject object)
     triangles.maxVertex = object.vertexCount - 1;
 
     // Identify the above data as containing opaque triangles.
-    VkAccelerationStructureGeometryKHR asGeom{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
+    VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
     asGeom.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
     asGeom.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
     asGeom.geometry.triangles = triangles;
@@ -92,8 +104,7 @@ void VulkanRayTracer::createBottomLevelAS()
     // BLAS - Storing each primitive in a geometry
     std::vector<BlasInput> allBlas;
     allBlas.reserve(engine->drawCommands.OpaqueSurfaces.size());
-    for (RenderObject& obj : engine->drawCommands.OpaqueSurfaces)
-    {
+    for (RenderObject& obj : engine->drawCommands.OpaqueSurfaces) {
         BlasInput blas = objectToVkGeometryKHR(obj);
         obj.blasIndex = static_cast<uint32_t>(allBlas.size());
 
@@ -103,26 +114,24 @@ void VulkanRayTracer::createBottomLevelAS()
 
     buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 
-
     // cleanup
     const auto blasToDestroy = m_blas;
     const auto destroyAccelerationStructure = pfnDestroyAccelerationStructureKHR;
     engine->_mainDeletionQueue.push_function([engine = engine, blasToDestroy, destroyAccelerationStructure]() {
-        for (const auto& blas : blasToDestroy)
-		{
+        for (const auto& blas : blasToDestroy) {
             destroyAccelerationStructure(engine->_device, blas.accel, nullptr);
-			engine->destroy_buffer(blas.buffer);
-		}
-	});
+            engine->destroy_buffer(blas.buffer);
+        }
+    });
 }
-
 
 AccelKHR VulkanRayTracer::createAcceleration(VkAccelerationStructureCreateInfoKHR& accel_)
 {
     AccelKHR resultAccel;
     // Allocating the buffer to hold the acceleration structure
-    resultAccel.buffer = engine->create_buffer(accel_.size, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
-        | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+    resultAccel.buffer = engine->create_buffer(
+        accel_.size, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY);
     // Setting the buffer
     accel_.buffer = resultAccel.buffer.buffer;
     // Create the acceleration structure
@@ -136,41 +145,44 @@ AccelKHR VulkanRayTracer::createAcceleration(VkAccelerationStructureCreateInfoKH
 // The array of BuildAccelerationStructure was created in buildBlas and the vector of
 // indices limits the number of BLAS to create at once. This limits the amount of
 // memory needed when compacting the BLAS.
-void VulkanRayTracer::cmdCreateBlas(VkCommandBuffer cmdBuf, std::vector<uint32_t> indices, std::vector<BuildAccelerationStructure>& buildAs, VkDeviceAddress scratchAddress, VkQueryPool queryPool)
+void VulkanRayTracer::cmdCreateBlas(VkCommandBuffer cmdBuf, std::vector<uint32_t> indices,
+                                    std::vector<BuildAccelerationStructure>& buildAs, VkDeviceAddress scratchAddress,
+                                    VkQueryPool queryPool)
 {
 
-    if (queryPool)  // For querying the compaction size
+    if (queryPool) // For querying the compaction size
         vkResetQueryPool(engine->_device, queryPool, 0, static_cast<uint32_t>(indices.size()));
-    uint32_t queryCnt{ 0 };
+    uint32_t queryCnt{0};
 
-    for (const auto& idx : indices)
-    {
+    for (const auto& idx : indices) {
         // Actual allocation of buffer and acceleration structure.
-        VkAccelerationStructureCreateInfoKHR createInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR };
+        VkAccelerationStructureCreateInfoKHR createInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
         createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-        createInfo.size = buildAs[idx].sizeInfo.accelerationStructureSize;  // Will be used to allocate memory.
+        createInfo.size = buildAs[idx].sizeInfo.accelerationStructureSize; // Will be used to allocate memory.
         buildAs[idx].as = createAcceleration(createInfo);
 
         // BuildInfo #2 part
-        buildAs[idx].buildInfo.dstAccelerationStructure = buildAs[idx].as.accel;  // Setting where the build lands
-        buildAs[idx].buildInfo.scratchData.deviceAddress = scratchAddress;  // All build are using the same scratch buffer
+        buildAs[idx].buildInfo.dstAccelerationStructure = buildAs[idx].as.accel; // Setting where the build lands
+        buildAs[idx].buildInfo.scratchData.deviceAddress =
+            scratchAddress; // All build are using the same scratch buffer
 
         // Building the bottom-level-acceleration-structure
         pfnCmdBuildAccelerationStructuresKHR(cmdBuf, 1, &buildAs[idx].buildInfo, &buildAs[idx].rangeInfo);
 
         // Since the scratch buffer is reused across builds, we need a barrier to ensure one build
         // is finished before starting the next one.
-        VkMemoryBarrier barrier{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+        VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
         barrier.srcAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
         barrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;
         vkCmdPipelineBarrier(cmdBuf, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
-            VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0, 1, &barrier, 0, nullptr, 0, nullptr);
+                             VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0, 1, &barrier, 0, nullptr, 0,
+                             nullptr);
 
-        if (queryPool)
-        {
+        if (queryPool) {
             // Add a query to find the 'real' amount of memory needed, use for compaction
             pfnCmdWriteAccelerationStructuresPropertiesKHR(cmdBuf, 1, &buildAs[idx].buildInfo.dstAccelerationStructure,
-                VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR, queryPool, queryCnt++);
+                                                           VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR,
+                                                           queryPool, queryCnt++);
         }
     }
 }
@@ -178,28 +190,29 @@ void VulkanRayTracer::cmdCreateBlas(VkCommandBuffer cmdBuf, std::vector<uint32_t
 //--------------------------------------------------------------------------------------------------
 // Create and replace a new acceleration structure and buffer based on the size retrieved by the
 // Query.
-void VulkanRayTracer::cmdCompactBlas(VkCommandBuffer cmdBuf, std::vector<uint32_t> indices, std::vector<BuildAccelerationStructure>& buildAs, VkQueryPool queryPool)
+void VulkanRayTracer::cmdCompactBlas(VkCommandBuffer cmdBuf, std::vector<uint32_t> indices,
+                                     std::vector<BuildAccelerationStructure>& buildAs, VkQueryPool queryPool)
 {
-    uint32_t queryCtn{ 0 };
+    uint32_t queryCtn{0};
 
     // Get the compacted size result back
     std::vector<VkDeviceSize> compactSizes(static_cast<uint32_t>(indices.size()));
-    vkGetQueryPoolResults(engine->_device, queryPool, 0, (uint32_t)compactSizes.size(), compactSizes.size() * sizeof(VkDeviceSize),
-        compactSizes.data(), sizeof(VkDeviceSize), VK_QUERY_RESULT_WAIT_BIT);
+    vkGetQueryPoolResults(engine->_device, queryPool, 0, (uint32_t)compactSizes.size(),
+                          compactSizes.size() * sizeof(VkDeviceSize), compactSizes.data(), sizeof(VkDeviceSize),
+                          VK_QUERY_RESULT_WAIT_BIT);
 
-    for (auto idx : indices)
-    {
-        buildAs[idx].cleanupAS = buildAs[idx].as;           // previous AS to destroy
-        buildAs[idx].sizeInfo.accelerationStructureSize = compactSizes[queryCtn++];  // new reduced size
+    for (auto idx : indices) {
+        buildAs[idx].cleanupAS = buildAs[idx].as;                                   // previous AS to destroy
+        buildAs[idx].sizeInfo.accelerationStructureSize = compactSizes[queryCtn++]; // new reduced size
 
         // Creating a compact version of the AS
-        VkAccelerationStructureCreateInfoKHR asCreateInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR };
+        VkAccelerationStructureCreateInfoKHR asCreateInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
         asCreateInfo.size = buildAs[idx].sizeInfo.accelerationStructureSize;
         asCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
         buildAs[idx].as = createAcceleration(asCreateInfo);
 
         // Copy the original BLAS to a compact version
-        VkCopyAccelerationStructureInfoKHR copyInfo{ VK_STRUCTURE_TYPE_COPY_ACCELERATION_STRUCTURE_INFO_KHR };
+        VkCopyAccelerationStructureInfoKHR copyInfo{VK_STRUCTURE_TYPE_COPY_ACCELERATION_STRUCTURE_INFO_KHR};
         copyInfo.src = buildAs[idx].buildInfo.dstAccelerationStructure;
         copyInfo.dst = buildAs[idx].as.accel;
         copyInfo.mode = VK_COPY_ACCELERATION_STRUCTURE_MODE_COMPACT_KHR;
@@ -210,10 +223,10 @@ void VulkanRayTracer::cmdCompactBlas(VkCommandBuffer cmdBuf, std::vector<uint32_
 //--------------------------------------------------------------------------------------------------
 // Destroy all the non-compacted acceleration structures
 //
-void VulkanRayTracer::destroyNonCompacted(std::vector<uint32_t> indices, std::vector<BuildAccelerationStructure>& buildAs)
+void VulkanRayTracer::destroyNonCompacted(std::vector<uint32_t> indices,
+                                          std::vector<BuildAccelerationStructure>& buildAs)
 {
-    for (auto& i : indices)
-    {
+    for (auto& i : indices) {
         AccelKHR& a_ = buildAs[i].cleanupAS;
         pfnDestroyAccelerationStructureKHR(engine->_device, a_.accel, nullptr);
         engine->destroy_buffer(a_.buffer);
@@ -224,16 +237,16 @@ void VulkanRayTracer::destroyNonCompacted(std::vector<uint32_t> indices, std::ve
     }
 }
 
-void VulkanRayTracer::buildBlas(const std::vector<BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags) {
-    uint32_t     nbBlas = static_cast<uint32_t>(input.size());
-    VkDeviceSize asTotalSize{ 0 };     // Memory size of all allocated BLAS
-    uint32_t     nbCompactions{ 0 };   // Nb of BLAS requesting compaction
-    VkDeviceSize maxScratchSize{ 0 };  // Largest scratch size
+void VulkanRayTracer::buildBlas(const std::vector<BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags)
+{
+    uint32_t nbBlas = static_cast<uint32_t>(input.size());
+    VkDeviceSize asTotalSize{0};    // Memory size of all allocated BLAS
+    uint32_t nbCompactions{0};      // Nb of BLAS requesting compaction
+    VkDeviceSize maxScratchSize{0}; // Largest scratch size
 
     // Preparing the information for the acceleration build commands.
     std::vector<BuildAccelerationStructure> buildAs(nbBlas);
-    for (uint32_t idx = 0; idx < nbBlas; idx++)
-    {
+    for (uint32_t idx = 0; idx < nbBlas; idx++) {
         // Filling partially the VkAccelerationStructureBuildGeometryInfoKHR for querying the build sizes.
         // Other information will be filled in the createBlas (see #2)
         buildAs[idx].buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
@@ -248,52 +261,53 @@ void VulkanRayTracer::buildBlas(const std::vector<BlasInput>& input, VkBuildAcce
         // Finding sizes to create acceleration structures and scratch
         std::vector<uint32_t> maxPrimCount(input[idx].asBuildOffsetInfo.size());
         for (auto tt = 0; tt < input[idx].asBuildOffsetInfo.size(); tt++)
-            maxPrimCount[tt] = input[idx].asBuildOffsetInfo[tt].primitiveCount;  // Number of primitives/triangles
+            maxPrimCount[tt] = input[idx].asBuildOffsetInfo[tt].primitiveCount; // Number of primitives/triangles
         pfnGetAccelerationStructureBuildSizesKHR(engine->_device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
-            &buildAs[idx].buildInfo, maxPrimCount.data(), &buildAs[idx].sizeInfo);
+                                                 &buildAs[idx].buildInfo, maxPrimCount.data(), &buildAs[idx].sizeInfo);
 
         // Extra info
         asTotalSize += buildAs[idx].sizeInfo.accelerationStructureSize;
         maxScratchSize = std::max(maxScratchSize, buildAs[idx].sizeInfo.buildScratchSize);
-        nbCompactions += hasFlag(buildAs[idx].buildInfo.flags, VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR);
+        nbCompactions +=
+            hasFlag(buildAs[idx].buildInfo.flags, VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR);
     }
 
     uint64_t align = accelerationStructureProperties.minAccelerationStructureScratchOffsetAlignment;
 
     // Allocate the scratch buffers holding the temporary data of the acceleration structure builder
-    AllocatedBuffer scratchBuffer = engine->create_buffer(maxScratchSize + align, 
-        VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
-    VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, scratchBuffer.buffer };
+    AllocatedBuffer scratchBuffer = engine->create_buffer(
+        maxScratchSize + align, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY);
+    VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, scratchBuffer.buffer};
     VkDeviceAddress scratchAddress = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
     VkDeviceAddress alignedAddress = (scratchAddress + align - 1) & ~(align - 1);
 
     // Allocate a query pool for storing the needed size for every BLAS compaction.
-    VkQueryPool queryPool{ VK_NULL_HANDLE };
-    if (nbCompactions > 0)  // Is compaction requested?
+    VkQueryPool queryPool{VK_NULL_HANDLE};
+    if (nbCompactions > 0) // Is compaction requested?
     {
-        assert(nbCompactions == nbBlas);  // Don't allow mix of on/off compaction
-        VkQueryPoolCreateInfo qpci{ VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO };
+        assert(nbCompactions == nbBlas); // Don't allow mix of on/off compaction
+        VkQueryPoolCreateInfo qpci{VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
         qpci.queryCount = nbBlas;
         qpci.queryType = VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR;
         VK_CHECK(vkCreateQueryPool(engine->_device, &qpci, nullptr, &queryPool));
     }
 
     // Batching creation/compaction of BLAS to allow staying in restricted amount of memory
-    std::vector<uint32_t> indices;  // Indices of the BLAS to create
-    VkDeviceSize          batchSize{ 0 };
-    VkDeviceSize          batchLimit{ 256'000'000 };  // 256 MB
-    for (uint32_t idx = 0; idx < nbBlas; idx++)
-    {
+    std::vector<uint32_t> indices; // Indices of the BLAS to create
+    VkDeviceSize batchSize{0};
+    VkDeviceSize batchLimit{256'000'000}; // 256 MB
+    for (uint32_t idx = 0; idx < nbBlas; idx++) {
         indices.push_back(idx);
         batchSize += buildAs[idx].sizeInfo.accelerationStructureSize;
         // Over the limit or last BLAS element
-        if (batchSize >= batchLimit || idx == nbBlas - 1)
-        {
-            engine->immediate_submit([&](VkCommandBuffer cmd) { cmdCreateBlas(cmd, indices, buildAs, alignedAddress, queryPool); });
+        if (batchSize >= batchLimit || idx == nbBlas - 1) {
+            engine->immediate_submit(
+                [&](VkCommandBuffer cmd) { cmdCreateBlas(cmd, indices, buildAs, alignedAddress, queryPool); });
 
-            if (queryPool)
-            {
-                engine->immediate_submit([&](VkCommandBuffer cmd) { cmdCompactBlas(cmd, indices, buildAs, queryPool); });
+            if (queryPool) {
+                engine->immediate_submit(
+                    [&](VkCommandBuffer cmd) { cmdCompactBlas(cmd, indices, buildAs, queryPool); });
 
                 // Destroy the non-compacted version
                 destroyNonCompacted(indices, buildAs);
@@ -305,8 +319,7 @@ void VulkanRayTracer::buildBlas(const std::vector<BlasInput>& input, VkBuildAcce
     }
 
     // Keeping all the created acceleration structures
-    for (auto& b : buildAs)
-    {
+    for (auto& b : buildAs) {
         m_blas.emplace_back(b.as);
     }
 
@@ -321,15 +334,14 @@ void VulkanRayTracer::createTopLevelAS()
 {
     std::vector<VkAccelerationStructureInstanceKHR> tlas;
     tlas.reserve(engine->drawCommands.OpaqueSurfaces.size());
-    for (const RenderObject& inst : engine->drawCommands.OpaqueSurfaces)
-    {
+    for (const RenderObject& inst : engine->drawCommands.OpaqueSurfaces) {
         VkAccelerationStructureInstanceKHR rayInst{};
-        rayInst.transform = toTransformMatrixKHR(inst.transform);  // Position of the instance
-        rayInst.instanceCustomIndex = inst.blasIndex;                               // gl_InstanceCustomIndexEXT
+        rayInst.transform = toTransformMatrixKHR(inst.transform); // Position of the instance
+        rayInst.instanceCustomIndex = inst.blasIndex;             // gl_InstanceCustomIndexEXT
         rayInst.accelerationStructureReference = getBlasDeviceAddress(inst.blasIndex);
         rayInst.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-        rayInst.mask = 0xFF;       //  Only be hit if rayMask & instance.mask != 0
-        rayInst.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
+        rayInst.mask = 0xFF;                                //  Only be hit if rayMask & instance.mask != 0
+        rayInst.instanceShaderBindingTableRecordOffset = 0; // We will use the same hit group for all objects
         tlas.emplace_back(rayInst);
     }
     buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR, false, false);
@@ -339,10 +351,9 @@ void VulkanRayTracer::createTopLevelAS()
     const auto destroyAccelerationStructure = pfnDestroyAccelerationStructureKHR;
     engine->_mainDeletionQueue.push_function([engine = engine, tlasToDestroy, destroyAccelerationStructure]() {
         destroyAccelerationStructure(engine->_device, tlasToDestroy.accel, nullptr);
-		engine->destroy_buffer(tlasToDestroy.buffer);
+        engine->destroy_buffer(tlasToDestroy.buffer);
     });
 }
-
 
 // Convert a Mat4x4 to the matrix required by acceleration structures
 VkTransformMatrixKHR VulkanRayTracer::toTransformMatrixKHR(glm::mat4 matrix)
@@ -362,28 +373,32 @@ VkTransformMatrixKHR VulkanRayTracer::toTransformMatrixKHR(glm::mat4 matrix)
 VkDeviceAddress VulkanRayTracer::getBlasDeviceAddress(uint32_t blasId)
 {
     assert(size_t(blasId) < m_blas.size());
-    VkAccelerationStructureDeviceAddressInfoKHR addressInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
+    VkAccelerationStructureDeviceAddressInfoKHR addressInfo{
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR};
     addressInfo.accelerationStructure = m_blas[blasId].accel;
     return pfnGetAccelerationStructureDeviceAddressKHR(engine->_device, &addressInfo);
 }
 
 void VulkanRayTracer::buildTlas(const std::vector<VkAccelerationStructureInstanceKHR>& instances,
-    VkBuildAccelerationStructureFlagsKHR flags, bool update, bool motion)
+                                VkBuildAccelerationStructureFlagsKHR flags, bool update, bool motion)
 {
     // Cannot call buildTlas twice except to update.
     assert(m_tlas.accel == VK_NULL_HANDLE || update);
     uint32_t countInstance = static_cast<uint32_t>(instances.size());
 
     // Create a buffer holding the actual instance data (matrices++) for use by the AS builder
-    AllocatedBuffer instancesBuffer;  // Buffer of instances containing the matrices and BLAS ids
+    AllocatedBuffer instancesBuffer; // Buffer of instances containing the matrices and BLAS ids
     VkDeviceSize size = sizeof(VkAccelerationStructureInstanceKHR) * instances.size();
-    instancesBuffer = engine->create_buffer_data(size, instances.data(), VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VMA_MEMORY_USAGE_GPU_ONLY);
-    VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, instancesBuffer.buffer };
-    VkDeviceAddress           instBufferAddr = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
+    instancesBuffer =
+        engine->create_buffer_data(size, instances.data(),
+                                   VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+                                       VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+                                   VMA_MEMORY_USAGE_GPU_ONLY);
+    VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, instancesBuffer.buffer};
+    VkDeviceAddress instBufferAddr = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
 
     // Make sure the copy of the instance buffer are copied before triggering the acceleration structure build
-    VkMemoryBarrier barrier{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+    VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
 
@@ -392,7 +407,9 @@ void VulkanRayTracer::buildTlas(const std::vector<VkAccelerationStructureInstanc
 
     // Executing and destroying temporary data
     engine->immediate_submit([&](VkCommandBuffer cmd) {
-        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0, 1, &barrier, 0, nullptr, 0, nullptr);
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0, 1, &barrier, 0, nullptr, 0,
+                             nullptr);
     });
 
     engine->immediate_submit([&](VkCommandBuffer cmd) {
@@ -407,32 +424,36 @@ void VulkanRayTracer::buildTlas(const std::vector<VkAccelerationStructureInstanc
 // Low level of Tlas creation - see buildTlas
 //
 void VulkanRayTracer::cmdCreateTlas(VkCommandBuffer cmdBuf, uint32_t countInstance, VkDeviceAddress instBufferAddr,
-    AllocatedBuffer& scratchBuffer, VkBuildAccelerationStructureFlagsKHR flags, bool update, bool motion)
+                                    AllocatedBuffer& scratchBuffer, VkBuildAccelerationStructureFlagsKHR flags,
+                                    bool update, bool motion)
 {
     // Wraps a device pointer to the above uploaded instances.
-    VkAccelerationStructureGeometryInstancesDataKHR instancesVk{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR };
+    VkAccelerationStructureGeometryInstancesDataKHR instancesVk{
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR};
     instancesVk.data.deviceAddress = instBufferAddr;
 
     // Put the above into a VkAccelerationStructureGeometryKHR. We need to put the instances struct in a union and label it as instance data.
-    VkAccelerationStructureGeometryKHR topASGeometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
+    VkAccelerationStructureGeometryKHR topASGeometry{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
     topASGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
     topASGeometry.geometry.instances = instancesVk;
 
     // Find sizes
-    VkAccelerationStructureBuildGeometryInfoKHR buildInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
+    VkAccelerationStructureBuildGeometryInfoKHR buildInfo{
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
     buildInfo.flags = flags;
     buildInfo.geometryCount = 1;
     buildInfo.pGeometries = &topASGeometry;
     buildInfo.ppGeometries = nullptr;
-    buildInfo.mode = update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+    buildInfo.mode =
+        update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
     buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
     buildInfo.srcAccelerationStructure = VK_NULL_HANDLE;
 
-    VkAccelerationStructureBuildSizesInfoKHR sizeInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
-    pfnGetAccelerationStructureBuildSizesKHR(engine->_device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo,
-        &countInstance, &sizeInfo);
+    VkAccelerationStructureBuildSizesInfoKHR sizeInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
+    pfnGetAccelerationStructureBuildSizesKHR(engine->_device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+                                             &buildInfo, &countInstance, &sizeInfo);
 
-    VkAccelerationStructureCreateInfoKHR createInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR };
+    VkAccelerationStructureCreateInfoKHR createInfo{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
     createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
     createInfo.size = sizeInfo.accelerationStructureSize;
 
@@ -440,10 +461,11 @@ void VulkanRayTracer::cmdCreateTlas(VkCommandBuffer cmdBuf, uint32_t countInstan
 
     // Allocate the scratch memory
     uint64_t align = accelerationStructureProperties.minAccelerationStructureScratchOffsetAlignment;
-    scratchBuffer = engine->create_buffer(sizeInfo.buildScratchSize + align,
+    scratchBuffer = engine->create_buffer(
+        sizeInfo.buildScratchSize + align,
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 
-    VkBufferDeviceAddressInfo bufferInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, scratchBuffer.buffer };
+    VkBufferDeviceAddressInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, scratchBuffer.buffer};
     VkDeviceAddress scratchAddress = vkGetBufferDeviceAddress(engine->_device, &bufferInfo);
     VkDeviceAddress alignedAddress = (scratchAddress + align - 1) & ~(align - 1);
 
@@ -453,7 +475,7 @@ void VulkanRayTracer::cmdCreateTlas(VkCommandBuffer cmdBuf, uint32_t countInstan
     buildInfo.scratchData.deviceAddress = alignedAddress;
 
     // Build Offsets info: n instances
-    VkAccelerationStructureBuildRangeInfoKHR        buildOffsetInfo{ countInstance, 0, 0, 0 };
+    VkAccelerationStructureBuildRangeInfoKHR buildOffsetInfo{countInstance, 0, 0, 0};
     const VkAccelerationStructureBuildRangeInfoKHR* pBuildOffsetInfo = &buildOffsetInfo;
 
     // Build the TLAS
@@ -466,28 +488,30 @@ void VulkanRayTracer::createRtDescriptorSet()
     // Descriptor set #0 holds the Acceleration structure and the output image.
     //
     DescriptorLayoutBuilder m_rtDescLayoutBuilder;
-    m_rtDescLayoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);  // TLAS
-    m_rtDescLayoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);  // Output image
-    m_rtDescLayoutBuilder.add_binding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);  // Environment map
+    m_rtDescLayoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR); // TLAS
+    m_rtDescLayoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);              // Output image
+    m_rtDescLayoutBuilder.add_binding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);     // Environment map
 
     std::vector<DescriptorAllocator::PoolSizeRatio> rt_pool_sizes = {
-        { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+        {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1},
+        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
     };
     m_rtDescAllocator.init_pool(engine->_device, 1, rt_pool_sizes);
     m_rtDescPool = m_rtDescAllocator.pool;
-    VkShaderStageFlags flags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR;
+    VkShaderStageFlags flags =
+        VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR;
     m_rtDescSetLayout = m_rtDescLayoutBuilder.build(engine->_device, flags);
 
-    VkDescriptorSetAllocateInfo allocateInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
+    VkDescriptorSetAllocateInfo allocateInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
     allocateInfo.descriptorPool = m_rtDescPool;
     allocateInfo.descriptorSetCount = 1;
     allocateInfo.pSetLayouts = &m_rtDescSetLayout;
     VK_CHECK(vkAllocateDescriptorSets(engine->_device, &allocateInfo, &m_rtDescSet));
 
     VkAccelerationStructureKHR tlas = m_tlas.accel;
-    VkWriteDescriptorSetAccelerationStructureKHR descASInfo{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
+    VkWriteDescriptorSetAccelerationStructureKHR descASInfo{
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR};
     descASInfo.accelerationStructureCount = 1;
     descASInfo.pAccelerationStructures = &tlas;
 
@@ -495,9 +519,10 @@ void VulkanRayTracer::createRtDescriptorSet()
     m_rtDescWriter.write_buffer(0, 0, 0, 0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
     m_rtDescWriter.writes[0].pNext = &descASInfo;
     m_rtDescWriter.writes[0].pBufferInfo = nullptr;
-    m_rtDescWriter.write_image(1, engine->_drawImage.imageView, {}, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    m_rtDescWriter.write_image(1, engine->_drawImage.imageView, {}, VK_IMAGE_LAYOUT_GENERAL,
+                               VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     m_rtDescWriter.write_image(2, engine->environmentMap.imageView, engine->_defaultSamplerLinear,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     m_rtDescWriter.update_set(engine->_device, m_rtDescSet);
 
     // add all to deletion queue
@@ -506,21 +531,20 @@ void VulkanRayTracer::createRtDescriptorSet()
     engine->_mainDeletionQueue.push_function([engine = engine, descriptorPool, descriptorLayout]() {
         vkDestroyDescriptorPool(engine->_device, descriptorPool, nullptr);
         vkDestroyDescriptorSetLayout(engine->_device, descriptorLayout, nullptr);
-	});
+    });
 }
 
-
-void VulkanRayTracer::createRtMaterialDescriptorSet() {
+void VulkanRayTracer::createRtMaterialDescriptorSet()
+{
     const uint32_t TEX_MAX = 256;
     // int n = m_colTextures.size();
 
     DescriptorLayoutBuilder m_rtMatDescLayoutBuilder;
-    m_rtMatDescLayoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, TEX_MAX);  // Color textures
-    m_rtMatDescLayoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, TEX_MAX);  // Metal-rough textures
+    m_rtMatDescLayoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, TEX_MAX); // Color textures
+    m_rtMatDescLayoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, TEX_MAX); // Metal-rough textures
 
     std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> rt_mat_pool_sizes = {
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, float(TEX_MAX) * 2.0f }
-    };
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, float(TEX_MAX) * 2.0f}};
     m_rtMatDescAllocator.init(engine->_device, 1, rt_mat_pool_sizes);
     m_rtMatDescSetLayout = m_rtMatDescLayoutBuilder.build(engine->_device, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
     m_rtMatDescSet = m_rtMatDescAllocator.allocate(engine->_device, m_rtMatDescSetLayout);
@@ -533,8 +557,11 @@ void VulkanRayTracer::createRtMaterialDescriptorSet() {
 
     m_rtMatDescWriter.clear();
     // arrays with only one element
-    m_rtMatDescWriter.write_image_array(0, m_colTextures, m_colSamplers, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    m_rtMatDescWriter.write_image_array(1, m_metalRoughTextures, m_metalRoughSamplers, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    m_rtMatDescWriter.write_image_array(0, m_colTextures, m_colSamplers, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    m_rtMatDescWriter.write_image_array(1, m_metalRoughTextures, m_metalRoughSamplers,
+                                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     m_rtMatDescWriter.update_set(engine->_device, m_rtMatDescSet);
 
     // add all to deletion queue
@@ -552,9 +579,9 @@ void VulkanRayTracer::createRtMaterialDescriptorSet() {
 void VulkanRayTracer::updateRtDescriptorSet()
 {
     // update drawimage manually (without use of descriptor writer) to avoid updating the acceleration structure
-    VkDescriptorImageInfo info{ {}, engine->_drawImage.imageView, VK_IMAGE_LAYOUT_GENERAL };
+    VkDescriptorImageInfo info{{}, engine->_drawImage.imageView, VK_IMAGE_LAYOUT_GENERAL};
 
-    VkWriteDescriptorSet wds{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+    VkWriteDescriptorSet wds{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
     wds.dstSet = m_rtDescSet;
     wds.descriptorCount = 1;
     wds.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -567,22 +594,30 @@ void VulkanRayTracer::updateRtDescriptorSet()
 //--------------------------------------------------------------------------------------------------
 // Pipeline for the ray tracer: all shaders, raygen, chit, miss
 //
-void VulkanRayTracer::createRtPipeline() {
-    enum StageIdx { eRaygen, eMiss, eMissShadow, eClosestHit, eStageCount };
+void VulkanRayTracer::createRtPipeline()
+{
+    enum StageIdx
+    {
+        eRaygen,
+        eMiss,
+        eMissShadow,
+        eClosestHit,
+        eStageCount
+    };
 
     // Clear in case this is called more than once
     m_rtShaderGroups.clear();
 
     // Load shaders or die early (don't proceed with junk)
     auto load_or_bail = [&](const char* path, VkShaderStageFlagBits stg) {
-        VkPipelineShaderStageCreateInfo s{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+        VkPipelineShaderStageCreateInfo s{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
         s.stage = stg;
         s.pName = "main";
         if (!vkutil::load_shader_module(path, engine->_device, &s.module)) {
             throw std::runtime_error(std::string("Failed to load shader: ") + path);
         }
         return s;
-        };
+    };
 
     std::array<VkPipelineShaderStageCreateInfo, eStageCount> stages;
     stages[eRaygen] = load_or_bail("../../shaders/raytrace.rgen.spv", VK_SHADER_STAGE_RAYGEN_BIT_KHR);
@@ -592,8 +627,9 @@ void VulkanRayTracer::createRtPipeline() {
 
     // Sanity: every set layout must exist
     auto must = [](VkDescriptorSetLayout l, const char* name) {
-        if (l == VK_NULL_HANDLE) throw std::runtime_error(std::string("Null set layout: ") + name);
-        };
+        if (l == VK_NULL_HANDLE)
+            throw std::runtime_error(std::string("Null set layout: ") + name);
+    };
     must(m_rtDescSetLayout, "rtDesc");
     must(engine->_gpuSceneDataDescriptorLayout, "scene");
     must(engine->_objDescLayout, "objDesc");
@@ -602,21 +638,18 @@ void VulkanRayTracer::createRtPipeline() {
 
     // Push constants
     VkPushConstantRange pcr{};
-    pcr.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+    pcr.stageFlags =
+        VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
     pcr.offset = 0;
     pcr.size = sizeof(PushConstantRay);
 
     // Pipeline layout
     m_rtPipelineLayout = VK_NULL_HANDLE;
-    std::vector<VkDescriptorSetLayout> layouts = {
-        m_rtDescSetLayout,
-        engine->_gpuSceneDataDescriptorLayout,
-        engine->_objDescLayout,
-        m_rtMatDescSetLayout,
-        engine->_volumeSetLayout
-    };
+    std::vector<VkDescriptorSetLayout> layouts = {m_rtDescSetLayout, engine->_gpuSceneDataDescriptorLayout,
+                                                  engine->_objDescLayout, m_rtMatDescSetLayout,
+                                                  engine->_volumeSetLayout};
 
-    VkPipelineLayoutCreateInfo plci{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+    VkPipelineLayoutCreateInfo plci{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     plci.setLayoutCount = (uint32_t)layouts.size();
     plci.pSetLayouts = layouts.data();
     plci.pushConstantRangeCount = 1;
@@ -624,26 +657,36 @@ void VulkanRayTracer::createRtPipeline() {
 
     VkResult plRes = vkCreatePipelineLayout(engine->_device, &plci, nullptr, &m_rtPipelineLayout);
     if (plRes != VK_SUCCESS || m_rtPipelineLayout == VK_NULL_HANDLE) {
-        for (auto& s : stages) if (s.module) vkDestroyShaderModule(engine->_device, s.module, nullptr);
+        for (auto& s : stages)
+            if (s.module)
+                vkDestroyShaderModule(engine->_device, s.module, nullptr);
         throw std::runtime_error("vkCreatePipelineLayout failed, code " + std::to_string(plRes));
     }
 
     // Shader groups
     m_rtShaderGroups.reserve(4);
-    VkRayTracingShaderGroupCreateInfoKHR g{ VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR };
+    VkRayTracingShaderGroupCreateInfoKHR g{VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR};
     g.anyHitShader = VK_SHADER_UNUSED_KHR;
     g.closestHitShader = VK_SHADER_UNUSED_KHR;
     g.generalShader = VK_SHADER_UNUSED_KHR;
     g.intersectionShader = VK_SHADER_UNUSED_KHR;
 
-    g.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;  g.generalShader = eRaygen;     m_rtShaderGroups.push_back(g);
-    g.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;  g.generalShader = eMiss;       m_rtShaderGroups.push_back(g);
-    g.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;  g.generalShader = eMissShadow; m_rtShaderGroups.push_back(g);
+    g.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+    g.generalShader = eRaygen;
+    m_rtShaderGroups.push_back(g);
+    g.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+    g.generalShader = eMiss;
+    m_rtShaderGroups.push_back(g);
+    g.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+    g.generalShader = eMissShadow;
+    m_rtShaderGroups.push_back(g);
     g.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-    g.generalShader = VK_SHADER_UNUSED_KHR; g.closestHitShader = eClosestHit; m_rtShaderGroups.push_back(g);
+    g.generalShader = VK_SHADER_UNUSED_KHR;
+    g.closestHitShader = eClosestHit;
+    m_rtShaderGroups.push_back(g);
 
     // Create pipeline
-    VkRayTracingPipelineCreateInfoKHR rtp{ VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR };
+    VkRayTracingPipelineCreateInfoKHR rtp{VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR};
     rtp.stageCount = (uint32_t)stages.size();
     rtp.pStages = stages.data();
     rtp.groupCount = (uint32_t)m_rtShaderGroups.size();
@@ -653,19 +696,23 @@ void VulkanRayTracer::createRtPipeline() {
 
     // Verify function pointer
     if (!pfnCreateRayTracingPipelinesKHR) {
-        for (auto& s : stages) if (s.module) vkDestroyShaderModule(engine->_device, s.module, nullptr);
+        for (auto& s : stages)
+            if (s.module)
+                vkDestroyShaderModule(engine->_device, s.module, nullptr);
         throw std::runtime_error("pfnCreateRayTracingPipelinesKHR is NULL (extension not enabled / bad load)");
     }
 
-    VkDeferredOperationKHR deferred{ VK_NULL_HANDLE };
-    VkPipelineCache        cache{ VK_NULL_HANDLE };
+    VkDeferredOperationKHR deferred{VK_NULL_HANDLE};
+    VkPipelineCache cache{VK_NULL_HANDLE};
     m_rtPipeline = VK_NULL_HANDLE;
 
-    VkResult pipeRes = pfnCreateRayTracingPipelinesKHR(
-        engine->_device, deferred, cache, 1, &rtp, nullptr, &m_rtPipeline);
+    VkResult pipeRes =
+        pfnCreateRayTracingPipelinesKHR(engine->_device, deferred, cache, 1, &rtp, nullptr, &m_rtPipeline);
 
     // Cleanup shader modules regardless
-    for (auto& s : stages) if (s.module) vkDestroyShaderModule(engine->_device, s.module, nullptr);
+    for (auto& s : stages)
+        if (s.module)
+            vkDestroyShaderModule(engine->_device, s.module, nullptr);
 
     if (pipeRes != VK_SUCCESS || m_rtPipeline == VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(engine->_device, m_rtPipelineLayout, nullptr);
@@ -682,8 +729,7 @@ void VulkanRayTracer::createRtPipeline() {
     });
 }
 
-template <class integral>
-constexpr integral align_up(integral x, size_t a) noexcept
+template <class integral> constexpr integral align_up(integral x, size_t a) noexcept
 {
     return integral((x + (integral(a) - 1)) & ~integral(a - 1));
 }
@@ -695,8 +741,8 @@ constexpr integral align_up(integral x, size_t a) noexcept
 //
 void VulkanRayTracer::createRtShaderBindingTable()
 {
-    uint32_t missCount{ 2 };
-    uint32_t hitCount{ 1 };
+    uint32_t missCount{2};
+    uint32_t hitCount{1};
     auto handleCount = 1 + missCount + hitCount;
     uint32_t handleSize = m_rtProperties.shaderGroupHandleSize;
 
@@ -704,7 +750,8 @@ void VulkanRayTracer::createRtShaderBindingTable()
     uint32_t handleSizeAligned = align_up(handleSize, m_rtProperties.shaderGroupHandleAlignment);
 
     m_rgenRegion.stride = align_up(handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
-    m_rgenRegion.size = m_rgenRegion.stride;  // The size member of pRayGenShaderBindingTable must be equal to its stride member
+    m_rgenRegion.size =
+        m_rgenRegion.stride; // The size member of pRayGenShaderBindingTable must be equal to its stride member
     m_missRegion.stride = handleSizeAligned;
     m_missRegion.size = align_up(missCount * handleSizeAligned, m_rtProperties.shaderGroupBaseAlignment);
     m_hitRegion.stride = handleSizeAligned;
@@ -713,16 +760,18 @@ void VulkanRayTracer::createRtShaderBindingTable()
     // Get the shader group handles
     uint32_t dataSize = handleCount * handleSize;
     std::vector<uint8_t> handles(dataSize);
-    VK_CHECK(pfnGetRayTracingShaderGroupHandlesKHR(engine->_device, m_rtPipeline, 0, handleCount, dataSize, handles.data()));
+    VK_CHECK(
+        pfnGetRayTracingShaderGroupHandlesKHR(engine->_device, m_rtPipeline, 0, handleCount, dataSize, handles.data()));
 
     // Allocate a buffer for storing the SBT.
     VkDeviceSize sbtSize = m_rgenRegion.size + m_missRegion.size + m_hitRegion.size + m_callRegion.size;
     m_rtSBTBuffer = engine->create_buffer(sbtSize,
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-        | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR, VMA_MEMORY_USAGE_CPU_ONLY);
+                                          VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+                                              VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR,
+                                          VMA_MEMORY_USAGE_CPU_ONLY);
 
     // Find the SBT addresses of each group
-    VkBufferDeviceAddressInfo info{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_rtSBTBuffer.buffer };
+    VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, m_rtSBTBuffer.buffer};
     VkDeviceAddress sbtAddress = vkGetBufferDeviceAddress(engine->_device, &info);
     m_rgenRegion.deviceAddress = sbtAddress;
     m_missRegion.deviceAddress = sbtAddress + m_rgenRegion.size;
@@ -734,8 +783,8 @@ void VulkanRayTracer::createRtShaderBindingTable()
     // Map the SBT buffer and write in the handles.
     uint8_t* pSBTBuffer;
     vmaMapMemory(engine->_allocator, m_rtSBTBuffer.allocation, (void**)&pSBTBuffer);
-    uint8_t* pData{ nullptr };
-    uint32_t handleIdx{ 0 };
+    uint8_t* pData{nullptr};
+    uint32_t handleIdx{0};
 
     // Raygen
     pData = pSBTBuffer;
@@ -743,16 +792,14 @@ void VulkanRayTracer::createRtShaderBindingTable()
 
     // Miss
     pData = pSBTBuffer + m_rgenRegion.size;
-    for (uint32_t c = 0; c < missCount; c++)
-    {
+    for (uint32_t c = 0; c < missCount; c++) {
         memcpy(pData, getHandle(handleIdx++), handleSize);
         pData += m_missRegion.stride;
     }
 
     // Hit
     pData = pSBTBuffer + m_rgenRegion.size + m_missRegion.size;
-    for (uint32_t c = 0; c < hitCount; c++)
-    {
+    for (uint32_t c = 0; c < hitCount; c++) {
         memcpy(pData, getHandle(handleIdx++), handleSize);
         pData += m_hitRegion.stride;
     }
@@ -771,11 +818,11 @@ void VulkanRayTracer::createRtShaderBindingTable()
 VkDeviceAddress VulkanRayTracer::uploadMaterial(MaterialRT mat)
 {
     VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-    AllocatedBuffer materialBuffer = engine->create_buffer_data(sizeof(MaterialRT), &mat, usage, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    AllocatedBuffer materialBuffer =
+        engine->create_buffer_data(sizeof(MaterialRT), &mat, usage, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
-    engine->_mainDeletionQueue.push_function([engine = engine, materialBuffer]() {
-        engine->destroy_buffer(materialBuffer);
-    });
+    engine->_mainDeletionQueue.push_function(
+        [engine = engine, materialBuffer]() { engine->destroy_buffer(materialBuffer); });
 
     return engine->getBufferDeviceAddress(engine->_device, materialBuffer.buffer);
 }
@@ -792,25 +839,24 @@ void VulkanRayTracer::raytrace(const VkCommandBuffer& cmdBuf)
     m_pcRay.useMicrofacet = engine->useMicrofacetBRDF ? 1 : 0;
     engine->update_global_descriptor();
 
-    std::vector<VkDescriptorSet> descSets {
-        m_rtDescSet,
-        engine->_globalDescriptor,
-        engine->_objDescSet,
-        m_rtMatDescSet,
+    std::vector<VkDescriptorSet> descSets{
+        m_rtDescSet, engine->_globalDescriptor, engine->_objDescSet, m_rtMatDescSet,
         engine->_volumeSet // volumetric addition
     };
     vkCmdBindPipeline(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
-    vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
-        m_rtPipelineLayout, 0, (uint32_t)descSets.size(),
-        descSets.data(), 0, nullptr);
+    vkCmdBindDescriptorSets(cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipelineLayout, 0,
+                            (uint32_t)descSets.size(), descSets.data(), 0, nullptr);
 
     vkCmdPushConstants(cmdBuf, m_rtPipelineLayout,
-        VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
-        0, sizeof(PushConstantRay), &m_pcRay);
+                       VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR |
+                           VK_SHADER_STAGE_MISS_BIT_KHR,
+                       0, sizeof(PushConstantRay), &m_pcRay);
 
     // don't run shader multiple times if computing monte carlo
-    if (engine->computeMonteCarlo == 0 || engine->lastMonteCarlo != engine->computeMonteCarlo || engine->lastMSAA != engine->msaaSetting) {
-        pfnCmdTraceRaysKHR(cmdBuf, &m_rgenRegion, &m_missRegion, &m_hitRegion, &m_callRegion, engine->_windowExtent.width, engine->_windowExtent.height, 1);
+    if (engine->computeMonteCarlo == 0 || engine->lastMonteCarlo != engine->computeMonteCarlo ||
+        engine->lastMSAA != engine->msaaSetting) {
+        pfnCmdTraceRaysKHR(cmdBuf, &m_rgenRegion, &m_missRegion, &m_hitRegion, &m_callRegion,
+                           engine->_windowExtent.width, engine->_windowExtent.height, 1);
     }
     engine->lastMonteCarlo = engine->computeMonteCarlo;
     engine->lastMSAA = engine->msaaSetting;
