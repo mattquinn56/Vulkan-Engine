@@ -79,7 +79,7 @@ void RtEngine::init_default_data() {
     _whiteImage =
         create_image((void*)&white, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
 
-    // Not an image: the checkerboard below uses this as its dark square.
+    // The dark square of the error checkerboard below.
     uint32_t black = 0x000000FF;
 
     // Magenta checkerboard, the conventional "texture is wrong" marker.

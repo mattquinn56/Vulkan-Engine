@@ -349,7 +349,7 @@ void RtEngine::draw() {
     }
 
     if (capturing) {
-        // Diagnostic path, so a full idle is acceptable to guarantee the copy landed.
+        // Idle so the copy has landed before the buffer is read.
         VK_CHECK(vkDeviceWaitIdle(_device));
         write_capture(captureBuffer);
         destroy_buffer(captureBuffer);
