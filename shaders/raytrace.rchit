@@ -262,9 +262,6 @@ void main()
                 }
                 int samples = int(sceneData.data.y);
                 for (int j = 0; j < samples; j++) {
-                    // Decorrelating on the frame is what lets progressive
-                    // accumulation converge: without it every frame draws the
-                    // same shadow samples and averaging changes nothing.
                     vec2 rand = randomVec2(gl_WorldRayDirectionEXT.xy * float(j + 1) +
                                            vec2(float(frameNumber) * 0.7548, float(frameNumber) * 0.5698));
                     if (rand.x + rand.y > 1.0) { rand = vec2(1.0) - rand; }
