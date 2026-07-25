@@ -21,8 +21,7 @@
 
 #include <stb_image.h>
 
-void RtEngine::create_postprocess_resources()
-{
+void RtEngine::create_postprocess_resources() {
     // descriptor layout: hdrIn (0), ldrOut (1)
     DescriptorLayoutBuilder b;
     b.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);

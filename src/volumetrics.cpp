@@ -21,8 +21,7 @@
 
 #include <stb_image.h>
 
-void RtEngine::create_volume_resources()
-{
+void RtEngine::create_volume_resources() {
     // Create std140 medium UBO (persistently mapped CPU->GPU)
     if (_volume.mediumParams.buffer == VK_NULL_HANDLE) {
         _volume.mediumParams =
@@ -53,8 +52,7 @@ void RtEngine::create_volume_resources()
     }
 }
 
-void RtEngine::initialize_default_medium()
-{
+void RtEngine::initialize_default_medium() {
     // No 3D density bound initially; homogeneous only.
     _volume.hasDensity = false;
 
@@ -66,8 +64,7 @@ void RtEngine::initialize_default_medium()
     set_medium_params(p);
 }
 
-void RtEngine::upload_volume_density(const void* voxels, VkExtent3D extent, VkFormat fmt)
-{
+void RtEngine::upload_volume_density(const void* voxels, VkExtent3D extent, VkFormat fmt) {
     // Create a 3D image (R16_SFLOAT or R8_UNORM or R32_SFLOAT)
     VkImageUsageFlags usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     _volume.densityTex3D = create_image(extent, fmt, usage, /*mipmapped=*/false);
@@ -117,8 +114,7 @@ void RtEngine::upload_volume_density(const void* voxels, VkExtent3D extent, VkFo
     _mainDeletionQueue.push_function([this, densityImage]() { destroy_image(densityImage); });
 }
 
-void RtEngine::set_medium_params(const GPUMediumParams& p)
-{
+void RtEngine::set_medium_params(const GPUMediumParams& p) {
     GPUMediumParams* dst = (GPUMediumParams*)_volume.mediumParams.info.pMappedData;
     *dst = p;
 }

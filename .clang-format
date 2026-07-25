@@ -9,14 +9,19 @@ UseTab: Never
 ColumnLimit: 120
 LineEnding: LF
 
+# Braces hug the statement for anything executable (functions, if/for/while,
+# lambdas), and break onto their own line for type definitions, so a type
+# declaration stays visually distinct from code.
 BreakBeforeBraces: Custom
 BraceWrapping:
   AfterClass: true
-  AfterControlStatement: Never
-  AfterEnum: true
-  AfterFunction: true
-  AfterNamespace: false
   AfterStruct: true
+  AfterUnion: true
+  AfterEnum: true
+  AfterControlStatement: Never
+  AfterFunction: false
+  AfterNamespace: false
+  BeforeLambdaBody: false
   BeforeElse: false
   BeforeCatch: false
 

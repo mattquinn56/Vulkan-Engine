@@ -13,8 +13,7 @@
 #include <fastgltf/tools.hpp>
 #include <fastgltf/util.hpp>
 #include <nlohmann/json.hpp>
-std::optional<AllocatedImage> load_image(RtEngine* engine, fastgltf::Asset& asset, fastgltf::Image& image)
-{
+std::optional<AllocatedImage> load_image(RtEngine* engine, fastgltf::Asset& asset, fastgltf::Image& image) {
     AllocatedImage newImage{};
 
     int width, height, nrChannels;
@@ -90,8 +89,7 @@ std::optional<AllocatedImage> load_image(RtEngine* engine, fastgltf::Asset& asse
         return newImage;
     }
 }
-VkFilter extract_filter(fastgltf::Filter filter)
-{
+VkFilter extract_filter(fastgltf::Filter filter) {
     switch (filter) {
     // nearest samplers
     case fastgltf::Filter::Nearest:
@@ -108,8 +106,7 @@ VkFilter extract_filter(fastgltf::Filter filter)
     }
 }
 
-VkSamplerMipmapMode extract_mipmap_mode(fastgltf::Filter filter)
-{
+VkSamplerMipmapMode extract_mipmap_mode(fastgltf::Filter filter) {
     switch (filter) {
     case fastgltf::Filter::NearestMipMapNearest:
     case fastgltf::Filter::LinearMipMapNearest:
@@ -122,8 +119,7 @@ VkSamplerMipmapMode extract_mipmap_mode(fastgltf::Filter filter)
     }
 }
 
-std::vector<RenderLight> load_lights(std::string filePath)
-{
+std::vector<RenderLight> load_lights(std::string filePath) {
     std::ifstream inFile(filePath);
     std::stringstream strStream;
 
@@ -191,8 +187,7 @@ std::vector<RenderLight> load_lights(std::string filePath)
     return lights;
 }
 
-std::optional<std::shared_ptr<GltfScene>> load_gltf(RtEngine* engine, std::string_view filePath)
-{
+std::optional<std::shared_ptr<GltfScene>> load_gltf(RtEngine* engine, std::string_view filePath) {
     fmt::println("Loading GLTF: {}", filePath);
 
     std::shared_ptr<GltfScene> scene = std::make_shared<GltfScene>();
@@ -468,16 +463,14 @@ std::optional<std::shared_ptr<GltfScene>> load_gltf(RtEngine* engine, std::strin
     return scene;
 }
 
-void GltfScene::draw(const glm::mat4& topMatrix, SceneDrawList& ctx)
-{
+void GltfScene::draw(const glm::mat4& topMatrix, SceneDrawList& ctx) {
     // Create renderables from the scene nodes.
     for (auto& n : topNodes) {
         n->draw(topMatrix, ctx);
     }
 }
 
-void GltfScene::destroy_owned_resources()
-{
+void GltfScene::destroy_owned_resources() {
     if (creator == nullptr) {
         return;
     }

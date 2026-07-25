@@ -46,7 +46,10 @@ Hardware ray tracing is the only render path; there is no rasterizer.
 
 - Format `src/*.cpp` and `src/*.h` with the repository `.clang-format` file before committing C++ changes.
 - `src/meshes.cpp` contains generated mesh tables and is excluded via `.clang-format-ignore`.
-- Use four spaces, LF line endings, attached control-flow braces, and braces on the next line for functions and types.
+- Use four spaces and LF line endings. Braces are attached for anything executable — functions,
+  `if`/`for`/`while`, lambdas — and go on their own line for type definitions (`struct`, `class`,
+  `enum`, `union`), so a type declaration stays visually distinct from code. Brace initialization
+  is unaffected.
 - `.editorconfig` defines the whitespace and line-ending defaults for supported editors.
 - Use `PascalCase` for types, `snake_case` for functions, `camelCase` for locals and data-struct fields, and
   `_camelCase` for class data members. Boolean names should describe a state or capability.

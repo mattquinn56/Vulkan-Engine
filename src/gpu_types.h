@@ -109,24 +109,21 @@ struct Node : public IRenderable
     glm::mat4 localTransform{1.0f};
     glm::mat4 worldTransform{1.0f};
 
-    void refresh_transform(const glm::mat4& parentMatrix)
-    {
+    void refresh_transform(const glm::mat4& parentMatrix) {
         worldTransform = parentMatrix * localTransform;
         for (auto c : children) {
             c->refresh_transform(worldTransform);
         }
     }
 
-    virtual void draw(const glm::mat4& topMatrix, SceneDrawList& ctx)
-    {
+    virtual void draw(const glm::mat4& topMatrix, SceneDrawList& ctx) {
         for (auto& c : children) {
             c->draw(topMatrix, ctx);
         }
     }
 };
 inline void check_vk_result(VkResult result, std::string_view expression,
-                            std::source_location location = std::source_location::current())
-{
+                            std::source_location location = std::source_location::current()) {
     if (result == VK_SUCCESS) {
         return;
     }

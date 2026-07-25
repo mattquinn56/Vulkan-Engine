@@ -56,8 +56,7 @@ struct GltfScene : public IRenderable
 
     RtEngine* creator{nullptr};
 
-    ~GltfScene()
-    {
+    ~GltfScene() {
         destroy_owned_resources();
     };
 

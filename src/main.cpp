@@ -3,8 +3,7 @@
 #include <string_view>
 
 namespace {
-bool configure_engine(RtEngine& engine, int argc, char* argv[])
-{
+bool configure_engine(RtEngine& engine, int argc, char* argv[]) {
     for (int i = 1; i < argc; ++i) {
         const std::string_view argument = argv[i];
 
@@ -28,8 +27,7 @@ bool configure_engine(RtEngine& engine, int argc, char* argv[])
 }
 } // namespace
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
     RtEngine engine;
 
     if (!configure_engine(engine, argc, argv)) {

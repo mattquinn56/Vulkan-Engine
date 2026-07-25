@@ -7,8 +7,8 @@
 
 // Deliberately over-broad barrier scopes: correct everywhere, but hot paths
 // wanting real parallelism should emit their own barrier.
-void vk_img::transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout)
-{
+void vk_img::transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout,
+                              VkImageLayout newLayout) {
     VkImageMemoryBarrier2 imageBarrier{.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
     imageBarrier.pNext = nullptr;
 
@@ -35,8 +35,7 @@ void vk_img::transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout 
     vkCmdPipelineBarrier2(cmd, &depInfo);
 }
 void vk_img::copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize,
-                                 VkExtent2D dstSize)
-{
+                                 VkExtent2D dstSize) {
     VkImageBlit2 blitRegion{.sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2, .pNext = nullptr};
 
     blitRegion.srcOffsets[1].x = srcSize.width;
@@ -69,8 +68,8 @@ void vk_img::copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage de
     vkCmdBlitImage2(cmd, &blitInfo);
 }
 
-void vk_img::copy_buffer_to_image(VkCommandBuffer cmd, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
-{
+void vk_img::copy_buffer_to_image(VkCommandBuffer cmd, VkBuffer buffer, VkImage image, uint32_t width,
+                                  uint32_t height) {
     VkBufferImageCopy region{};
     region.bufferOffset = 0;
     // Zero row length and image height mean the source is tightly packed.
@@ -87,8 +86,7 @@ void vk_img::copy_buffer_to_image(VkCommandBuffer cmd, VkBuffer buffer, VkImage 
 
     vkCmdCopyBufferToImage(cmd, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 }
-void vk_img::generate_mipmaps(VkCommandBuffer cmd, VkImage image, VkExtent2D imageSize)
-{
+void vk_img::generate_mipmaps(VkCommandBuffer cmd, VkImage image, VkExtent2D imageSize) {
     int mipLevels = int(std::floor(std::log2(std::max(imageSize.width, imageSize.height)))) + 1;
     for (int mip = 0; mip < mipLevels; mip++) {
 
@@ -158,8 +156,8 @@ void vk_img::generate_mipmaps(VkCommandBuffer cmd, VkImage image, VkExtent2D ima
     transition_image(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
-void vk_img::clear_color_image_uint(VkCommandBuffer cmd, VkImage image, uint32_t r, uint32_t g, uint32_t b, uint32_t a)
-{
+void vk_img::clear_color_image_uint(VkCommandBuffer cmd, VkImage image, uint32_t r, uint32_t g, uint32_t b,
+                                    uint32_t a) {
     VkClearColorValue clearValue{};
     clearValue.uint32[0] = r;
     clearValue.uint32[1] = g;

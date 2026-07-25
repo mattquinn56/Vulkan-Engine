@@ -21,8 +21,7 @@
 
 #include <stb_image.h>
 
-void RtEngine::check_extensions()
-{
+void RtEngine::check_extensions() {
     uint32_t extensionCount;
     vkEnumerateDeviceExtensionProperties(_chosenGPU, nullptr, &extensionCount, nullptr);
     std::vector<VkExtensionProperties> availableExtensions(extensionCount);
@@ -46,8 +45,7 @@ void RtEngine::check_extensions()
     fmt::println("All required device extensions found");
 }
 
-void RtEngine::init_vulkan()
-{
+void RtEngine::init_vulkan() {
     vkb::InstanceBuilder builder;
 
     auto inst_ret = builder.set_app_name("Vulkan Engine")
@@ -130,19 +128,16 @@ void RtEngine::init_vulkan()
     vmaCreateAllocator(&allocatorInfo, &_allocator);
 }
 
-void RtEngine::init_raytracing()
-{
+void RtEngine::init_raytracing() {
     _rayTracer = new VulkanRayTracer(this);
 }
 
-void RtEngine::init_swapchain()
-{
+void RtEngine::init_swapchain() {
     create_swapchain(_windowExtent.width, _windowExtent.height);
     create_render_targets();
 }
 
-void RtEngine::create_render_targets()
-{
+void RtEngine::create_render_targets() {
 
     VkExtent3D drawImageExtent = {_windowExtent.width, _windowExtent.height, 1};
 
@@ -175,16 +170,14 @@ void RtEngine::create_render_targets()
     _ldrNeedsInit = true;
 }
 
-void RtEngine::destroy_render_targets()
-{
+void RtEngine::destroy_render_targets() {
     destroy_image(_drawImage);
     destroy_image(_ldrImage);
     _drawImage = {};
     _ldrImage = {};
 }
 
-void RtEngine::create_swapchain(uint32_t width, uint32_t height)
-{
+void RtEngine::create_swapchain(uint32_t width, uint32_t height) {
     vkb::SwapchainBuilder swapchainBuilder{_chosenGPU, _device, _surface};
 
     _swapchainImageFormat = VK_FORMAT_B8G8R8A8_UNORM;
@@ -208,8 +201,7 @@ void RtEngine::create_swapchain(uint32_t width, uint32_t height)
     _windowExtent = vkbSwapchain.extent;
 }
 
-void RtEngine::destroy_swapchain()
-{
+void RtEngine::destroy_swapchain() {
     for (VkImageView imageView : _swapchainImageViews) {
         vkDestroyImageView(_device, imageView, nullptr);
     }
@@ -222,8 +214,7 @@ void RtEngine::destroy_swapchain()
     }
 }
 
-bool RtEngine::resize_swapchain()
-{
+bool RtEngine::resize_swapchain() {
     int w, h;
     SDL_Vulkan_GetDrawableSize(_window, &w, &h);
     if (w <= 0 || h <= 0) {

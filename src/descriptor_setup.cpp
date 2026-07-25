@@ -21,8 +21,7 @@
 
 #include <stb_image.h>
 
-void RtEngine::init_descriptors()
-{
+void RtEngine::init_descriptors() {
     // create a descriptor pool
     std::vector<DescriptorAllocator::PoolSizeRatio> sizes = {
         {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3},

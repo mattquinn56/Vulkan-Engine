@@ -2,8 +2,7 @@
 
 #include <fstream>
 
-bool vk_shader::load_shader_module(const char* filePath, VkDevice device, VkShaderModule* outShaderModule)
-{
+bool vk_shader::load_shader_module(const char* filePath, VkDevice device, VkShaderModule* outShaderModule) {
     // Opening at the end lets tellg report the size directly.
     std::ifstream file(filePath, std::ios::ate | std::ios::binary);
 

@@ -21,18 +21,15 @@
 
 #include <stb_image.h>
 
-FrameContext& RtEngine::get_current_frame()
-{
+FrameContext& RtEngine::get_current_frame() {
     return _frames[_frameNumber % FRAME_OVERLAP];
 }
 
-FrameContext& RtEngine::get_last_frame()
-{
+FrameContext& RtEngine::get_last_frame() {
     return _frames[(_frameNumber - 1) % FRAME_OVERLAP];
 }
 
-void RtEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function)
-{
+void RtEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function) {
     VK_CHECK(vkResetFences(_device, 1, &_immFence));
     VK_CHECK(vkResetCommandBuffer(_immCommandBuffer, 0));
 
@@ -55,8 +52,7 @@ void RtEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& funct
     VK_CHECK(vkWaitForFences(_device, 1, &_immFence, true, std::numeric_limits<uint64_t>::max()));
 }
 
-void RtEngine::init_commands()
-{
+void RtEngine::init_commands() {
     // RESET_COMMAND_BUFFER_BIT so each frame's buffer can be reset individually.
     VkCommandPoolCreateInfo commandPoolInfo =
         vk_init::command_pool_create_info(_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
@@ -82,8 +78,7 @@ void RtEngine::init_commands()
     _mainDeletionQueue.push_function([=]() { vkDestroyCommandPool(_device, _immCommandPool, nullptr); });
 }
 
-void RtEngine::init_sync_structures()
-{
+void RtEngine::init_sync_structures() {
     // Created signalled so the first frame's wait returns immediately.
     VkFenceCreateInfo fenceCreateInfo = vk_init::fence_create_info(VK_FENCE_CREATE_SIGNALED_BIT);
     VK_CHECK(vkCreateFence(_device, &fenceCreateInfo, nullptr, &_immFence));

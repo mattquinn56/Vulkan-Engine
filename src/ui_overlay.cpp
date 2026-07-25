@@ -21,8 +21,7 @@
 
 #include <stb_image.h>
 
-void RtEngine::init_imgui()
-{
+void RtEngine::init_imgui() {
     // Generously sized, per the ImGui demo. ImGui does not report its own needs.
     VkDescriptorPoolSize pool_sizes[] = {{VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
                                          {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
@@ -75,8 +74,7 @@ void RtEngine::init_imgui()
     });
 }
 
-void RtEngine::draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView)
-{
+void RtEngine::draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView) {
     VkRenderingAttachmentInfo colorAttachment =
         vk_init::attachment_info(targetImageView, nullptr, VK_IMAGE_LAYOUT_GENERAL);
     VkRenderingInfo renderInfo = vk_init::rendering_info(_windowExtent, &colorAttachment, nullptr);
@@ -88,8 +86,7 @@ void RtEngine::draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView)
     vkCmdEndRendering(cmd);
 }
 
-void RtEngine::draw_ui()
-{
+void RtEngine::draw_ui() {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplSDL2_NewFrame(_window);
 

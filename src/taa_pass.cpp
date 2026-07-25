@@ -21,8 +21,7 @@
 
 #include <stb_image.h>
 
-void seed_taa_history(RtEngine* e, VkCommandBuffer cmd)
-{
+void seed_taa_history(RtEngine* e, VkCommandBuffer cmd) {
     for (int i = 0; i < 2; ++i) {
         vk_img::transition_image(cmd, e->_taaHistory[i].image, VK_IMAGE_LAYOUT_GENERAL,
                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -38,8 +37,7 @@ void seed_taa_history(RtEngine* e, VkCommandBuffer cmd)
     e->_taaIndex = 0;
 }
 
-void RtEngine::create_taa_pipeline_resources()
-{
+void RtEngine::create_taa_pipeline_resources() {
     create_taa_history_images();
 
     // Descriptor set layout: curr, prev, out = 3 storage images
@@ -88,8 +86,7 @@ void RtEngine::create_taa_pipeline_resources()
     _mainDeletionQueue.push_function([this, taaPipeline]() { vkDestroyPipeline(_device, taaPipeline, nullptr); });
 }
 
-void RtEngine::create_taa_history_images()
-{
+void RtEngine::create_taa_history_images() {
     VkExtent3D ext{_windowExtent.width, _windowExtent.height, 1};
     auto make_history = [&](AllocatedImage& img) {
         img = create_image(ext, VK_FORMAT_R16G16B16A16_SFLOAT,
@@ -103,8 +100,7 @@ void RtEngine::create_taa_history_images()
     make_history(_taaHistory[1]);
 }
 
-void RtEngine::destroy_taa_history_images()
-{
+void RtEngine::destroy_taa_history_images() {
     destroy_image(_taaHistory[0]);
     destroy_image(_taaHistory[1]);
     _taaHistory[0] = {};

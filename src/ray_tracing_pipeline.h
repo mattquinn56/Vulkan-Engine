@@ -71,8 +71,7 @@ class VulkanRayTracer
 
     void build_bottom_level_structures(const std::vector<BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags);
 
-    bool has_flag(VkFlags item, VkFlags flag)
-    {
+    bool has_flag(VkFlags item, VkFlags flag) {
         return (item & flag) == flag;
     }
 

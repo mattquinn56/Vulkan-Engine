@@ -2,16 +2,14 @@
 #include "glm/gtx/quaternion.hpp"
 #include "glm/gtx/transform.hpp"
 
-glm::mat4 Camera::get_view_matrix() const
-{
+glm::mat4 Camera::get_view_matrix() const {
     // Invert the camera transform to move the world relative to the camera.
     glm::mat4 cameraTranslation = glm::translate(glm::mat4(1.f), position);
     glm::mat4 cameraRotation = get_rotation_matrix();
     return glm::inverse(cameraTranslation * cameraRotation);
 }
 
-glm::mat4 Camera::get_rotation_matrix() const
-{
+glm::mat4 Camera::get_rotation_matrix() const {
     // Apply yaw before pitch for an FPS-style camera.
     glm::quat pitchRotation = glm::angleAxis(pitch, glm::vec3{1.f, 0.f, 0.f});
     glm::quat yawRotation = glm::angleAxis(yaw, glm::vec3{0.f, -1.f, 0.f});
@@ -19,8 +17,7 @@ glm::mat4 Camera::get_rotation_matrix() const
     return glm::toMat4(yawRotation) * glm::toMat4(pitchRotation);
 }
 
-glm::vec3 Camera::get_view_direction() const
-{
+glm::vec3 Camera::get_view_direction() const {
     glm::vec3 direction;
     direction.x = sin(yaw);
     direction.y = sin(pitch);
@@ -28,16 +25,14 @@ glm::vec3 Camera::get_view_direction() const
     return direction;
 }
 
-void Camera::process_sdl_event(SDL_Event& e)
-{
+void Camera::process_sdl_event(SDL_Event& e) {
     if (e.type == SDL_MOUSEMOTION) {
         yaw += static_cast<float>(e.motion.xrel) / 200.0f;
         pitch -= static_cast<float>(e.motion.yrel) / 200.0f;
     }
 }
 
-void Camera::update()
-{
+void Camera::update() {
     const Uint8* keystate = SDL_GetKeyboardState(nullptr);
 
     if (keystate[SDL_SCANCODE_LSHIFT] || keystate[SDL_SCANCODE_RSHIFT]) {

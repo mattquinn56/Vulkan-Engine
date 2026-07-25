@@ -21,8 +21,7 @@
 
 #include <stb_image.h>
 
-void RtEngine::init_renderables()
-{
+void RtEngine::init_renderables() {
     _structurePath = {"..\\..\\assets\\livingroom_vkr.glb"};
     _lightPath = {"..\\..\\assets\\livingroom.json"};
     auto structureFile = load_gltf(this, _structurePath);
@@ -38,8 +37,7 @@ void RtEngine::init_renderables()
     _mainDeletionQueue.push_function([this, loadedEnvironmentMap]() { destroy_image(loadedEnvironmentMap); });
 }
 
-void RtEngine::init_lights()
-{
+void RtEngine::init_lights() {
     std::vector<RenderLight> parsedLights = load_lights(_lightPath);
     _lightCount = static_cast<int>(parsedLights.size());
     fmt::println("Loaded {} lights", _lightCount);
@@ -52,8 +50,7 @@ void RtEngine::init_lights()
     _mainDeletionQueue.push_function([this, lightBuffer]() { destroy_buffer(lightBuffer); });
 }
 
-void RtEngine::render_loaded_gltf(std::shared_ptr<GltfScene> gltf)
-{
+void RtEngine::render_loaded_gltf(std::shared_ptr<GltfScene> gltf) {
     auto topLevelNodes = gltf->topNodes;
 
     for (auto& node : topLevelNodes) {
@@ -61,8 +58,7 @@ void RtEngine::render_loaded_gltf(std::shared_ptr<GltfScene> gltf)
     }
 }
 
-void RtEngine::recursively_render_node(std::shared_ptr<GltfScene> gltf, std::shared_ptr<Node> node)
-{
+void RtEngine::recursively_render_node(std::shared_ptr<GltfScene> gltf, std::shared_ptr<Node> node) {
     if (node->children.size() > 0) {
         if (ImGui::TreeNode(gltf->nodeNames[node].c_str())) {
             for (auto& child : node->children) {
@@ -75,8 +71,7 @@ void RtEngine::recursively_render_node(std::shared_ptr<GltfScene> gltf, std::sha
     }
 }
 
-void RtEngine::update_scene()
-{
+void RtEngine::update_scene() {
     _mainCamera.update();
 
     glm::mat4 view = _mainCamera.get_view_matrix();
@@ -109,8 +104,7 @@ void RtEngine::update_scene()
     _loadedScenes["structure"]->draw(glm::mat4{1.f}, _drawContext);
 }
 
-void MeshNode::draw(const glm::mat4& topMatrix, SceneDrawList& ctx)
-{
+void MeshNode::draw(const glm::mat4& topMatrix, SceneDrawList& ctx) {
     glm::mat4 nodeMatrix = topMatrix * worldTransform;
 
     for (auto& s : mesh->surfaces) {

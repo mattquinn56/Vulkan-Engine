@@ -21,8 +21,7 @@
 
 #include <stb_image.h>
 
-void RtEngine::draw()
-{
+void RtEngine::draw() {
     // Wait for the previous frame using this FrameContext to finish
     VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, VK_TRUE, UINT64_MAX));
 
@@ -344,8 +343,7 @@ void RtEngine::draw()
     _frameNumber++;
 }
 
-void RtEngine::update_global_descriptor()
-{
+void RtEngine::update_global_descriptor() {
 
     // Allocated per frame rather than reused, so a frame in flight never has its
     // scene data overwritten. The frame's deletion queue reclaims it.

@@ -29,13 +29,11 @@ struct CleanupQueue
 {
     std::deque<std::function<void()>> callbacks;
 
-    void push_function(std::function<void()>&& function)
-    {
+    void push_function(std::function<void()>&& function) {
         callbacks.push_back(function);
     }
 
-    void flush()
-    {
+    void flush() {
         // Reverse order, so resources are destroyed before what they depend on.
         for (auto it = callbacks.rbegin(); it != callbacks.rend(); it++) {
             (*it)();

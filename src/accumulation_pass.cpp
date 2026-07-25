@@ -21,8 +21,7 @@
 
 #include <stb_image.h>
 
-void RtEngine::create_monte_carlo_pipeline_resources()
-{
+void RtEngine::create_monte_carlo_pipeline_resources() {
     create_monte_carlo_images();
 
     // Descriptor set layout: currColor, accumColor, accumCount, outColor
@@ -67,8 +66,7 @@ void RtEngine::create_monte_carlo_pipeline_resources()
     _mainDeletionQueue.push_function([this, mcPipeline]() { vkDestroyPipeline(_device, mcPipeline, nullptr); });
 }
 
-void RtEngine::create_monte_carlo_images()
-{
+void RtEngine::create_monte_carlo_images() {
 
     VkExtent3D ext{_windowExtent.width, _windowExtent.height, 1};
 
@@ -95,16 +93,14 @@ void RtEngine::create_monte_carlo_images()
     });
 }
 
-void RtEngine::destroy_monte_carlo_images()
-{
+void RtEngine::destroy_monte_carlo_images() {
     destroy_image(_mcAccumColor);
     destroy_image(_mcAccumCount);
     _mcAccumColor = {};
     _mcAccumCount = {};
 }
 
-void RtEngine::reset_monte_carlo_history(VkCommandBuffer cmd)
-{
+void RtEngine::reset_monte_carlo_history(VkCommandBuffer cmd) {
     // Clear count=0 and copy current draw into accumColor so the first blend is stable
     vk_img::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     vk_img::clear_color_image_uint(cmd, _mcAccumCount.image, 0, 0, 0, 0);
@@ -117,7 +113,6 @@ void RtEngine::reset_monte_carlo_history(VkCommandBuffer cmd)
     vk_img::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
 }
 
-void RtEngine::request_accum_reset()
-{
+void RtEngine::request_accum_reset() {
     _resetAccumNextFrame = true;
 }

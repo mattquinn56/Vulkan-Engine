@@ -21,8 +21,7 @@
 
 #include <stb_image.h>
 
-AllocatedBuffer RtEngine::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
-{
+AllocatedBuffer RtEngine::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage) {
     VkBufferCreateInfo bufferInfo = {};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.pNext = nullptr;
@@ -42,8 +41,7 @@ AllocatedBuffer RtEngine::create_buffer(size_t allocSize, VkBufferUsageFlags usa
 }
 
 AllocatedBuffer RtEngine::create_buffer_data(VkDeviceSize size, const void* data, VkBufferUsageFlags usage,
-                                             const VmaMemoryUsage memUsage)
-{
+                                             const VmaMemoryUsage memUsage) {
 
     AllocatedBuffer resultBuffer = create_buffer(size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, memUsage);
 
@@ -75,8 +73,7 @@ AllocatedBuffer RtEngine::create_buffer_data(VkDeviceSize size, const void* data
     return resultBuffer;
 }
 
-AllocatedBuffer RtEngine::allocate_and_bind_buffer(VkBuffer buffer, VmaMemoryUsage memoryUsage)
-{
+AllocatedBuffer RtEngine::allocate_and_bind_buffer(VkBuffer buffer, VmaMemoryUsage memoryUsage) {
     if (_allocator == VK_NULL_HANDLE || buffer == VK_NULL_HANDLE) {
         throw std::runtime_error("Invalid allocator or buffer handle");
     }
@@ -106,8 +103,7 @@ AllocatedBuffer RtEngine::allocate_and_bind_buffer(VkBuffer buffer, VmaMemoryUsa
     return allocatedBuffer;
 }
 
-VkDeviceAddress RtEngine::get_buffer_device_address(VkDevice device, VkBuffer buffer)
-{
+VkDeviceAddress RtEngine::get_buffer_device_address(VkDevice device, VkBuffer buffer) {
     if (buffer == VK_NULL_HANDLE)
         return 0ULL;
 
@@ -117,8 +113,7 @@ VkDeviceAddress RtEngine::get_buffer_device_address(VkDevice device, VkBuffer bu
 }
 // Creates a device-local buffer and uploads data into it through a staging copy.
 
-AllocatedImage RtEngine::create_image(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
-{
+AllocatedImage RtEngine::create_image(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped) {
     AllocatedImage newImage;
     newImage.imageFormat = format;
     newImage.imageExtent = size;
@@ -159,8 +154,7 @@ AllocatedImage RtEngine::create_image(VkExtent3D size, VkFormat format, VkImageU
 }
 
 AllocatedImage RtEngine::create_image(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage,
-                                      bool mipmapped)
-{
+                                      bool mipmapped) {
     size_t data_size = size.depth * size.width * size.height * 4;
     AllocatedBuffer uploadbuffer =
         create_buffer(data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
@@ -199,8 +193,7 @@ AllocatedImage RtEngine::create_image(void* data, VkExtent3D size, VkFormat form
     return new_image;
 }
 
-void RtEngine::destroy_image(const AllocatedImage& img)
-{
+void RtEngine::destroy_image(const AllocatedImage& img) {
     if (img.imageView != VK_NULL_HANDLE) {
         vkDestroyImageView(_device, img.imageView, nullptr);
     }
@@ -209,15 +202,13 @@ void RtEngine::destroy_image(const AllocatedImage& img)
     }
 }
 
-void RtEngine::destroy_buffer(const AllocatedBuffer& buffer)
-{
+void RtEngine::destroy_buffer(const AllocatedBuffer& buffer) {
     if (buffer.buffer != VK_NULL_HANDLE) {
         vmaDestroyBuffer(_allocator, buffer.buffer, buffer.allocation);
     }
 }
 
-GPUMeshBuffers RtEngine::upload_mesh(std::span<uint32_t> indices, std::span<Vertex> vertices)
-{
+GPUMeshBuffers RtEngine::upload_mesh(std::span<uint32_t> indices, std::span<Vertex> vertices) {
     const size_t vertexBufferSize = vertices.size() * sizeof(Vertex);
     const size_t indexBufferSize = indices.size() * sizeof(uint32_t);
 
@@ -273,8 +264,7 @@ GPUMeshBuffers RtEngine::upload_mesh(std::span<uint32_t> indices, std::span<Vert
     return newSurface;
 }
 
-AllocatedImage RtEngine::load_image_from_file(std::string path)
-{
+AllocatedImage RtEngine::load_image_from_file(std::string path) {
     int texWidth, texHeight, texChannels;
     stbi_uc* pixels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
     if (!pixels) {

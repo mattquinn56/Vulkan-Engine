@@ -21,13 +21,11 @@
 
 RtEngine* loadedEngine = nullptr;
 
-RtEngine& RtEngine::get()
-{
+RtEngine& RtEngine::get() {
     return *loadedEngine;
 }
 
-void RtEngine::init()
-{
+void RtEngine::init() {
     // Backs the RtEngine::get() singleton, only one instance is supported.
     assert(loadedEngine == nullptr);
     loadedEngine = this;
@@ -75,8 +73,7 @@ void RtEngine::init()
     _mainCamera.yaw = .005f;
 }
 
-void RtEngine::init_default_data()
-{
+void RtEngine::init_default_data() {
     std::array<Vertex, 4> rect_vertices;
 
     rect_vertices[0].position = {0.5, -0.5, 0};
@@ -164,8 +161,7 @@ void RtEngine::init_default_data()
     });
 }
 
-void RtEngine::cleanup()
-{
+void RtEngine::cleanup() {
     if (_isInitialized) {
 
         // Nothing below may run while the GPU still references these resources.
@@ -196,15 +192,13 @@ void RtEngine::cleanup()
     }
 }
 
-void RtEngine::init_pipelines()
-{
+void RtEngine::init_pipelines() {
     create_monte_carlo_pipeline_resources();
 
     create_taa_pipeline_resources();
 }
 
-void RtEngine::run()
-{
+void RtEngine::run() {
     SDL_Event e;
     bool bQuit = false;
     bool cursorLocked = true;
