@@ -265,6 +265,7 @@ std::optional<std::shared_ptr<GltfScene>> load_gltf(RtEngine* engine, std::strin
         }
     }
     int data_index = 0;
+    int blendedMaterials = 0;
     engine->_rayTracer->_colorTextures.clear();
     engine->_rayTracer->_metalRoughTextures.clear();
     engine->_rayTracer->_colorSamplers.clear();
@@ -276,6 +277,9 @@ std::optional<std::shared_ptr<GltfScene>> load_gltf(RtEngine* engine, std::strin
 
         newMat->passType =
             (mat.alphaMode == fastgltf::AlphaMode::Blend) ? SurfaceAlphaMode::Transparent : SurfaceAlphaMode::MainColor;
+        if (newMat->passType == SurfaceAlphaMode::Transparent) {
+            blendedMaterials++;
+        }
 
         AllocatedImage colorImage = engine->_whiteImage;
         VkSampler colorSampler = engine->_defaultSamplerLinear;
@@ -304,6 +308,11 @@ std::optional<std::shared_ptr<GltfScene>> load_gltf(RtEngine* engine, std::strin
         engine->_rayTracer->_metalRoughSamplers.push_back(metalRoughSampler);
 
         data_index++;
+    }
+
+    if (blendedMaterials > 0) {
+        fmt::println("Note: {} of {} materials are alpha-blended and are not traced; see SurfaceAlphaMode.",
+                     blendedMaterials, gltf.materials.size());
     }
 
     // Reuse these vectors across meshes to reduce allocations.
