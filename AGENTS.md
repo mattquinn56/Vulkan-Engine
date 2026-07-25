@@ -34,33 +34,39 @@
 - Shader source changes require rebuilding the `Shaders` target. Adding *or removing* a shader also
   requires rerunning CMake configure/generate, because the root `CMakeLists.txt` uses a
   configure-time glob; a deleted shader otherwise fails the build with `MSB8066` from a stale rule.
-- `src/CMakeLists.txt` globs `*.cpp`/`*.h`, so new source files are picked up by a reconfigure
-  without editing it.
 - The Debug executable and runtime DLLs are written to `bin/Debug/`, not under `build/`.
 
 ## Source layout
 
 Hardware ray tracing is the only render path; there is no rasterizer.
+`src/` is the single include root, so headers are included by their subfolder
+path: `#include "core/rt_engine.h"`.
 
-- `rt_engine.h/.cpp` — the `RtEngine` class declaration and its init/cleanup/run shell.
-  Everything below implements members of that same class, so these files split the
-  implementation, not the coupling.
-- `device_context` instance/device/swapchain/render targets, `frame_sync` command pools
-  and fences, `gpu_resources` buffer and image helpers, `descriptor_setup` engine-wide
-  layouts, `scene_graph` draw-list building, `frame_draw` per-frame orchestration,
-  `ui_overlay` ImGui, and the passes: `taa_pass`, `accumulation_pass`,
-  `postprocess_pass`, `volumetrics`.
-- `ray_tracing_pipeline.h/.cpp` — acceleration structures, RT pipeline, shader binding
-  table. This one is over the ~500-line guideline on purpose: it is a single coherent
-  subsystem written for this project, not tutorial residue, and splitting it would cut
-  across the BLAS/TLAS/SBT build sequence.
-- `gltf_import`, `image_utils`, `vk_init`, `descriptor_alloc`, `shader_module` are
-  supporting utilities. `meshes.cpp` is generated data.
+- `core/` — `RtEngine` itself. `rt_engine` is the class declaration plus the
+  init/cleanup/run shell; `device_context` (instance, device, swapchain, render
+  targets), `frame_sync` (command pools, fences, `immediate_submit`) and
+  `frame_draw` (per-frame orchestration) implement members of that same class,
+  so these files split the implementation, not the coupling. `gpu_types.h` holds
+  the shared GPU-facing structs.
+- `passes/` — `ray_tracing_pipeline` (acceleration structures, RT pipeline,
+  shader binding table), plus `taa_pass`, `accumulation_pass`,
+  `postprocess_pass` and `volumetrics`. `ray_tracing_pipeline.cpp` is over the
+  ~500-line guideline on purpose: splitting it would cut across the BLAS/TLAS/SBT
+  build sequence.
+- `scene/` — `gltf_import`, `scene_graph` draw-list building, `camera`, and
+  generated `meshes` data.
+- `gpu/` — Vulkan plumbing shared by everything: `gpu_resources`,
+  `descriptor_alloc`, `descriptor_setup`, `image_utils`, `vk_init`,
+  `shader_module`.
+- `platform/` — host-side concerns: `resource_path`, `screenshot`, `ui_overlay`.
+
+`src/CMakeLists.txt` uses `GLOB_RECURSE`, so new files in any subfolder are
+picked up by a reconfigure.
 
 ## C++ style
 
 - Format `src/*.cpp` and `src/*.h` with the repository `.clang-format` file before committing C++ changes.
-- `src/meshes.cpp` contains generated mesh tables and is excluded via `.clang-format-ignore`.
+- `src/scene/meshes.cpp` contains generated mesh tables and is excluded via `.clang-format-ignore`.
 - Use four spaces and LF line endings. Braces are attached for anything executable — functions,
   `if`/`for`/`while`, lambdas — and go on their own line for type definitions (`struct`, `class`,
   `enum`, `union`), so a type declaration stays visually distinct from code. Brace initialization

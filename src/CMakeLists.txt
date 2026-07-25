@@ -1,5 +1,5 @@
-file(GLOB MY_PROJECT_SOURCES "*.cpp")
-file(GLOB MY_PROJECT_HEADERS "*.h")
+file(GLOB_RECURSE MY_PROJECT_SOURCES "*.cpp")
+file(GLOB_RECURSE MY_PROJECT_HEADERS "*.h")
 
 # Add source to this project's executable.
 add_executable(engine ${MY_PROJECT_SOURCES} ${MY_PROJECT_HEADERS})
