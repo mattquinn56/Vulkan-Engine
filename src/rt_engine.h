@@ -126,6 +126,9 @@ struct VolumeResources
     bool hasDensity{false};
 };
 
+// Validation layers are always on in this project.
+inline constexpr bool bUseValidationLayers = true;
+
 class RtEngine
 {
   public:
@@ -234,6 +237,7 @@ class RtEngine
 
     void draw();
     void draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView);
+    void draw_ui();
 
     void render_nodes();
 
@@ -392,3 +396,6 @@ class RtEngine
     void initialize_default_medium();
     void upload_volume_density(const void* voxels, VkExtent3D extent, VkFormat fmt);
 };
+
+// Seeds the TAA history from the current frame so blending starts clean.
+void seed_taa_history(RtEngine* e, VkCommandBuffer cmd);
