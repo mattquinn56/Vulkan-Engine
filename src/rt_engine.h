@@ -207,15 +207,12 @@ class RtEngine
     VkCommandPool _immCommandPool{VK_NULL_HANDLE};
 
     AllocatedImage _whiteImage;
-    AllocatedImage _blackImage;
-    AllocatedImage _greyImage;
     AllocatedImage _errorCheckerboardImage;
     AllocatedImage _environmentMap;
 
     VkSampler _defaultSamplerLinear{VK_NULL_HANDLE};
     VkSampler _defaultSamplerNearest{VK_NULL_HANDLE};
 
-    GPUMeshBuffers _defaultRectangle;
     SceneDrawList _drawContext;
 
     GPUFrameConstants _sceneData;

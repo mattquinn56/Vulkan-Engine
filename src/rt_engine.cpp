@@ -74,50 +74,13 @@ void RtEngine::init() {
 }
 
 void RtEngine::init_default_data() {
-    std::array<Vertex, 4> rect_vertices;
-
-    rect_vertices[0].position = {0.5, -0.5, 0};
-    rect_vertices[1].position = {0.5, 0.5, 0};
-    rect_vertices[2].position = {-0.5, -0.5, 0};
-    rect_vertices[3].position = {-0.5, 0.5, 0};
-
-    rect_vertices[0].color = {0, 0, 0, 1};
-    rect_vertices[1].color = {0.5, 0.5, 0.5, 1};
-    rect_vertices[2].color = {1, 0, 0, 1};
-    rect_vertices[3].color = {0, 1, 0, 1};
-
-    rect_vertices[0].uvX = 1;
-    rect_vertices[0].uvY = 0;
-    rect_vertices[1].uvX = 0;
-    rect_vertices[1].uvY = 0;
-    rect_vertices[2].uvX = 1;
-    rect_vertices[2].uvY = 1;
-    rect_vertices[3].uvX = 0;
-    rect_vertices[3].uvY = 1;
-
-    std::array<uint32_t, 6> rect_indices;
-
-    rect_indices[0] = 0;
-    rect_indices[1] = 1;
-    rect_indices[2] = 2;
-
-    rect_indices[3] = 2;
-    rect_indices[4] = 1;
-    rect_indices[5] = 3;
-
-    _defaultRectangle = upload_mesh(rect_indices, rect_vertices);
-
     // 1x1 fallback textures for materials with a missing or failed image.
     uint32_t white = 0xFFFFFFFF;
     _whiteImage =
         create_image((void*)&white, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
 
-    uint32_t grey = 0xAAAAAAFF;
-    _greyImage = create_image((void*)&grey, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
-
+    // Not an image: the checkerboard below uses this as its dark square.
     uint32_t black = 0x000000FF;
-    _blackImage =
-        create_image((void*)&black, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
 
     // Magenta checkerboard, the conventional "texture is wrong" marker.
     uint32_t magenta = 0xFF00FFFF;
@@ -141,23 +104,15 @@ void RtEngine::init_default_data() {
     sampl.minFilter = VK_FILTER_LINEAR;
     vkCreateSampler(_device, &sampl, nullptr, &_defaultSamplerLinear);
 
-    const GPUMeshBuffers defaultRectangle = _defaultRectangle;
     const AllocatedImage whiteImage = _whiteImage;
-    const AllocatedImage greyImage = _greyImage;
-    const AllocatedImage blackImage = _blackImage;
     const AllocatedImage checkerboardImage = _errorCheckerboardImage;
     const VkSampler nearestSampler = _defaultSamplerNearest;
     const VkSampler linearSampler = _defaultSamplerLinear;
-    _mainDeletionQueue.push_function([this, defaultRectangle, whiteImage, greyImage, blackImage, checkerboardImage,
-                                      nearestSampler, linearSampler]() {
+    _mainDeletionQueue.push_function([this, whiteImage, checkerboardImage, nearestSampler, linearSampler]() {
         vkDestroySampler(_device, nearestSampler, nullptr);
         vkDestroySampler(_device, linearSampler, nullptr);
         destroy_image(whiteImage);
-        destroy_image(greyImage);
-        destroy_image(blackImage);
         destroy_image(checkerboardImage);
-        destroy_buffer(defaultRectangle.vertexBuffer);
-        destroy_buffer(defaultRectangle.indexBuffer);
     });
 }
 
