@@ -67,7 +67,8 @@ void RtEngine::recursively_render_node(std::shared_ptr<GltfScene> gltf, std::sha
             ImGui::TreePop();
         }
     } else {
-        ImGui::Text(gltf->nodeNames[node].c_str());
+        // Node names come from the asset, so they must not be used as a format string.
+        ImGui::Text("%s", gltf->nodeNames[node].c_str());
     }
 }
 
