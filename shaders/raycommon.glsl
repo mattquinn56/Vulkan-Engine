@@ -59,7 +59,22 @@ vec3 safeDiv(vec3 a, vec3 b) {
     return a / b;
 }
 
+// PCG integer hash. Preferred over the usual fract(sin(dot(...)) * large)
+// trick, which relies on float precision loss for its randomness and so
+// degenerates into visible banding once the seed grows large — exactly what
+// happens when a frame counter is folded in.
+uint pcg_hash(uint v) {
+    uint state = v * 747796405u + 2891336453u;
+    uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return (word >> 22u) ^ word;
+}
+
+// Uses the mantissa bits directly, giving a uniform value in [0,1).
+float uint_to_unit_float(uint x) {
+    return uintBitsToFloat(0x3f800000u | (x >> 9u)) - 1.0;
+}
+
 vec2 randomVec2(vec2 seed) {
-    return vec2(fract(sin(seed.x * 12.9898 + seed.y * 78.233) * 43758.5453),
-                fract(sin(seed.y * 34.7892 + seed.x * 56.1234) * 12345.6789));
+    uint h = pcg_hash(floatBitsToUint(seed.x) ^ pcg_hash(floatBitsToUint(seed.y)));
+    return vec2(uint_to_unit_float(h), uint_to_unit_float(pcg_hash(h)));
 }
