@@ -15,13 +15,11 @@
 - Never push. Commit locally and leave publishing to the repository owner.
 - One self-contained change per commit, so a bad one can be reverted in
   isolation. Build and verify before each commit, not just at the end.
-- Commit messages are a subject line. That is the default, and most commits need
-  nothing more.
-- Add a body only when the subject line would leave a reader thinking the change
-  is wrong or arbitrary, and keep it to one or two sentences. If a body is just
-  an inventory of what changed, delete it — that is the diff's job. Listing the
-  symbols you removed, restating before/after, or explaining an option you did
-  not take all count as restating the diff.
+- Commit messages are a subject line. Default to no body at all.
+- Write a body only if, without it, a reader would revert the change believing
+  it was a mistake. Wanting to share what you learned is not that reason.
+- Same test as comments: if the body's job is to contrast the new code with the
+  old, drop it. The diff already shows both sides.
 
 ## Build
 
@@ -87,10 +85,13 @@ Do not document anything about `GUIDE.md` here. Its conventions live in
   GPU layout, or a docstring on a key function.
 - Comment the reason, not the mechanics. Do not restate what the next line does,
   and do not narrate a function step by step.
-- Comments explain the code as it stands. They are not a changelog and not a
-  defense of an edit. Write "X would index past the end of the array", not
-  "changed this because X was wrong before". If a justification only makes sense
-  to someone who saw the diff, it belongs in the commit message, not the source.
+- A comment may not name anything that is not in the codebase. No previous
+  implementation, no library you rejected, no approach you considered and
+  dropped. Test: point at every thing your comment names. If a reader cannot
+  find it in the tree, delete that clause. "PCG hash" passes; "PCG hash, better
+  than the sin-based one" does not, because there is no sin-based one to look at.
+- Explaining why the current code is shaped this way is fine and often useful.
+  Explaining why you changed it is not — that is what the commit is for.
 - Prefer no comment over a filler one. Deleting a redundant comment is an
   improvement.
 

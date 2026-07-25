@@ -61,10 +61,7 @@ vec3 safeDiv(vec3 a, vec3 b) {
     return a / b;
 }
 
-// PCG integer hash. Preferred over the usual fract(sin(dot(...)) * large)
-// trick, which relies on float precision loss for its randomness and so
-// degenerates into visible banding once the seed grows large — exactly what
-// happens when a frame counter is folded in.
+// PCG integer hash: https://www.pcg-random.org/
 uint pcg_hash(uint v) {
     uint state = v * 747796405u + 2891336453u;
     uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
@@ -76,10 +73,8 @@ float uint_to_unit_float(uint x) {
     return uintBitsToFloat(0x3f800000u | (x >> 9u)) - 1.0;
 }
 
-// Seeded from integers — pixel, frame and a per-sample index — rather than from
-// anything float-derived. A seed taken from the ray direction reshuffles the
-// entire noise pattern whenever ray setup changes in its last few bits, which
-// makes otherwise-identical images compare as different.
+// The seed is integer-only, so the noise pattern is stable under floating-point
+// changes elsewhere in the frame.
 vec2 randomVec2(uvec2 pixel, uint frame, uint index) {
     uint h = pcg_hash(pixel.x + pcg_hash(pixel.y + pcg_hash(frame + pcg_hash(index))));
     return vec2(uint_to_unit_float(h), uint_to_unit_float(pcg_hash(h)));
