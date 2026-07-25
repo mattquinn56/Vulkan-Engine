@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vector>
-#include <vk_types.h>
+#include <gpu_types.h>
 #include <deque>
 #include <span>
 struct DescriptorLayoutBuilder

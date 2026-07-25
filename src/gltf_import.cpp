@@ -1,11 +1,11 @@
 #include "stb_image.h"
 #include <fstream>
-#include <vk_loader.h>
+#include <gltf_import.h>
 
-#include "vk_engine.h"
-#include "vk_raytracer.h"
-#include "vk_initializers.h"
-#include "vk_types.h"
+#include "rt_engine.h"
+#include "ray_tracing_pipeline.h"
+#include "vk_init.h"
+#include "gpu_types.h"
 #include <glm/gtx/quaternion.hpp>
 
 #include <fastgltf/glm_element_traits.hpp>
@@ -141,7 +141,7 @@ std::vector<RenderLight> load_lights(std::string filePath)
     for (const auto& item : j["lights"]) {
         RenderLight light = {};
 
-        // Type tag packs into color.a; see RenderLight in vk_types.h.
+        // Type tag packs into color.a; see RenderLight in gpu_types.h.
         if (item["type"] == "point") {
             light.color.a = 0.0f;
         } else if (item["type"] == "ambient") {

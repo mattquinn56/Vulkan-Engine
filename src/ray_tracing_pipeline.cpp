@@ -1,4 +1,4 @@
-#include "vk_raytracer.h"
+#include "ray_tracing_pipeline.h"
 
 VulkanRayTracer::VulkanRayTracer(RtEngine* owner)
 {

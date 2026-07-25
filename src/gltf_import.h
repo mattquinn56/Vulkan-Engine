@@ -1,9 +1,9 @@
 
 #pragma once
 
-#include <vk_types.h>
+#include <gpu_types.h>
 
-#include "vk_descriptors.h"
+#include "descriptor_alloc.h"
 #include <unordered_map>
 #include <filesystem>
 

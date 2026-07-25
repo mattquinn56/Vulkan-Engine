@@ -1,5 +1,5 @@
-#include <vk_descriptors.h>
-#include "vk_initializers.h"
+#include <descriptor_alloc.h>
+#include "vk_init.h"
 void DescriptorLayoutBuilder::add_binding(uint32_t binding, VkDescriptorType type, uint32_t descriptorCount /*== 1*/)
 {
     VkDescriptorSetLayoutBinding newbind{};

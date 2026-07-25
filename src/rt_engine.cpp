@@ -1,16 +1,16 @@
 
-#include "vk_engine.h"
+#include "rt_engine.h"
 
-#include "vk_images.h"
-#include "vk_loader.h"
-#include "vk_descriptors.h"
-#include "vk_raytracer.h"
+#include "image_utils.h"
+#include "gltf_import.h"
+#include "descriptor_alloc.h"
+#include "ray_tracing_pipeline.h"
 
 #include <SDL.h>
 #include <SDL_vulkan.h>
 
-#include <vk_initializers.h>
-#include <vk_types.h>
+#include <vk_init.h>
+#include <gpu_types.h>
 
 #include "VkBootstrap.h"
 

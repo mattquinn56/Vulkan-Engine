@@ -1,4 +1,4 @@
-#include <vk_types.h>
+#include <gpu_types.h>
 
 extern uint32_t Cube_vtx_count;
 extern Vertex Cube_vtx[];

@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include <vk_types.h>
+#include <gpu_types.h>
 
 #include <deque>
 #include <functional>
@@ -13,9 +13,9 @@
 #include <vk_mem_alloc.h>
 
 #include <camera.h>
-#include <vk_descriptors.h>
-#include <vk_loader.h>
-#include <vk_pipelines.h>
+#include <descriptor_alloc.h>
+#include <gltf_import.h>
+#include <shader_module.h>
 
 struct MeshResource;
 

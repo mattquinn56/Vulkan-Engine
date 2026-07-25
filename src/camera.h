@@ -1,5 +1,5 @@
 #include "SDL_events.h"
-#include <vk_types.h>
+#include <gpu_types.h>
 
 class Camera
 {

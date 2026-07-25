@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <vk_types.h>
+#include <gpu_types.h>
 
 namespace vk_init {
 VkCommandPoolCreateInfo command_pool_create_info(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags flags = 0);

@@ -1,9 +1,9 @@
-#include <vk_images.h>
-#include <vk_initializers.h>
+#include <image_utils.h>
+#include <vk_init.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
-#include <vk_initializers.h>
+#include <vk_init.h>
 
 // Deliberately over-broad barrier scopes: correct everywhere, but hot paths
 // wanting real parallelism should emit their own barrier.
