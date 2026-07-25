@@ -84,8 +84,7 @@ Hardware ray tracing is the only render path; there is no rasterizer.
   Let it render several frames, then close the window normally when cleanup behavior matters. For a bounded observation, stop only the returned process ID with `Stop-Process -Id $process.Id`.
 - `Stop-Process -Force` kills the process before stdio is flushed, leaving both logs empty. To get
   output, send a normal close (`taskkill /PID <id>`) and then wait on the process, e.g.
-  `$process.WaitForExit(20000)`. The engine does not always process a close promptly; see the
-  known cleanup issues in `docs/validation-phase2.md`.
+  `$process.WaitForExit(20000)`.
 - Per-frame validation errors can make the log very large. Inventory distinct errors with:
 
   ```powershell
@@ -97,13 +96,15 @@ Hardware ray tracing is the only render path; there is no rasterizer.
 
 ## Current observed baseline
 
-On 2026-07-11, a 15-second Debug run initialized on an NVIDIA GeForce RTX 4080 SUPER, loaded `assets/livingroom_vkr.glb` and 11 lights, and remained responsive until the observation process was stopped. The unique validation errors were:
+As of 2026-07-25, a Debug run on an NVIDIA GeForce RTX 4080 SUPER loads
+`assets/livingroom_vkr.glb` with 11 lights and produces **no validation
+messages**, on startup, during rendering, across a burst of window resizes, or
+during shutdown. It exits with code 0.
 
-- `VUID-VkRayTracingPipelineCreateInfoKHR-layout-07990`: ray-miss shader binding 2 declares a combined image sampler while the ray-tracing descriptor layout declares a sampled image.
-- `VUID-VkImageMemoryBarrier2-oldLayout-01213`: an image is transitioned to/from `TRANSFER_DST_OPTIMAL` without `VK_IMAGE_USAGE_TRANSFER_DST_BIT`.
-- `VUID-VkBlitImageInfo2-dstImage-00224`: that same image is used as a blit destination without `VK_IMAGE_USAGE_TRANSFER_DST_BIT`.
-
-Treat this list as a dated baseline, not an allowlist. Re-run and deduplicate validation output after every fix because later errors may be masked by earlier invalid state.
+That is the bar to hold: any validation output is a regression introduced by the
+change under test, not pre-existing noise. Re-check after every change, and
+deduplicate before concluding, because later errors can be masked by earlier
+invalid state.
 
 Use `tools/summarize-validation.ps1` to count validation message identifiers
 without double-counting the VUID repeated in each message's specification URL.
