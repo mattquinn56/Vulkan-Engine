@@ -26,7 +26,15 @@ void RtEngine::init_renderables() {
     _lightPath = {"..\\..\\assets\\livingroom.json"};
     auto structureFile = load_gltf(this, _structurePath);
 
-    assert(structureFile.has_value());
+    // Not an assert: asserts compile out in Release, turning a missing asset
+    // into a null dereference with no indication of the cause.
+    if (!structureFile.has_value()) {
+        fmt::print(stderr,
+                   "Failed to load scene '{}'.\nRun with bin/<config> as the working directory; "
+                   "asset paths are relative to it.\n",
+                   _structurePath);
+        std::abort();
+    }
 
     _loadedScenes["structure"] = *structureFile;
 
