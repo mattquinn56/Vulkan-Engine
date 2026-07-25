@@ -124,8 +124,14 @@ struct VolumeResources
     bool hasDensity{false};
 };
 
-// Validation layers are always on in this project.
+// Validation layers are on for Debug builds and off for Release. Leaving them
+// on in Release costs real frame time and requires the Vulkan SDK's layers to
+// be installed on the target machine.
+#ifdef NDEBUG
+inline constexpr bool bUseValidationLayers = false;
+#else
 inline constexpr bool bUseValidationLayers = true;
+#endif
 
 class RtEngine
 {

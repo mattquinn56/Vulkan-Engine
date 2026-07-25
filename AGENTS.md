@@ -67,7 +67,8 @@ Hardware ray tracing is the only render path; there is no rasterizer.
 ## Running and validation output
 
 - Run with `bin/Debug` as the working directory. Engine resource paths use `../../shaders` and `../../assets`; launching with the repository root as the working directory fails during initialization.
-- Validation layers are unconditionally enabled by `bUseValidationLayers` in `src/rt_engine.h`.
+- Validation layers are enabled by `bUseValidationLayers` in `src/rt_engine.h`: on for Debug,
+  off for Release. Validation work must therefore be done against a Debug build.
 - vk-bootstrap's default validation callback writes validation messages to stdout in this project. Capture both streams anyway.
 - A verified PowerShell capture recipe from the repository root is:
 
