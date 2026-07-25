@@ -382,10 +382,12 @@ void RtEngine::update_global_descriptor() {
         writer.update_set(_device, _globalDescriptor);
     }
 
-    // Same per-frame lifetime for the object description storage buffer.
-    _objectDescriptionBuffer = create_buffer_data(sizeof(ObjDesc) * _drawContext.objectDescriptions.size(),
-                                                  _drawContext.objectDescriptions.data(),
-                                                  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    // Host-visible, so write straight into the mapping. create_buffer_data would
+    // stage through a second buffer and fence-wait on the copy every frame.
+    const size_t objDescBytes = sizeof(ObjDesc) * _drawContext.objectDescriptions.size();
+    _objectDescriptionBuffer =
+        create_buffer(objDescBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    memcpy(_objectDescriptionBuffer.info.pMappedData, _drawContext.objectDescriptions.data(), objDescBytes);
 
     // Delete it only after this frame's fence signals and the descriptor is no longer in use.
     const AllocatedBuffer objectDescriptionBuffer = _objectDescriptionBuffer;
