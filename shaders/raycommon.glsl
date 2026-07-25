@@ -76,7 +76,11 @@ float uint_to_unit_float(uint x) {
     return uintBitsToFloat(0x3f800000u | (x >> 9u)) - 1.0;
 }
 
-vec2 randomVec2(vec2 seed) {
-    uint h = pcg_hash(floatBitsToUint(seed.x) ^ pcg_hash(floatBitsToUint(seed.y)));
+// Seeded from integers — pixel, frame and a per-sample index — rather than from
+// anything float-derived. A seed taken from the ray direction reshuffles the
+// entire noise pattern whenever ray setup changes in its last few bits, which
+// makes otherwise-identical images compare as different.
+vec2 randomVec2(uvec2 pixel, uint frame, uint index) {
+    uint h = pcg_hash(pixel.x + pcg_hash(pixel.y + pcg_hash(frame + pcg_hash(index))));
     return vec2(uint_to_unit_float(h), uint_to_unit_float(pcg_hash(h)));
 }

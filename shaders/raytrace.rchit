@@ -262,8 +262,7 @@ void main()
                 }
                 int samples = int(sceneData.data.y);
                 for (int j = 0; j < samples; j++) {
-                    vec2 rand = randomVec2(gl_WorldRayDirectionEXT.xy * float(j + 1) +
-                                           vec2(float(frameNumber) * 0.7548, float(frameNumber) * 0.5698));
+                    vec2 rand = randomVec2(gl_LaunchIDEXT.xy, uint(frameNumber), uint(i) * 64u + uint(j));
                     if (rand.x + rand.y > 1.0) { rand = vec2(1.0) - rand; }
                     vec3 samplePoint = lv0 + (rand.x * (lv1 - lv0)) + (rand.y * (lv2 - lv0));
 
