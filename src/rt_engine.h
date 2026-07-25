@@ -268,8 +268,6 @@ class RtEngine
     AllocatedBuffer create_buffer_data(VkDeviceSize size, const void* data, VkBufferUsageFlags usage,
                                        const VmaMemoryUsage memUsage);
 
-    AllocatedBuffer allocate_and_bind_buffer(VkBuffer buffer, VmaMemoryUsage memoryUsage);
-
     AllocatedImage load_image_from_file(std::string path);
 
     // antialiasing

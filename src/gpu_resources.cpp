@@ -73,36 +73,6 @@ AllocatedBuffer RtEngine::create_buffer_data(VkDeviceSize size, const void* data
     return resultBuffer;
 }
 
-AllocatedBuffer RtEngine::allocate_and_bind_buffer(VkBuffer buffer, VmaMemoryUsage memoryUsage) {
-    if (_allocator == VK_NULL_HANDLE || buffer == VK_NULL_HANDLE) {
-        throw std::runtime_error("Invalid allocator or buffer handle");
-    }
-
-    VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(_device, buffer, &memRequirements);
-
-    VmaAllocationCreateInfo allocInfo = {};
-    allocInfo.usage = memoryUsage;
-
-    VmaAllocation allocation;
-    VmaAllocationInfo allocationInfo;
-    if (vmaAllocateMemoryForBuffer(_allocator, buffer, &allocInfo, &allocation, &allocationInfo) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate memory for buffer");
-    }
-
-    if (vmaBindBufferMemory(_allocator, allocation, buffer) != VK_SUCCESS) {
-        vmaFreeMemory(_allocator, allocation);
-        throw std::runtime_error("Failed to bind buffer memory");
-    }
-
-    AllocatedBuffer allocatedBuffer;
-    allocatedBuffer.buffer = buffer;
-    allocatedBuffer.allocation = allocation;
-    allocatedBuffer.info = allocationInfo;
-
-    return allocatedBuffer;
-}
-
 VkDeviceAddress RtEngine::get_buffer_device_address(VkDevice device, VkBuffer buffer) {
     if (buffer == VK_NULL_HANDLE)
         return 0ULL;
