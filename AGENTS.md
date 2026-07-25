@@ -15,10 +15,13 @@
 - Never push. Commit locally and leave publishing to the repository owner.
 - One self-contained change per commit, so a bad one can be reverted in
   isolation. Build and verify before each commit, not just at the end.
-- Keep commit messages short. A subject line alone is the norm. Add a body only
-  when the change would otherwise look wrong or arbitrary — a non-obvious
-  trade-off, a rejected alternative, a subtle behavioral consequence. Do not
-  write a body that restates the diff.
+- Commit messages are a subject line. That is the default, and most commits need
+  nothing more.
+- Add a body only when the subject line would leave a reader thinking the change
+  is wrong or arbitrary, and keep it to one or two sentences. If a body is just
+  an inventory of what changed, delete it — that is the diff's job. Listing the
+  symbols you removed, restating before/after, or explaining an option you did
+  not take all count as restating the diff.
 
 ## Build
 
@@ -65,6 +68,11 @@ Hardware ray tracing is the only render path; there is no rasterizer.
 - `.editorconfig` defines the whitespace and line-ending defaults for supported editors.
 - Use `PascalCase` for types, `snake_case` for functions, `camelCase` for locals and data-struct fields, and
   `_camelCase` for class data members. Boolean names should describe a state or capability.
+
+## GUIDE.md
+
+Do not document anything about `GUIDE.md` here. Its conventions live in
+`GUIDE.md` itself — read that file's header before editing it.
 
 ## Comments
 
@@ -143,8 +151,11 @@ gives you an image to inspect:
 It renders `--frames` frames, writes the presented swapchain image (ImGui
 overlay included) as a PNG, and exits 0 on its own. Raise `--frames` when the
 Monte Carlo accumulation needs longer to converge; the image is visibly noisy
-at low frame counts. Still opens a window briefly — this is a capture path, not
-true headless rendering.
+at low frame counts.
+
+A capture run creates its window hidden and does not grab the mouse, so nothing
+appears on screen and it can run while you work. It is not surface-less
+rendering: a window and swapchain still exist, they are just never shown.
 
 Phase 2 verification is recorded in `docs/validation-phase2.md`. Its raw logs are
 under ignored `out/validation-phase2/`.
