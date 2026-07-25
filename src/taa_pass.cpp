@@ -1,4 +1,5 @@
 #include "rt_engine.h"
+#include "resource_path.h"
 
 #include "descriptor_alloc.h"
 #include "gltf_import.h"
@@ -70,7 +71,7 @@ void RtEngine::create_taa_pipeline_resources() {
         [this, taaPipelineLayout]() { vkDestroyPipelineLayout(_device, taaPipelineLayout, nullptr); });
 
     VkShaderModule taaCS;
-    if (!vk_shader::load_shader_module("../../shaders/temporal_resolve.comp.spv", _device, &taaCS)) {
+    if (!vk_shader::load_shader_module(resource::shader("temporal_resolve.comp.spv").c_str(), _device, &taaCS)) {
         throw std::runtime_error("failed to load temporal_resolve.comp.spv");
     }
     VkComputePipelineCreateInfo ci{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};

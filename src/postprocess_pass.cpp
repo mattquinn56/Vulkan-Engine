@@ -1,4 +1,5 @@
 #include "rt_engine.h"
+#include "resource_path.h"
 
 #include "descriptor_alloc.h"
 #include "gltf_import.h"
@@ -52,7 +53,7 @@ void RtEngine::create_postprocess_resources() {
     }
 
     VkShaderModule cs;
-    if (!vk_shader::load_shader_module("../../shaders/post_tonemap.comp.spv", _device, &cs)) {
+    if (!vk_shader::load_shader_module(resource::shader("post_tonemap.comp.spv").c_str(), _device, &cs)) {
         throw std::runtime_error("failed to load post_tonemap.comp.spv");
     }
     VkComputePipelineCreateInfo ci{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};

@@ -1,4 +1,5 @@
 #include "rt_engine.h"
+#include "resource_path.h"
 
 #include "descriptor_alloc.h"
 #include "gltf_import.h"
@@ -22,24 +23,20 @@
 #include <stb_image.h>
 
 void RtEngine::init_renderables() {
-    _structurePath = {"..\\..\\assets\\livingroom_vkr.glb"};
-    _lightPath = {"..\\..\\assets\\livingroom.json"};
+    _structurePath = resource::asset("livingroom_vkr.glb");
+    _lightPath = resource::asset("livingroom.json");
     auto structureFile = load_gltf(this, _structurePath);
 
     // Not an assert: asserts compile out in Release, turning a missing asset
     // into a null dereference with no indication of the cause.
     if (!structureFile.has_value()) {
-        fmt::print(stderr,
-                   "Failed to load scene '{}'.\nRun with bin/<config> as the working directory; "
-                   "asset paths are relative to it.\n",
-                   _structurePath);
+        fmt::print(stderr, "Failed to load scene '{}'.\n", _structurePath);
         std::abort();
     }
 
     _loadedScenes["structure"] = *structureFile;
 
-    // load environment map .png
-    _environmentMapPath = {"..\\..\\assets\\142_hdrmaps_com_free_10K.png"};
+    _environmentMapPath = resource::asset("142_hdrmaps_com_free_10K.png");
     _environmentMap = load_image_from_file(_environmentMapPath);
     const AllocatedImage loadedEnvironmentMap = _environmentMap;
     _mainDeletionQueue.push_function([this, loadedEnvironmentMap]() { destroy_image(loadedEnvironmentMap); });

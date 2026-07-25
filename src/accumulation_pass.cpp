@@ -1,4 +1,5 @@
 #include "rt_engine.h"
+#include "resource_path.h"
 
 #include "descriptor_alloc.h"
 #include "gltf_import.h"
@@ -50,7 +51,7 @@ void RtEngine::create_monte_carlo_pipeline_resources() {
         [this, mcPipelineLayout]() { vkDestroyPipelineLayout(_device, mcPipelineLayout, nullptr); });
 
     VkShaderModule mcCS;
-    if (!vk_shader::load_shader_module("../../shaders/mc_accum.comp.spv", _device, &mcCS)) {
+    if (!vk_shader::load_shader_module(resource::shader("mc_accum.comp.spv").c_str(), _device, &mcCS)) {
         throw std::runtime_error("failed to load mc_accum.comp.spv");
     }
     VkComputePipelineCreateInfo ci{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};

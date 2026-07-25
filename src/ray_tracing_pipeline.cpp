@@ -1,4 +1,5 @@
 #include "ray_tracing_pipeline.h"
+#include "resource_path.h"
 
 VulkanRayTracer::VulkanRayTracer(RtEngine* owner) {
     _engine = owner;
@@ -549,10 +550,12 @@ void VulkanRayTracer::create_pipeline() {
     };
 
     std::array<VkPipelineShaderStageCreateInfo, eStageCount> stages;
-    stages[eRaygen] = load_or_bail("../../shaders/raytrace.rgen.spv", VK_SHADER_STAGE_RAYGEN_BIT_KHR);
-    stages[eMiss] = load_or_bail("../../shaders/raytrace.rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR);
-    stages[eMissShadow] = load_or_bail("../../shaders/raytraceShadow.rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR);
-    stages[eClosestHit] = load_or_bail("../../shaders/raytrace.rchit.spv", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+    stages[eRaygen] = load_or_bail(resource::shader("raytrace.rgen.spv").c_str(), VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+    stages[eMiss] = load_or_bail(resource::shader("raytrace.rmiss.spv").c_str(), VK_SHADER_STAGE_MISS_BIT_KHR);
+    stages[eMissShadow] =
+        load_or_bail(resource::shader("raytraceShadow.rmiss.spv").c_str(), VK_SHADER_STAGE_MISS_BIT_KHR);
+    stages[eClosestHit] =
+        load_or_bail(resource::shader("raytrace.rchit.spv").c_str(), VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
 
     // A null layout here surfaces as a confusing pipeline error later.
     auto must = [](VkDescriptorSetLayout l, const char* name) {
