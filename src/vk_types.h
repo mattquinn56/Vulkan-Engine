@@ -39,17 +39,6 @@ struct AllocatedBuffer
     VmaAllocationInfo info{};
 };
 
-// Padded to 256 bytes so instances index out of one uniform buffer at the
-// spec's guaranteed minimum offset alignment.
-struct GPUGLTFMaterial
-{
-    glm::vec4 colorFactors{};
-    glm::vec4 metalRoughFactors{};
-    glm::vec4 extra[14]{};
-};
-
-static_assert(sizeof(GPUGLTFMaterial) == 256);
-
 // Mirrors RenderLight in shaders/raycommon.glsl. The w channels are packed
 // parameters, not padding.
 struct RenderLight
@@ -96,14 +85,6 @@ struct GPUMeshBuffers
     int vertexCount{0};
 };
 
-// Push constant block for mesh draws.
-struct GPUDrawPushConstants
-{
-    glm::mat4 worldMatrix{1.0f};
-    VkDeviceAddress vertexBuffer{0};
-    VkDeviceAddress lightBuffer{0};
-    int numLights{0};
-};
 struct DrawContext;
 
 // Base class for anything that can submit draws.
