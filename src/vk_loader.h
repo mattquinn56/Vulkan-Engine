@@ -18,7 +18,7 @@ struct Bounds
 
 struct GLTFMaterial
 {
-    MaterialInstance data;
+    MaterialPass passType{MaterialPass::Other};
     VkDeviceAddress materialAddressRT{0};
 };
 
@@ -53,10 +53,6 @@ struct LoadedGLTF : public IRenderable
     std::vector<std::shared_ptr<Node>> topNodes;
 
     std::vector<VkSampler> samplers;
-
-    DescriptorAllocatorGrowable descriptorPool;
-
-    AllocatedBuffer materialDataBuffer;
 
     VulkanEngine* creator{nullptr};
 

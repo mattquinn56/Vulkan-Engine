@@ -68,23 +68,13 @@ struct GPUSceneData
     glm::mat4 viewproj{1.0f};
     glm::vec4 data{}; // x accumulated frame count, y sampling enable flag
 };
+// Alpha-blended surfaces are excluded from the traced scene, so this only
+// distinguishes "blended" from everything else.
 enum class MaterialPass : uint8_t
 {
     MainColor,
     Transparent,
     Other
-};
-struct MaterialPipeline
-{
-    VkPipeline pipeline{VK_NULL_HANDLE};
-    VkPipelineLayout layout{VK_NULL_HANDLE};
-};
-
-struct MaterialInstance
-{
-    MaterialPipeline* pipeline{nullptr};
-    VkDescriptorSet materialSet{VK_NULL_HANDLE};
-    MaterialPass passType{MaterialPass::Other};
 };
 // UVs are split around the vec3s so each pair fills one 16-byte std430 slot
 // with no padding. Mirrored in shaders/mesh.vert and shaders/raycommon.glsl.

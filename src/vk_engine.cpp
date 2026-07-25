@@ -208,118 +208,6 @@ void VulkanEngine::cleanup()
     }
 }
 
-void VulkanEngine::init_background_pipelines()
-{
-    VkPipelineLayoutCreateInfo computeLayout{};
-    computeLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    computeLayout.pNext = nullptr;
-    computeLayout.pSetLayouts = &_drawImageDescriptorLayout;
-    computeLayout.setLayoutCount = 1;
-
-    VkPushConstantRange pushConstant{};
-    pushConstant.offset = 0;
-    pushConstant.size = sizeof(ComputePushConstants);
-    pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-    computeLayout.pPushConstantRanges = &pushConstant;
-    computeLayout.pushConstantRangeCount = 1;
-
-    VK_CHECK(vkCreatePipelineLayout(_device, &computeLayout, nullptr, &_gradientPipelineLayout));
-
-    VkShaderModule gradientShader;
-    if (!vkutil::load_shader_module("../../shaders/gradient_color.comp.spv", _device, &gradientShader)) {
-        fmt::print(stderr, "Failed to build gradient compute shader\n");
-    }
-
-    VkShaderModule skyShader;
-    if (!vkutil::load_shader_module("../../shaders/sky.comp.spv", _device, &skyShader)) {
-        fmt::print(stderr, "Failed to build sky compute shader\n");
-    }
-
-    VkPipelineShaderStageCreateInfo stageinfo{};
-    stageinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    stageinfo.pNext = nullptr;
-    stageinfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-    stageinfo.module = gradientShader;
-    stageinfo.pName = "main";
-
-    VkComputePipelineCreateInfo computePipelineCreateInfo{};
-    computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-    computePipelineCreateInfo.pNext = nullptr;
-    computePipelineCreateInfo.layout = _gradientPipelineLayout;
-    computePipelineCreateInfo.stage = stageinfo;
-
-    ComputeEffect gradient{};
-    gradient.layout = _gradientPipelineLayout;
-    gradient.name = "gradient";
-    gradient.data = {};
-    gradient.pipeline = VK_NULL_HANDLE;
-
-    gradient.data.data1 = glm::vec4(1, 0, 0, 1);
-    gradient.data.data2 = glm::vec4(0, 0, 1, 1);
-
-    VK_CHECK(
-        vkCreateComputePipelines(_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &gradient.pipeline));
-
-    // Same layout and create info; only the shader module differs.
-    computePipelineCreateInfo.stage.module = skyShader;
-
-    ComputeEffect sky;
-    sky.layout = _gradientPipelineLayout;
-    sky.name = "sky";
-    sky.data = {};
-    sky.data.data1 = glm::vec4(0.1, 0.2, 0.4, 0.97);
-
-    VK_CHECK(vkCreateComputePipelines(_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &sky.pipeline));
-
-    _backgroundEffects.push_back(sky);
-    _backgroundEffects.push_back(gradient);
-
-    vkDestroyShaderModule(_device, gradientShader, nullptr);
-    vkDestroyShaderModule(_device, skyShader, nullptr);
-    const VkPipelineLayout backgroundLayout = _gradientPipelineLayout;
-    const VkPipeline skyPipeline = sky.pipeline;
-    const VkPipeline gradientPipeline = gradient.pipeline;
-    _mainDeletionQueue.push_function([this, backgroundLayout, skyPipeline, gradientPipeline]() {
-        vkDestroyPipelineLayout(_device, backgroundLayout, nullptr);
-        vkDestroyPipeline(_device, skyPipeline, nullptr);
-        vkDestroyPipeline(_device, gradientPipeline, nullptr);
-    });
-}
-
-void VulkanEngine::draw_main(VkCommandBuffer cmd)
-{
-    ComputeEffect& effect = _backgroundEffects[_currentBackgroundEffect];
-
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, effect.pipeline);
-
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0, 1, &_drawImageDescriptors,
-                            0, nullptr);
-
-    vkCmdPushConstants(cmd, _gradientPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants),
-                       &effect.data);
-    // Rounded up against the shader's 16x16 local size.
-    vkCmdDispatch(cmd, (_windowExtent.width + 15) / 16, (_windowExtent.height + 15) / 16, 1);
-
-    VkRenderingAttachmentInfo colorAttachment =
-        vkinit::attachment_info(_drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_GENERAL);
-    VkRenderingAttachmentInfo depthAttachment =
-        vkinit::depth_attachment_info(_depthImage.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
-
-    VkRenderingInfo renderInfo = vkinit::rendering_info(_windowExtent, &colorAttachment, &depthAttachment);
-
-    vkCmdBeginRendering(cmd, &renderInfo);
-    auto start = std::chrono::system_clock::now();
-    draw_geometry(cmd);
-
-    auto end = std::chrono::system_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-
-    _stats.meshDrawTime = elapsed.count() / 1000.f;
-
-    vkCmdEndRendering(cmd);
-}
-
 void VulkanEngine::draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView)
 {
     VkRenderingAttachmentInfo colorAttachment =
@@ -383,15 +271,9 @@ void VulkanEngine::draw()
 
     // Make draw/depth images writable for compute/graphics
     vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    vkutil::transition_image(cmd, _depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED,
-                             VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
-    // Ray tracing path writes into _drawImage (GENERAL) or raster path draws and then composites
-    if (_useRayTracing) {
-        _rayTracer->raytrace(cmd);
-    } else {
-        draw_main(cmd);
-    }
+    // Ray tracing writes _drawImage directly, in GENERAL layout.
+    _rayTracer->raytrace(cmd);
 
     // If UI changed something that affects appearance, clear histories now
     if (_resetAccumNextFrame) {
@@ -677,38 +559,6 @@ void VulkanEngine::draw()
 
     _frameNumber++;
 }
-bool is_visible(const RenderObject& obj, const glm::mat4& viewproj)
-{
-    std::array<glm::vec3, 8> corners{
-        glm::vec3{1, 1, 1},  glm::vec3{1, 1, -1},  glm::vec3{1, -1, 1},  glm::vec3{1, -1, -1},
-        glm::vec3{-1, 1, 1}, glm::vec3{-1, 1, -1}, glm::vec3{-1, -1, 1}, glm::vec3{-1, -1, -1},
-    };
-
-    glm::mat4 matrix = viewproj * obj.transform;
-
-    glm::vec3 min = {1.5, 1.5, 1.5};
-    glm::vec3 max = {-1.5, -1.5, -1.5};
-
-    for (int c = 0; c < 8; c++) {
-        glm::vec4 v = matrix * glm::vec4(obj.bounds.origin + (corners[c] * obj.bounds.extents), 1.f);
-
-        // Perspective divide into normalized device coordinates.
-        v.x = v.x / v.w;
-        v.y = v.y / v.w;
-        v.z = v.z / v.w;
-
-        min = glm::min(glm::vec3{v.x, v.y, v.z}, min);
-        max = glm::max(glm::vec3{v.x, v.y, v.z}, max);
-    }
-
-    // Reject only if the projected AABB falls entirely outside the frustum.
-    if (min.z > 1.f || max.z < 0.f || min.x > 1.f || max.x < -1.f || min.y > 1.f || max.y < -1.f) {
-        return false;
-    } else {
-        return true;
-    }
-}
-
 void VulkanEngine::update_global_descriptor()
 {
 
@@ -746,93 +596,6 @@ void VulkanEngine::update_global_descriptor()
         DescriptorWriter writer;
         writer.write_buffer(0, _objectDescriptionBuffer.buffer, VK_WHOLE_SIZE, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
         writer.update_set(_device, _objDescSet);
-    }
-}
-
-void VulkanEngine::draw_geometry(VkCommandBuffer cmd)
-{
-    std::vector<uint32_t> opaque_draws;
-    opaque_draws.reserve(_drawContext.opaqueSurfaces.size());
-
-    for (int i = 0; i < _drawContext.opaqueSurfaces.size(); i++) {
-        if (is_visible(_drawContext.opaqueSurfaces[i], _sceneData.viewproj)) {
-            opaque_draws.push_back(i);
-        }
-    }
-
-    // Sorted by material then index buffer to minimize pipeline and buffer rebinds.
-    std::sort(opaque_draws.begin(), opaque_draws.end(), [&](const auto& iA, const auto& iB) {
-        const RenderObject& A = _drawContext.opaqueSurfaces[iA];
-        const RenderObject& B = _drawContext.opaqueSurfaces[iB];
-        if (A.material == B.material) {
-            return A.indexBuffer < B.indexBuffer;
-        } else {
-            return A.material < B.material;
-        }
-    });
-
-    update_global_descriptor();
-
-    MaterialPipeline* lastPipeline = nullptr;
-    MaterialInstance* lastMaterial = nullptr;
-    VkBuffer lastIndexBuffer = VK_NULL_HANDLE;
-
-    auto draw = [&](const RenderObject& r) {
-        if (r.material != lastMaterial) {
-            lastMaterial = r.material;
-            if (r.material->pipeline != lastPipeline) {
-
-                lastPipeline = r.material->pipeline;
-                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, r.material->pipeline->pipeline);
-                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, r.material->pipeline->layout, 0, 1,
-                                        &_globalDescriptor, 0, nullptr);
-
-                VkViewport viewport = {};
-                viewport.x = 0;
-                viewport.y = 0;
-                viewport.width = (float)_windowExtent.width;
-                viewport.height = (float)_windowExtent.height;
-                viewport.minDepth = 0.f;
-                viewport.maxDepth = 1.f;
-
-                vkCmdSetViewport(cmd, 0, 1, &viewport);
-
-                VkRect2D scissor = {};
-                scissor.offset.x = 0;
-                scissor.offset.y = 0;
-                scissor.extent.width = _windowExtent.width;
-                scissor.extent.height = _windowExtent.height;
-
-                vkCmdSetScissor(cmd, 0, 1, &scissor);
-            }
-
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, r.material->pipeline->layout, 1, 1,
-                                    &r.material->materialSet, 0, nullptr);
-        }
-        if (r.indexBuffer != lastIndexBuffer) {
-            lastIndexBuffer = r.indexBuffer;
-            vkCmdBindIndexBuffer(cmd, r.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-        }
-        GPUDrawPushConstants push_constants;
-        push_constants.worldMatrix = r.transform;
-        push_constants.vertexBuffer = r.vertexBufferAddress;
-        push_constants.lightBuffer = get_buffer_device_address(_device, _lightBuffer.buffer);
-        ;
-        push_constants.numLights = _lightCount;
-
-        vkCmdPushConstants(cmd, r.material->pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                           0, sizeof(GPUDrawPushConstants), &push_constants);
-
-        _stats.drawCallCount++;
-        _stats.triangleCount += r.indexCount / 3;
-        vkCmdDrawIndexed(cmd, r.indexCount, 1, r.firstIndex, 0, 0);
-    };
-
-    _stats.drawCallCount = 0;
-    _stats.triangleCount = 0;
-
-    for (auto& r : opaque_draws) {
-        draw(_drawContext.opaqueSurfaces[r]);
     }
 }
 
@@ -897,7 +660,6 @@ void VulkanEngine::run()
 
         ImGui::Begin("Main Control");
 
-        reset_accum |= ImGui::Checkbox("Ray Tracer mode", &_useRayTracing);
         reset_accum |= ImGui::Checkbox("Debug setting", &_debugEnabled);
         reset_accum |= ImGui::Checkbox("Use Microfacet BRDF (GGX/Smith/Schlick)", &_useMicrofacetBrdf);
         ImGui::Text("frameTime %f ms", _stats.frameTime);
@@ -969,20 +731,6 @@ void VulkanEngine::run()
                     mp->g_emis_density_pad.w = fogEnv ? 1.0f : 0.0f;
                 }
             }
-        }
-        ImGui::End();
-
-        bool collapsedDataWindow = ImGui::Begin("Background (Raster)");
-        if (collapsedDataWindow) {
-
-            ComputeEffect& selected = _backgroundEffects[_currentBackgroundEffect];
-
-            ImGui::Text("Selected background: ", selected.name);
-
-            ImGui::SliderInt("Effect", &_currentBackgroundEffect, 0, static_cast<int>(_backgroundEffects.size()) - 1);
-
-            ImGui::InputFloat4("Top Gradient", (float*)&selected.data.data1);
-            ImGui::InputFloat4("Bottom Gradient", (float*)&selected.data.data2);
         }
         ImGui::End();
 
@@ -1078,7 +826,6 @@ void VulkanEngine::update_scene()
 
     _drawContext.opaqueSurfaces.clear();
     _drawContext.objectDescriptions.clear();
-    _drawContext.TransparentSurfaces.clear();
     _loadedScenes["structure"]->draw(glm::mat4{1.f}, _drawContext);
 }
 
@@ -1438,20 +1185,6 @@ void VulkanEngine::create_render_targets()
 
     VK_CHECK(vkCreateImageView(_device, &rview_info, nullptr, &_drawImage.imageView));
 
-    _depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
-
-    VkImageUsageFlags depthImageUsages{};
-    depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-
-    VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthImage.imageFormat, depthImageUsages, drawImageExtent);
-
-    vmaCreateImage(_allocator, &dimg_info, &rimg_allocinfo, &_depthImage.image, &_depthImage.allocation, nullptr);
-
-    VkImageViewCreateInfo dview_info =
-        vkinit::imageview_create_info(_depthImage.imageFormat, _depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
-
-    VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_depthImage.imageView));
-
     // LDR target for the tonemapped sRGB result.
     _ldrImage =
         create_image(VkExtent3D{_windowExtent.width, _windowExtent.height, 1}, VK_FORMAT_R16G16B16A16_SFLOAT,
@@ -1462,10 +1195,8 @@ void VulkanEngine::create_render_targets()
 void VulkanEngine::destroy_render_targets()
 {
     destroy_image(_drawImage);
-    destroy_image(_depthImage);
     destroy_image(_ldrImage);
     _drawImage = {};
-    _depthImage = {};
     _ldrImage = {};
 }
 
@@ -1526,11 +1257,6 @@ bool VulkanEngine::resize_swapchain()
     create_render_targets();
     create_monte_carlo_images();
     create_taa_history_images();
-
-    DescriptorWriter drawImageWriter;
-    drawImageWriter.write_image(0, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
-                                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-    drawImageWriter.update_set(_device, _drawImageDescriptors);
 
     _taaIndex = 0;
     _taaInitialized = false;
@@ -1766,11 +1492,6 @@ void VulkanEngine::init_imgui()
 
 void VulkanEngine::init_pipelines()
 {
-    // COMPUTE PIPELINES
-    init_background_pipelines();
-
-    _metalRoughMaterial.build_pipelines(this);
-
     create_monte_carlo_pipeline_resources();
 
     create_taa_pipeline_resources();
@@ -1795,15 +1516,9 @@ void VulkanEngine::init_descriptors()
 
     {
         DescriptorLayoutBuilder builder;
-        builder.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-        _drawImageDescriptorLayout = builder.build(_device, VK_SHADER_STAGE_COMPUTE_BIT);
-    }
-    {
-        DescriptorLayoutBuilder builder;
         builder.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
         _gpuSceneDataDescriptorLayout =
-            builder.build(_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT |
-                                       VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+            builder.build(_device, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
     }
     {
         DescriptorLayoutBuilder builder;
@@ -1811,22 +1526,12 @@ void VulkanEngine::init_descriptors()
         _objDescLayout = builder.build(_device, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
     }
 
-    const VkDescriptorSetLayout drawImageLayout = _drawImageDescriptorLayout;
     const VkDescriptorSetLayout sceneDataLayout = _gpuSceneDataDescriptorLayout;
     const VkDescriptorSetLayout objectLayout = _objDescLayout;
-    _mainDeletionQueue.push_function([this, drawImageLayout, sceneDataLayout, objectLayout]() {
-        vkDestroyDescriptorSetLayout(_device, drawImageLayout, nullptr);
+    _mainDeletionQueue.push_function([this, sceneDataLayout, objectLayout]() {
         vkDestroyDescriptorSetLayout(_device, sceneDataLayout, nullptr);
         vkDestroyDescriptorSetLayout(_device, objectLayout, nullptr);
     });
-
-    _drawImageDescriptors = _globalDescriptorAllocator.allocate(_device, _drawImageDescriptorLayout);
-    {
-        DescriptorWriter writer;
-        writer.write_image(0, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
-                           VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-        writer.update_set(_device, _drawImageDescriptors);
-    }
     for (int i = 0; i < FRAME_OVERLAP; i++) {
         // create a descriptor pool
         std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> frame_sizes = {
@@ -1862,117 +1567,6 @@ void VulkanEngine::init_descriptors()
 
     create_volume_resources();
     initialize_default_medium();
-}
-
-void GLTFMetallic_Roughness::build_pipelines(VulkanEngine* engine)
-{
-    VkShaderModule meshFragShader;
-    if (!vkutil::load_shader_module("../../shaders/mesh.frag.spv", engine->_device, &meshFragShader)) {
-        fmt::print(stderr, "Failed to build triangle fragment shader module\n");
-    }
-
-    VkShaderModule meshVertexShader;
-    if (!vkutil::load_shader_module("../../shaders/mesh.vert.spv", engine->_device, &meshVertexShader)) {
-        fmt::print(stderr, "Failed to build triangle vertex shader module\n");
-    }
-
-    VkPushConstantRange matrixRange{};
-    matrixRange.offset = 0;
-    matrixRange.size = sizeof(GPUDrawPushConstants);
-    matrixRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-
-    DescriptorLayoutBuilder layoutBuilder;
-    layoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-    layoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    layoutBuilder.add_binding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-
-    materialLayout = layoutBuilder.build(engine->_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
-
-    VkDescriptorSetLayout layouts[] = {engine->_gpuSceneDataDescriptorLayout, materialLayout};
-
-    VkPipelineLayoutCreateInfo mesh_layout_info = vkinit::pipeline_layout_create_info();
-    mesh_layout_info.setLayoutCount = 2;
-    mesh_layout_info.pSetLayouts = layouts;
-    mesh_layout_info.pPushConstantRanges = &matrixRange;
-    mesh_layout_info.pushConstantRangeCount = 1;
-
-    VkPipelineLayout newLayout;
-    VK_CHECK(vkCreatePipelineLayout(engine->_device, &mesh_layout_info, nullptr, &newLayout));
-
-    opaquePipeline.layout = newLayout;
-    transparentPipeline.layout = newLayout;
-
-    PipelineBuilder pipelineBuilder;
-
-    pipelineBuilder.set_shaders(meshVertexShader, meshFragShader);
-
-    pipelineBuilder.set_input_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-
-    pipelineBuilder.set_polygon_mode(VK_POLYGON_MODE_FILL);
-
-    pipelineBuilder.set_cull_mode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
-
-    pipelineBuilder.set_multisampling_none();
-
-    pipelineBuilder.disable_blending();
-
-    pipelineBuilder.enable_depthtest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
-
-    pipelineBuilder.set_color_attachment_format(engine->_drawImage.imageFormat);
-    pipelineBuilder.set_depth_format(engine->_depthImage.imageFormat);
-
-    pipelineBuilder._pipelineLayout = newLayout;
-
-    opaquePipeline.pipeline = pipelineBuilder.build_pipeline(engine->_device);
-
-    // Transparent variant reuses the same layout with blending and depth writes off.
-    pipelineBuilder.enable_blending_additive();
-
-    pipelineBuilder.enable_depthtest(false, VK_COMPARE_OP_GREATER_OR_EQUAL);
-
-    transparentPipeline.pipeline = pipelineBuilder.build_pipeline(engine->_device);
-
-    vkDestroyShaderModule(engine->_device, meshFragShader, nullptr);
-    vkDestroyShaderModule(engine->_device, meshVertexShader, nullptr);
-
-    const VkDescriptorSetLayout layoutToDestroy = materialLayout;
-    const VkPipelineLayout pipelineLayoutToDestroy = newLayout;
-    const VkPipeline opaquePipelineToDestroy = opaquePipeline.pipeline;
-    const VkPipeline transparentPipelineToDestroy = transparentPipeline.pipeline;
-    engine->_mainDeletionQueue.push_function(
-        [engine, layoutToDestroy, pipelineLayoutToDestroy, opaquePipelineToDestroy, transparentPipelineToDestroy]() {
-            vkDestroyPipeline(engine->_device, opaquePipelineToDestroy, nullptr);
-            vkDestroyPipeline(engine->_device, transparentPipelineToDestroy, nullptr);
-            vkDestroyPipelineLayout(engine->_device, pipelineLayoutToDestroy, nullptr);
-            vkDestroyDescriptorSetLayout(engine->_device, layoutToDestroy, nullptr);
-        });
-}
-
-MaterialInstance GLTFMetallic_Roughness::write_material(VkDevice device, MaterialPass pass,
-                                                        const MaterialResources& resources,
-                                                        DescriptorAllocatorGrowable& descriptorAllocator)
-{
-    MaterialInstance matData;
-    matData.passType = pass;
-    if (pass == MaterialPass::Transparent) {
-        matData.pipeline = &transparentPipeline;
-    } else {
-        matData.pipeline = &opaquePipeline;
-    }
-
-    matData.materialSet = descriptorAllocator.allocate(device, materialLayout);
-
-    writer.clear();
-    writer.write_buffer(0, resources.dataBuffer, sizeof(MaterialConstants), resources.dataBufferOffset,
-                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-    writer.write_image(1, resources.colorImage.imageView, resources.colorSampler,
-                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    writer.write_image(2, resources.metalRoughImage.imageView, resources.metalRoughSampler,
-                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-
-    writer.update_set(device, matData.materialSet);
-
-    return matData;
 }
 
 // Backs an already-created VkBuffer with memory and binds the two together.
@@ -2012,11 +1606,15 @@ void MeshNode::draw(const glm::mat4& topMatrix, DrawContext& ctx)
     glm::mat4 nodeMatrix = topMatrix * worldTransform;
 
     for (auto& s : mesh->surfaces) {
+        // Blended materials are not represented in the acceleration structure.
+        if (s.material->passType == MaterialPass::Transparent) {
+            continue;
+        }
+
         RenderObject def;
         def.indexCount = s.count;
         def.firstIndex = s.startIndex;
         def.indexBuffer = mesh->meshBuffers.indexBuffer.buffer;
-        def.material = &s.material->data;
         def.bounds = s.bounds;
         def.transform = nodeMatrix;
         def.vertexBuffer = mesh->meshBuffers.vertexBuffer.buffer;
@@ -2028,12 +1626,8 @@ void MeshNode::draw(const glm::mat4& topMatrix, DrawContext& ctx)
         od.indexAddress = engine->get_buffer_device_address(engine->_device, mesh->meshBuffers.indexBuffer.buffer);
         od.materialAddress = s.material->materialAddressRT;
 
-        if (s.material->data.passType == MaterialPass::Transparent) {
-            ctx.TransparentSurfaces.push_back(def);
-        } else {
-            ctx.opaqueSurfaces.push_back(def);
-            ctx.objectDescriptions.push_back(od);
-        }
+        ctx.opaqueSurfaces.push_back(def);
+        ctx.objectDescriptions.push_back(od);
     }
 
     Node::draw(topMatrix, ctx);

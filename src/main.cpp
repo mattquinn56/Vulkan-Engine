@@ -8,11 +8,7 @@ bool configure_engine(VulkanEngine& engine, int argc, char* argv[])
     for (int i = 1; i < argc; ++i) {
         const std::string_view argument = argv[i];
 
-        if (argument == "--render-path=raytrace") {
-            engine._useRayTracing = true;
-        } else if (argument == "--render-path=raster") {
-            engine._useRayTracing = false;
-        } else if (argument == "--aa=taa") {
+        if (argument == "--aa=taa") {
             engine._aaMode = VulkanEngine::AAMode::TAA;
         } else if (argument == "--aa=adaptive") {
             engine._aaMode = VulkanEngine::AAMode::AdaptiveMSAA;
@@ -26,9 +22,9 @@ bool configure_engine(VulkanEngine& engine, int argc, char* argv[])
         }
     }
 
-    fmt::println(
-        "Startup configuration: render_path={} aa={} tonemap={}", engine._useRayTracing ? "raytrace" : "raster",
-        engine._aaMode == VulkanEngine::AAMode::TAA ? "taa" : "adaptive", engine._enableTonemap ? "on" : "off");
+    fmt::println("Startup configuration: aa={} tonemap={}",
+                 engine._aaMode == VulkanEngine::AAMode::TAA ? "taa" : "adaptive",
+                 engine._enableTonemap ? "on" : "off");
     return true;
 }
 } // namespace

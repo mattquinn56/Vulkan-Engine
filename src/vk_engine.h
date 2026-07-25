@@ -45,31 +45,12 @@ struct DeletionQueue
     }
 };
 
-struct ComputePushConstants
-{
-    glm::vec4 data1{};
-    glm::vec4 data2{};
-    glm::vec4 data3{};
-    glm::vec4 data4{};
-};
-
-struct ComputeEffect
-{
-    const char* name{nullptr};
-
-    VkPipeline pipeline{VK_NULL_HANDLE};
-    VkPipelineLayout layout{VK_NULL_HANDLE};
-
-    ComputePushConstants data;
-};
-
 struct RenderObject
 {
     uint32_t indexCount{0};
     uint32_t firstIndex{0};
     VkBuffer indexBuffer{VK_NULL_HANDLE};
 
-    MaterialInstance* material{nullptr};
     Bounds bounds{};
     glm::mat4 transform{1.0f};
     VkBuffer vertexBuffer{VK_NULL_HANDLE};
@@ -103,11 +84,12 @@ struct ObjDesc
     uint64_t materialAddress;
 };
 
+// Alpha-blended surfaces are excluded entirely; the ray tracer traces only
+// what lands in opaqueSurfaces, and objectDescriptions runs parallel to it.
 struct DrawContext
 {
     std::vector<RenderObject> opaqueSurfaces;
-    std::vector<ObjDesc> objectDescriptions; // parallel to opaqueSurfaces; ray tracing is opaque-only
-    std::vector<RenderObject> TransparentSurfaces;
+    std::vector<ObjDesc> objectDescriptions;
 };
 
 struct EngineStats
@@ -116,37 +98,6 @@ struct EngineStats
     int triangleCount{0};
     int drawCallCount{0};
     float meshDrawTime{0.0f};
-};
-
-struct GLTFMetallic_Roughness
-{
-    MaterialPipeline opaquePipeline;
-    MaterialPipeline transparentPipeline;
-
-    VkDescriptorSetLayout materialLayout{VK_NULL_HANDLE};
-
-    struct MaterialConstants
-    {
-        glm::vec4 colorFactors{};
-        glm::vec4 metalRoughFactors{};
-        glm::vec4 extra[14]{}; // pads to 256 bytes for uniform buffer offset alignment
-    };
-
-    struct MaterialResources
-    {
-        AllocatedImage colorImage;
-        VkSampler colorSampler{VK_NULL_HANDLE};
-        AllocatedImage metalRoughImage;
-        VkSampler metalRoughSampler{VK_NULL_HANDLE};
-        VkBuffer dataBuffer{VK_NULL_HANDLE};
-        uint32_t dataBufferOffset{0};
-    };
-
-    DescriptorWriter writer;
-
-    void build_pipelines(VulkanEngine* engine);
-    MaterialInstance write_material(VkDevice device, MaterialPass pass, const MaterialResources& resources,
-                                    DescriptorAllocatorGrowable& descriptorAllocator);
 };
 
 struct MeshNode : public Node
@@ -184,7 +135,6 @@ class VulkanEngine
                                                VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME};
     bool _accelerationStructuresCreated{false};
     int _frameNumber{0};
-    bool _useRayTracing{true};
     int _monteCarloSamples{0};
     int _msaaSamples{1};
     bool _debugEnabled{false};
@@ -226,17 +176,11 @@ class VulkanEngine
 
     VulkanRayTracer* _rayTracer{nullptr};
 
-    VkPipeline _gradientPipeline{VK_NULL_HANDLE};
-    VkPipelineLayout _gradientPipelineLayout{VK_NULL_HANDLE};
-
     std::vector<VkImage> _swapchainImages;
     std::vector<VkImageView> _swapchainImageViews;
 
     std::vector<VkSemaphore> _imageAcquireSems;
     std::vector<VkSemaphore> _imageRenderSems;
-
-    VkDescriptorSet _drawImageDescriptors{VK_NULL_HANDLE};
-    VkDescriptorSetLayout _drawImageDescriptorLayout{VK_NULL_HANDLE};
 
     DeletionQueue _mainDeletionQueue;
 
@@ -248,11 +192,8 @@ class VulkanEngine
     VkDescriptorSetLayout _objDescLayout{VK_NULL_HANDLE};
     VkDescriptorSet _objDescSet{VK_NULL_HANDLE};
 
-    GLTFMetallic_Roughness _metalRoughMaterial;
-
     // draw resources
     AllocatedImage _drawImage;
-    AllocatedImage _depthImage;
 
     // immediate submit structures
     VkFence _immFence{VK_NULL_HANDLE};
@@ -282,9 +223,6 @@ class VulkanEngine
     VkDescriptorSet _volumeSet{VK_NULL_HANDLE};
     VolumeResources _volume{};
 
-    std::vector<ComputeEffect> _backgroundEffects;
-    int _currentBackgroundEffect{0};
-
     // Singleton accessor; multiple engine instances are not supported.
     static VulkanEngine& get();
 
@@ -296,13 +234,11 @@ class VulkanEngine
     void cleanup();
 
     void draw();
-    void draw_main(VkCommandBuffer cmd);
     void draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView);
 
     void render_nodes();
 
     void update_global_descriptor();
-    void draw_geometry(VkCommandBuffer cmd);
 
     void run();
 
@@ -435,7 +371,6 @@ class VulkanEngine
     void init_commands();
 
     void init_pipelines();
-    void init_background_pipelines();
 
     void init_descriptors();
 

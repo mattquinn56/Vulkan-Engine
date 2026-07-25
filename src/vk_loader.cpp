@@ -232,13 +232,6 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
         fmt::print(stderr, "Failed to determine glTF container\n");
         return {};
     }
-    // The asset contents provide an accurate descriptor count estimate.
-    std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> sizes = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3},
-                                                                     {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3},
-                                                                     {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1}};
-
-    file.descriptorPool.init_pools(engine->_device, static_cast<uint32_t>(gltf.materials.size()), sizes);
-
     // load samplers
     for (fastgltf::Sampler& sampler : gltf.samplers) {
 
@@ -275,13 +268,7 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
             fmt::print(stderr, "glTF failed to load texture {}\n", image.name);
         }
     }
-    // create buffer to hold the material data
-    file.materialDataBuffer =
-        engine->create_buffer(sizeof(GLTFMetallic_Roughness::MaterialConstants) * gltf.materials.size(),
-                              VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
     int data_index = 0;
-    GLTFMetallic_Roughness::MaterialConstants* sceneMaterialConstants =
-        (GLTFMetallic_Roughness::MaterialConstants*)file.materialDataBuffer.info.pMappedData;
     engine->_rayTracer->_colorTextures.clear();
     engine->_rayTracer->_metalRoughTextures.clear();
     engine->_rayTracer->_colorSamplers.clear();
@@ -291,56 +278,34 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
         materials.push_back(newMat);
         file.materials[mat.name.c_str()] = newMat;
 
-        GLTFMetallic_Roughness::MaterialConstants constants;
-        constants.colorFactors.x = mat.pbrData.baseColorFactor[0];
-        constants.colorFactors.y = mat.pbrData.baseColorFactor[1];
-        constants.colorFactors.z = mat.pbrData.baseColorFactor[2];
-        constants.colorFactors.w = mat.pbrData.baseColorFactor[3];
+        newMat->passType =
+            (mat.alphaMode == fastgltf::AlphaMode::Blend) ? MaterialPass::Transparent : MaterialPass::MainColor;
 
-        constants.metalRoughFactors.x = mat.pbrData.metallicFactor;
-        constants.metalRoughFactors.y = mat.pbrData.roughnessFactor;
-        // write material parameters to buffer
-        sceneMaterialConstants[data_index] = constants;
+        AllocatedImage colorImage = engine->_whiteImage;
+        VkSampler colorSampler = engine->_defaultSamplerLinear;
+        const AllocatedImage metalRoughImage = engine->_whiteImage;
+        const VkSampler metalRoughSampler = engine->_defaultSamplerLinear;
 
-        MaterialPass passType = MaterialPass::MainColor;
-        if (mat.alphaMode == fastgltf::AlphaMode::Blend) {
-            passType = MaterialPass::Transparent;
-        }
-
-        GLTFMetallic_Roughness::MaterialResources materialResources;
-        // default the material textures
-        materialResources.colorImage = engine->_whiteImage;
-        materialResources.colorSampler = engine->_defaultSamplerLinear;
-        materialResources.metalRoughImage = engine->_whiteImage;
-        materialResources.metalRoughSampler = engine->_defaultSamplerLinear;
-
-        // set the uniform buffer for the material data
-        materialResources.dataBuffer = file.materialDataBuffer.buffer;
-        materialResources.dataBufferOffset = data_index * sizeof(GLTFMetallic_Roughness::MaterialConstants);
-        // grab textures from gltf file
         if (mat.pbrData.baseColorTexture.has_value()) {
             size_t img = gltf.textures[mat.pbrData.baseColorTexture.value().textureIndex].imageIndex.value();
             size_t sampler = gltf.textures[mat.pbrData.baseColorTexture.value().textureIndex].samplerIndex.value();
 
-            materialResources.colorImage = images[img];
-            materialResources.colorSampler = file.samplers[sampler];
+            colorImage = images[img];
+            colorSampler = file.samplers[sampler];
         }
-        // build material
-        newMat->data = engine->_metalRoughMaterial.write_material(engine->_device, passType, materialResources,
-                                                                  file.descriptorPool);
 
-        // upload RT material
         VulkanRayTracer::MaterialRT rtMat;
-        rtMat.colorFactors = constants.colorFactors;
-        rtMat.metalRoughFactors = constants.metalRoughFactors;
+        rtMat.colorFactors = glm::vec4(mat.pbrData.baseColorFactor[0], mat.pbrData.baseColorFactor[1],
+                                       mat.pbrData.baseColorFactor[2], mat.pbrData.baseColorFactor[3]);
+        rtMat.metalRoughFactors = glm::vec4(mat.pbrData.metallicFactor, mat.pbrData.roughnessFactor, 0.f, 0.f);
         rtMat.textureID = data_index;
         newMat->materialAddressRT = engine->_rayTracer->upload_material(rtMat);
 
-        // accumulate images for ray tracing textures
-        engine->_rayTracer->_colorTextures.push_back(materialResources.colorImage.imageView);
-        engine->_rayTracer->_metalRoughTextures.push_back(materialResources.metalRoughImage.imageView);
-        engine->_rayTracer->_colorSamplers.push_back(materialResources.colorSampler);
-        engine->_rayTracer->_metalRoughSamplers.push_back(materialResources.metalRoughSampler);
+        // Texture arrays are indexed by textureID from the closest-hit shader.
+        engine->_rayTracer->_colorTextures.push_back(colorImage.imageView);
+        engine->_rayTracer->_metalRoughTextures.push_back(metalRoughImage.imageView);
+        engine->_rayTracer->_colorSamplers.push_back(colorSampler);
+        engine->_rayTracer->_metalRoughSamplers.push_back(metalRoughSampler);
 
         data_index++;
     }
@@ -537,8 +502,4 @@ void LoadedGLTF::destroy_owned_resources()
     for (auto& sampler : samplers) {
         vkDestroySampler(dv, sampler, nullptr);
     }
-
-    descriptorPool.destroy_pools(dv);
-
-    creator->destroy_buffer(materialDataBuffer);
 }
