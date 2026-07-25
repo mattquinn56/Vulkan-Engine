@@ -12,9 +12,35 @@
 
 - This is a Visual Studio multi-config CMake build. Build Debug from the repository root with:
   `cmake --build build --config Debug --target Shaders engine`
+- Use the CMake that generated the build tree: `C:\Program Files\CMake\bin\cmake.exe`. A bare
+  `cmake` may resolve to the Anaconda copy on `PATH`, which fails compiler-id detection against
+  this tree.
 - Do not run that command while Visual Studio is already building or debugging the engine. A running session can lock SDL's `SDL2d.pdb` and make the command fail with `LNK1201`.
-- Shader source changes require rebuilding the `Shaders` target. Adding a shader also requires rerunning CMake configure/generate because the root `CMakeLists.txt` uses a configure-time glob.
+- Shader source changes require rebuilding the `Shaders` target. Adding *or removing* a shader also
+  requires rerunning CMake configure/generate, because the root `CMakeLists.txt` uses a
+  configure-time glob; a deleted shader otherwise fails the build with `MSB8066` from a stale rule.
+- `src/CMakeLists.txt` globs `*.cpp`/`*.h`, so new source files are picked up by a reconfigure
+  without editing it.
 - The Debug executable and runtime DLLs are written to `bin/Debug/`, not under `build/`.
+
+## Source layout
+
+Hardware ray tracing is the only render path; there is no rasterizer.
+
+- `rt_engine.h/.cpp` — the `RtEngine` class declaration and its init/cleanup/run shell.
+  Everything below implements members of that same class, so these files split the
+  implementation, not the coupling.
+- `device_context` instance/device/swapchain/render targets, `frame_sync` command pools
+  and fences, `gpu_resources` buffer and image helpers, `descriptor_setup` engine-wide
+  layouts, `scene_graph` draw-list building, `frame_draw` per-frame orchestration,
+  `ui_overlay` ImGui, and the passes: `taa_pass`, `accumulation_pass`,
+  `postprocess_pass`, `volumetrics`.
+- `ray_tracing_pipeline.h/.cpp` — acceleration structures, RT pipeline, shader binding
+  table. This one is over the ~500-line guideline on purpose: it is a single coherent
+  subsystem written for this project, not tutorial residue, and splitting it would cut
+  across the BLAS/TLAS/SBT build sequence.
+- `gltf_import`, `image_utils`, `vk_init`, `descriptor_alloc`, `shader_module` are
+  supporting utilities. `meshes.cpp` is generated data.
 
 ## C++ style
 
@@ -38,7 +64,7 @@
 ## Running and validation output
 
 - Run with `bin/Debug` as the working directory. Engine resource paths use `../../shaders` and `../../assets`; launching with the repository root as the working directory fails during initialization.
-- Validation layers are unconditionally enabled by `bUseValidationLayers` in `src/vk_engine.cpp`.
+- Validation layers are unconditionally enabled by `bUseValidationLayers` in `src/rt_engine.h`.
 - vk-bootstrap's default validation callback writes validation messages to stdout in this project. Capture both streams anyway.
 - A verified PowerShell capture recipe from the repository root is:
 
@@ -53,6 +79,10 @@
   ```
 
   Let it render several frames, then close the window normally when cleanup behavior matters. For a bounded observation, stop only the returned process ID with `Stop-Process -Id $process.Id`.
+- `Stop-Process -Force` kills the process before stdio is flushed, leaving both logs empty. To get
+  output, send a normal close (`taskkill /PID <id>`) and then wait on the process, e.g.
+  `$process.WaitForExit(20000)`. The engine does not always process a close promptly; see the
+  known cleanup issues in `docs/validation-phase2.md`.
 - Per-frame validation errors can make the log very large. Inventory distinct errors with:
 
   ```powershell
@@ -77,9 +107,9 @@ event timelines, and screenshots belong under ignored `out/validation-baseline/`
 Use `tools/summarize-validation.ps1` to count validation message identifiers
 without double-counting the VUID repeated in each message's specification URL.
 
-For deterministic diagnostic runs, `engine.exe` accepts
-`--render-path=raytrace|raster`, `--aa=taa|adaptive`, and
+For deterministic diagnostic runs, `engine.exe` accepts `--aa=taa|adaptive` and
 `--tonemap=on|off`. Invalid options exit with status 2 before Vulkan starts.
+`--render-path` no longer exists: hardware ray tracing is the only render path.
 
 Phase 2 verification is recorded in `docs/validation-phase2.md`. Its raw logs are
 under ignored `out/validation-phase2/`.

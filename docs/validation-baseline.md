@@ -3,6 +3,12 @@
 This document preserves the pre-fix Phase 1 baseline. Phase 2 results are in
 `docs/validation-phase2.md`.
 
+> Historical record. It describes runs made when the engine still had a
+> rasterizer and a `--render-path` flag. Both have since been removed; hardware
+> ray tracing is the only render path. References below to raster mode and to
+> `--render-path` describe the state at the time of the run, not current
+> behavior. The VUID observations are left unedited on purpose.
+
 Date: 2026-07-11
 
 Commit: `a727b06` (`GPU logging`)

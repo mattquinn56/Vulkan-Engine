@@ -1,5 +1,11 @@
 # Vulkan-Engine
- A vulkan-based engine
+
+A Vulkan renderer built around hardware ray tracing, working toward real-time
+volumetrics.
+
+Requires a GPU supporting `VK_KHR_acceleration_structure` and
+`VK_KHR_ray_tracing_pipeline`. These are required, not optional: device
+selection fails without them, and there is no rasterizer fallback.
 
 ## Build instructions:
 1. Clone the repository
