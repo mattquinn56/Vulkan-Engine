@@ -231,15 +231,11 @@ class RtEngine
     // Diagnostic capture. When _screenshotPath is set, the frame numbered
     // _screenshotFrame is written to disk and the engine then exits.
     std::string _screenshotPath;
-    std::string _comparePath;
     int _screenshotFrame{30};
     bool _screenshotDone{false};
     bool _showUi{true};
-    // Non-zero when a --compare run found a mismatch; returned from main.
-    int _exitCode{0};
     void capture_swapchain(VkCommandBuffer cmd, uint32_t imageIndex, AllocatedBuffer& dst);
     void write_capture(const AllocatedBuffer& src);
-    void compare_capture(const std::vector<uint8_t>& rgba);
 
     void update_global_descriptor();
 

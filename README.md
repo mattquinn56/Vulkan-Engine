@@ -80,7 +80,6 @@ list is gathered at configure time.
 --aa=taa|adaptive     antialiasing mode
 --tonemap=on|off      ACES + sRGB tonemapping
 --screenshot=<path>   render, write a PNG, and exit
---compare=<path>      compare the rendered frame against a reference PNG
 --frames=<n>          which frame to capture on (default 30)
 --no-ui               render without the ImGui overlay
 ```
@@ -99,13 +98,30 @@ cleaner result; it is visibly noisy below about 30.
 
 ## Tests
 
-```powershell
-.\tools\run-golden-tests.ps1
+```
+ctest --test-dir build -C Debug --output-on-failure
 ```
 
-Renders each scene in `tests/golden/` and compares it against its reference
-image, exiting non-zero if any differ. Use `-Update` to regenerate the
-references after an intentional change to the output.
+Each golden test renders a scene and compares it against a stored reference in
+`tests/golden/`, failing if too many pixels differ. A failure writes an
+`.actual.png` and a color-coded `.diff.png` into `build/golden-output/` so you
+can see exactly what moved.
+
+Regenerate the references after an intentional change to output:
+
+```
+cmake --build build --config Debug --target golden-update
+```
+
+The comparison is a separate `imagediff` executable, usable on any two PNGs:
+
+```
+.\bin\Debug\imagediff.exe reference.png actual.png --diff=diff.png
+```
+
+It exits 0 when the images match, 1 when they differ, and 2 if an image could
+not be read. In the diff, unchanged pixels are dimmed grayscale and differing
+ones are tinted blue through red by how far apart they are.
 
 ## Troubleshooting
 

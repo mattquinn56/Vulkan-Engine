@@ -15,8 +15,6 @@ void print_usage() {
                        "  --aa=taa|adaptive     antialiasing mode\n"
                        "  --tonemap=on|off      ACES + sRGB tonemapping\n"
                        "  --screenshot=<path>   write a PNG of the presented frame, then exit\n"
-                       "  --compare=<path>      compare the captured frame against a reference PNG;\n"
-                       "                        exits 1 on mismatch, 2 if the reference is unusable\n"
                        "  --frames=<n>          frame to capture on (default 30)\n"
                        "  --no-ui               render without the ImGui overlay\n");
 }
@@ -39,15 +37,6 @@ bool configure_engine(RtEngine& engine, int argc, char* argv[]) {
                 fmt::print(stderr, "--screenshot requires a path\n");
                 return false;
             }
-        } else if (argument.starts_with("--compare=")) {
-            engine._comparePath = std::string(argument.substr(10));
-            if (engine._comparePath.empty()) {
-                fmt::print(stderr, "--compare requires a path\n");
-                return false;
-            }
-            // Golden images must not include the overlay: it prints a frame time
-            // that changes every run.
-            engine._showUi = false;
         } else if (argument == "--no-ui") {
             engine._showUi = false;
         } else if (argument.starts_with("--frames=")) {
@@ -67,9 +56,6 @@ bool configure_engine(RtEngine& engine, int argc, char* argv[]) {
     if (!engine._screenshotPath.empty()) {
         fmt::println("Screenshot: {} on frame {}", engine._screenshotPath, engine._screenshotFrame);
     }
-    if (!engine._comparePath.empty()) {
-        fmt::println("Compare against: {}", engine._comparePath);
-    }
     return true;
 }
 
@@ -86,9 +72,7 @@ int main(int argc, char* argv[]) {
 
     engine.run();
 
-    const int exitCode = engine._exitCode;
-
     engine.cleanup();
 
-    return exitCode;
+    return 0;
 }

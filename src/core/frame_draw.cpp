@@ -310,12 +310,13 @@ void RtEngine::draw() {
     // Draw ImGui on the swapchain image
     vk_img::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                              VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    draw_imgui(cmd, _swapchainImageViews[imageIndex]);
+    if (_showUi) {
+        draw_imgui(cmd, _swapchainImageViews[imageIndex]);
+    }
 
     // Diagnostic capture reads the presented image, so it runs after ImGui and
     // before the present transition.
-    const bool wantCapture = !_screenshotPath.empty() || !_comparePath.empty();
-    const bool capturing = wantCapture && !_screenshotDone && _frameNumber >= _screenshotFrame;
+    const bool capturing = !_screenshotPath.empty() && !_screenshotDone && _frameNumber >= _screenshotFrame;
     AllocatedBuffer captureBuffer{};
     if (capturing) {
         capture_swapchain(cmd, imageIndex, captureBuffer);
@@ -444,39 +445,5 @@ void RtEngine::write_capture(const AllocatedBuffer& src) {
         } else {
             fmt::print(stderr, "Screenshot failed: could not write {}\n", _screenshotPath);
         }
-    }
-
-    if (!_comparePath.empty()) {
-        compare_capture(rgba);
-    }
-}
-
-// A pixel is allowed to drift slightly: the same scene can land on marginally
-// different values across drivers and GPUs even from identical inputs.
-void RtEngine::compare_capture(const std::vector<uint8_t>& rgba) {
-    constexpr uint32_t perChannelTolerance = 4;
-    constexpr double allowedDifferingFraction = 0.002;
-
-    const screenshot::Comparison c = screenshot::compare_png(_comparePath, _windowExtent.width, _windowExtent.height,
-                                                             rgba.data(), perChannelTolerance);
-
-    if (!c.referenceLoaded) {
-        fmt::print(stderr, "Compare failed: could not read reference {}\n", _comparePath);
-        _exitCode = 2;
-        return;
-    }
-    if (!c.sizeMatches) {
-        fmt::print(stderr, "Compare failed: reference is {}x{}, captured {}x{}\n", c.referenceWidth, c.referenceHeight,
-                   _windowExtent.width, _windowExtent.height);
-        _exitCode = 2;
-        return;
-    }
-
-    const bool pass = c.differingPixelFraction <= allowedDifferingFraction;
-    fmt::println("Compare {}: {:.4f}% of pixels differ (limit {:.4f}%), mean {:.3f}, max {}", pass ? "PASS" : "FAIL",
-                 c.differingPixelFraction * 100.0, allowedDifferingFraction * 100.0, c.meanChannelDifference,
-                 c.maxChannelDifference);
-    if (!pass) {
-        _exitCode = 1;
     }
 }

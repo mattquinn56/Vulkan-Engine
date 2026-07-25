@@ -17,6 +17,7 @@ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 
 add_subdirectory(src)
+add_subdirectory(tools/imagediff)
 
 
 file(GLOB_RECURSE GLSL_SOURCE_FILES
@@ -48,3 +49,36 @@ add_custom_target(
     Shaders 
     DEPENDS ${SPIRV_BINARY_FILES}
     )
+
+enable_testing()
+
+# Each golden case renders with fixed settings and is compared against a stored
+# reference. --no-ui is mandatory: the overlay prints a frame time that changes
+# every run, so a reference including it would fail against itself.
+set(GOLDEN_CASES "livingroom")
+set(GOLDEN_ARGS_livingroom "--no-ui;--frames=60")
+
+foreach(case ${GOLDEN_CASES})
+    add_test(NAME golden.${case}
+        COMMAND ${CMAKE_COMMAND}
+            -DENGINE=$<TARGET_FILE:engine>
+            -DIMAGEDIFF=$<TARGET_FILE:imagediff>
+            -DREFERENCE=${PROJECT_SOURCE_DIR}/tests/golden/${case}.png
+            -DOUTPUT_DIR=${PROJECT_BINARY_DIR}/golden-output
+            -DCASE=${case}
+            "-DENGINE_ARGS=${GOLDEN_ARGS_${case}}"
+            -P ${PROJECT_SOURCE_DIR}/tests/run_golden.cmake)
+    set_tests_properties(golden.${case} PROPERTIES TIMEOUT 180)
+endforeach()
+
+# Regenerates every reference image. Run after an intentional change to output.
+set(update_commands "")
+foreach(case ${GOLDEN_CASES})
+    list(APPEND update_commands
+        COMMAND $<TARGET_FILE:engine>
+            "--screenshot=${PROJECT_SOURCE_DIR}/tests/golden/${case}.png"
+            ${GOLDEN_ARGS_${case}})
+endforeach()
+add_custom_target(golden-update ${update_commands}
+    DEPENDS engine
+    COMMENT "Regenerating golden reference images")

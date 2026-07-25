@@ -164,25 +164,27 @@ rendering: a window and swapchain still exist, they are just never shown.
 
 ## Golden image tests
 
-```powershell
-.	oolsun-golden-tests.ps1              # compare against tests/golden/
-.	oolsun-golden-tests.ps1 -Update      # regenerate the references
+```
+ctest --test-dir build -C Debug --output-on-failure
 ```
 
-Run this after any change that could affect the rendered image, and treat a FAIL
-as a regression until proven otherwise. It exits non-zero on mismatch, so it can
-gate a commit.
+Run after any change that could affect the rendered image, and treat a failure
+as a regression until proven otherwise. On failure the run writes `.actual.png`
+and `.diff.png` into `build/golden-output/`; look at the diff before assuming
+the reference is stale.
 
-The engine does the comparison itself: `--compare=<reference.png>` renders,
-diffs against the reference, prints the differing-pixel percentage, and exits 1
-on mismatch or 2 if the reference is missing or the wrong size. A pixel counts
+Regenerate references only for an intentional output change:
+`cmake --build build --config Debug --target golden-update`.
+
+Comparison lives in the standalone `imagediff` target rather than in the engine,
+so it can be run against any two PNGs and exercised on its own. A pixel counts
 as differing when any channel is more than 4 apart, and up to 0.2% of pixels may
-differ before the run fails — back-to-back runs on one GPU agree to within a
-single channel value, so the slack is for driver and hardware variation.
+differ before a test fails; back-to-back runs on one GPU agree to within a
+single channel value, so that slack is for driver and hardware variation.
 
-`--compare` implies `--no-ui`, and references must be generated with it. The
-ImGui overlay prints a frame time that changes every run, so a reference
-including the overlay would fail against itself.
+Golden cases must pass `--no-ui`. The overlay prints a frame time that changes
+every run, so a reference including it would fail against itself. Cases are
+declared in the root `CMakeLists.txt`.
 
 Phase 2 verification is recorded in `docs/validation-phase2.md`. Its raw logs are
 under ignored `out/validation-phase2/`.
