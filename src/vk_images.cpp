@@ -5,6 +5,8 @@
 #include "stb_image.h"
 #include <vk_initializers.h>
 
+// Deliberately over-broad barrier scopes: correct everywhere, but hot paths
+// wanting real parallelism should emit their own barrier.
 void vkutil::transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout)
 {
     VkImageMemoryBarrier2 imageBarrier{.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
@@ -69,22 +71,19 @@ void vkutil::copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage de
 
 void vkutil::copy_buffer_to_image(VkCommandBuffer cmd, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
 {
-    // Prepare the region for copying from the buffer to the image
     VkBufferImageCopy region{};
-    region.bufferOffset = 0;      // Offset into the buffer at which pixel values start
-    region.bufferRowLength = 0;   // Tightly packed, so 0 means data is contiguous
-    region.bufferImageHeight = 0; // Tightly packed
+    region.bufferOffset = 0;
+    // Zero row length and image height mean the source is tightly packed.
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
 
-    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; // Working with a color image
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     region.imageSubresource.mipLevel = 0;
     region.imageSubresource.baseArrayLayer = 0;
     region.imageSubresource.layerCount = 1;
 
-    region.imageOffset = {0, 0, 0}; // Start at the beginning of the image
-    region.imageExtent = {
-        width, height,
-        1 // Depth is 1 because this is a 2D image
-    };
+    region.imageOffset = {0, 0, 0};
+    region.imageExtent = {width, height, 1};
 
     vkCmdCopyBufferToImage(cmd, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 }

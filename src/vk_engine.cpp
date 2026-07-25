@@ -40,11 +40,10 @@ VulkanEngine& VulkanEngine::get()
 
 void VulkanEngine::init()
 {
-    // only one engine initialization is allowed with the application.
+    // Backs the VulkanEngine::get() singleton, only one instance is supported.
     assert(loadedEngine == nullptr);
     loadedEngine = this;
 
-    // We initialize SDL and create a window with it.
     SDL_Init(SDL_INIT_VIDEO);
 
     SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
@@ -79,7 +78,6 @@ void VulkanEngine::init()
 
     init_imgui();
 
-    // everything went fine
     _isInitialized = true;
 
     _mainCamera.velocity = glm::vec3(0.f);
@@ -124,7 +122,7 @@ void VulkanEngine::init_default_data()
 
     _defaultRectangle = upload_mesh(rect_indices, rect_vertices);
 
-    //3 default textures, white, grey, black. 1 pixel each
+    // 1x1 fallback textures for materials with a missing or failed image.
     uint32_t white = 0xFFFFFFFF;
     _whiteImage =
         create_image((void*)&white, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
@@ -136,9 +134,9 @@ void VulkanEngine::init_default_data()
     _blackImage =
         create_image((void*)&black, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
 
-    //checkerboard image
+    // Magenta checkerboard, the conventional "texture is wrong" marker.
     uint32_t magenta = 0xFF00FFFF;
-    std::array<uint32_t, 16 * 16> pixels; //for 16x16 checkerboard texture
+    std::array<uint32_t, 16 * 16> pixels;
     for (int x = 0; x < 16; x++) {
         for (int y = 0; y < 16; y++) {
             pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
@@ -182,7 +180,7 @@ void VulkanEngine::cleanup()
 {
     if (_isInitialized) {
 
-        // make sure the gpu has stopped doing its things
+        // Nothing below may run while the GPU still references these resources.
         vkDeviceWaitIdle(_device);
 
         _loadedScenes.clear();
@@ -257,30 +255,26 @@ void VulkanEngine::init_background_pipelines()
     gradient.data = {};
     gradient.pipeline = VK_NULL_HANDLE;
 
-    //default colors
     gradient.data.data1 = glm::vec4(1, 0, 0, 1);
     gradient.data.data2 = glm::vec4(0, 0, 1, 1);
 
     VK_CHECK(
         vkCreateComputePipelines(_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &gradient.pipeline));
 
-    //change the shader module only to create the sky shader
+    // Same layout and create info; only the shader module differs.
     computePipelineCreateInfo.stage.module = skyShader;
 
     ComputeEffect sky;
     sky.layout = _gradientPipelineLayout;
     sky.name = "sky";
     sky.data = {};
-    //default sky parameters
     sky.data.data1 = glm::vec4(0.1, 0.2, 0.4, 0.97);
 
     VK_CHECK(vkCreateComputePipelines(_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &sky.pipeline));
 
-    //add the 2 background effects into the array
     _backgroundEffects.push_back(sky);
     _backgroundEffects.push_back(gradient);
 
-    //destroy structures properly
     vkDestroyShaderModule(_device, gradientShader, nullptr);
     vkDestroyShaderModule(_device, skyShader, nullptr);
     const VkPipelineLayout backgroundLayout = _gradientPipelineLayout;
@@ -297,19 +291,15 @@ void VulkanEngine::draw_main(VkCommandBuffer cmd)
 {
     ComputeEffect& effect = _backgroundEffects[_currentBackgroundEffect];
 
-    // bind the background compute pipeline
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, effect.pipeline);
 
-    // bind the descriptor set containing the draw image for the compute pipeline
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0, 1, &_drawImageDescriptors,
                             0, nullptr);
 
     vkCmdPushConstants(cmd, _gradientPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePushConstants),
                        &effect.data);
-    // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
+    // Rounded up against the shader's 16x16 local size.
     vkCmdDispatch(cmd, (_windowExtent.width + 15) / 16, (_windowExtent.height + 15) / 16, 1);
-
-    //draw the triangle
 
     VkRenderingAttachmentInfo colorAttachment =
         vkinit::attachment_info(_drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_GENERAL);
@@ -700,10 +690,9 @@ bool is_visible(const RenderObject& obj, const glm::mat4& viewproj)
     glm::vec3 max = {-1.5, -1.5, -1.5};
 
     for (int c = 0; c < 8; c++) {
-        // project each corner into clip space
         glm::vec4 v = matrix * glm::vec4(obj.bounds.origin + (corners[c] * obj.bounds.extents), 1.f);
 
-        // perspective correction
+        // Perspective divide into normalized device coordinates.
         v.x = v.x / v.w;
         v.y = v.y / v.w;
         v.z = v.z / v.w;
@@ -712,7 +701,7 @@ bool is_visible(const RenderObject& obj, const glm::mat4& viewproj)
         max = glm::max(glm::vec3{v.x, v.y, v.z}, max);
     }
 
-    // check the clip space box is within the view
+    // Reject only if the projected AABB falls entirely outside the frustum.
     if (min.z > 1.f || max.z < 0.f || min.x > 1.f || max.x < -1.f || min.y > 1.f || max.y < -1.f) {
         return false;
     } else {
@@ -723,18 +712,16 @@ bool is_visible(const RenderObject& obj, const glm::mat4& viewproj)
 void VulkanEngine::update_global_descriptor()
 {
 
-    //allocate a new uniform buffer for the scene data
+    // Allocated per frame rather than reused, so a frame in flight never has its
+    // scene data overwritten. The frame's deletion queue reclaims it.
     AllocatedBuffer gpuSceneDataBuffer =
         create_buffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
-    //add it to the deletion queue of this frame so it gets deleted once its been used
     get_current_frame()._deletionQueue.push_function([=, this]() { destroy_buffer(gpuSceneDataBuffer); });
 
-    //write the buffer
     GPUSceneData* sceneUniformData = (GPUSceneData*)gpuSceneDataBuffer.allocation->GetMappedData();
     *sceneUniformData = _sceneData;
 
-    //create a descriptor set that binds that buffer and update it
     _globalDescriptor = get_current_frame()._frameDescriptors.allocate(_device, _gpuSceneDataDescriptorLayout);
 
     {
@@ -743,7 +730,7 @@ void VulkanEngine::update_global_descriptor()
         writer.update_set(_device, _globalDescriptor);
     }
 
-    // do the same for objDesc set
+    // Same per-frame lifetime for the object description storage buffer.
     _objectDescriptionBuffer = create_buffer_data(sizeof(ObjDesc) * _drawContext.objectDescriptions.size(),
                                                   _drawContext.objectDescriptions.data(),
                                                   VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
@@ -773,7 +760,7 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd)
         }
     }
 
-    // sort the opaque surfaces by material and mesh
+    // Sorted by material then index buffer to minimize pipeline and buffer rebinds.
     std::sort(opaque_draws.begin(), opaque_draws.end(), [&](const auto& iA, const auto& iB) {
         const RenderObject& A = _drawContext.opaqueSurfaces[iA];
         const RenderObject& B = _drawContext.opaqueSurfaces[iB];
@@ -826,7 +813,6 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd)
             lastIndexBuffer = r.indexBuffer;
             vkCmdBindIndexBuffer(cmd, r.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
         }
-        // calculate final mesh matrix
         GPUDrawPushConstants push_constants;
         push_constants.worldMatrix = r.transform;
         push_constants.vertexBuffer = r.vertexBufferAddress;
@@ -963,7 +949,6 @@ void VulkanEngine::run()
         {
             auto* mp = (GPUMediumParams*)_volume.mediumParams.allocation->GetMappedData();
 
-            // unpack helpers for readability
             auto& sigma_a = mp->sigma_a_step;     // xyz used, w = step
             auto& sigma_s = mp->sigma_s_maxT;     // xyz used, w = maxT
             auto& g_e_d = mp->g_emis_density_pad; // x=g, y=emission, z=densityScale
@@ -1003,7 +988,6 @@ void VulkanEngine::run()
 
         ImGui::Begin("Hierarchy");
 
-        // For all pairs in _loadedScenes, draw an expandable tree node
         for (auto& [name, scene] : _loadedScenes) {
 
             if (ImGui::TreeNode(name.c_str())) {
@@ -1018,8 +1002,6 @@ void VulkanEngine::run()
         if (reset_accum) {
             request_accum_reset();
         }
-
-        // imgui commands
 
         update_scene();
 
@@ -1102,7 +1084,6 @@ void VulkanEngine::update_scene()
 
 AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
 {
-    // allocate buffer
     VkBufferCreateInfo bufferInfo = {};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.pNext = nullptr;
@@ -1115,7 +1096,6 @@ AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags
     vmaallocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
     AllocatedBuffer newBuffer;
 
-    // allocate the buffer
     VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo, &newBuffer.buffer, &newBuffer.allocation,
                              &newBuffer.info));
 
@@ -1188,7 +1168,6 @@ AllocatedImage VulkanEngine::create_image(void* data, VkExtent3D size, VkFormat 
         copyRegion.imageSubresource.layerCount = 1;
         copyRegion.imageExtent = size;
 
-        // copy the buffer into the image
         vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
                                &copyRegion);
 
@@ -1277,8 +1256,6 @@ void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& f
     VK_CHECK(vkResetCommandBuffer(_immCommandBuffer, 0));
 
     VkCommandBuffer cmd = _immCommandBuffer;
-    // begin the command buffer recording. We will use this command buffer exactly
-    // once, so we want to let vulkan know that
     VkCommandBufferBeginInfo cmdBeginInfo =
         vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
@@ -1291,8 +1268,7 @@ void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& f
     VkCommandBufferSubmitInfo cmdinfo = vkinit::command_buffer_submit_info(cmd);
     VkSubmitInfo2 submit = vkinit::submit_info(&cmdinfo, nullptr, nullptr);
 
-    // submit command buffer to the queue and execute it.
-    //  _renderFence will now block until the graphic commands finish execution
+    // Blocking submit: the caller expects the work to be complete on return.
     VK_CHECK(vkQueueSubmit2(_graphicsQueue, 1, &submit, _immFence));
 
     VK_CHECK(vkWaitForFences(_device, 1, &_immFence, true, std::numeric_limits<uint64_t>::max()));
@@ -1344,7 +1320,6 @@ void VulkanEngine::init_vulkan()
 {
     vkb::InstanceBuilder builder;
 
-    // make the vulkan instance, with basic debug features
     auto inst_ret = builder.set_app_name("Vulkan Engine")
                         .request_validation_layers(bUseValidationLayers)
                         .use_default_debug_messenger()
@@ -1353,7 +1328,6 @@ void VulkanEngine::init_vulkan()
 
     vkb::Instance vkb_inst = inst_ret.value();
 
-    // grab the instance
     _instance = vkb_inst.instance;
     _debugMessenger = vkb_inst.debug_messenger;
 
@@ -1373,10 +1347,10 @@ void VulkanEngine::init_vulkan()
     features12.descriptorBindingVariableDescriptorCount = VK_TRUE;
 
     VkPhysicalDeviceFeatures features{};
-    features.shaderInt64 = VK_TRUE; // Enable 64-bit integers in shaders
+    features.shaderInt64 = VK_TRUE; // buffer device addresses are 64-bit in shaders
 
-    // use vkbootstrap to select a gpu.
-    // We want a gpu that can write to the SDL surface and supports vulkan 1.2
+    // Requires a GPU that can present to the SDL surface and supports Vulkan 1.3
+    // plus the ray tracing extensions in _deviceExtensions.
     vkb::PhysicalDeviceSelector selector{vkb_inst};
     for (const auto& extension : _deviceExtensions) {
         selector.add_required_extension(extension);
@@ -1390,7 +1364,6 @@ void VulkanEngine::init_vulkan()
                                              .value();
 
     // physicalDevice.features.
-    // create the final vulkan device
     vkb::DeviceBuilder deviceBuilder{physicalDevice};
 
     // enable acceleration structure and RT extension
@@ -1406,7 +1379,6 @@ void VulkanEngine::init_vulkan()
 
     vkb::Device vkbDevice = deviceBuilder.build().value();
 
-    // Get the VkDevice handle used in the rest of a vulkan application
     _device = vkbDevice.device;
     _chosenGPU = physicalDevice.physical_device;
 
@@ -1415,7 +1387,6 @@ void VulkanEngine::init_vulkan()
     vkGetPhysicalDeviceProperties(_chosenGPU, &deviceProperties);
     fmt::println("GPU: {}", deviceProperties.deviceName);
 
-    // use vkbootstrap to get a Graphics queue
     _graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
 
     _graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
@@ -1431,7 +1402,6 @@ void VulkanEngine::init_vulkan()
 
 void VulkanEngine::init_raytracing()
 {
-    // Create the raytracing support structure
     _rayTracer = new VulkanRayTracer(this);
 }
 
@@ -1444,10 +1414,9 @@ void VulkanEngine::init_swapchain()
 void VulkanEngine::create_render_targets()
 {
 
-    //depth image size will match the window
     VkExtent3D drawImageExtent = {_windowExtent.width, _windowExtent.height, 1};
 
-    //hardcoding the draw format to 32 bit float
+    // Full 32-bit float so the HDR path has headroom before tonemapping.
     _drawImage.imageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 
     VkImageUsageFlags drawImageUsages{};
@@ -1458,22 +1427,17 @@ void VulkanEngine::create_render_targets()
 
     VkImageCreateInfo rimg_info = vkinit::image_create_info(_drawImage.imageFormat, drawImageUsages, drawImageExtent);
 
-    //for the draw image, we want to allocate it from gpu local memory
     VmaAllocationCreateInfo rimg_allocinfo = {};
     rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
     rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    //allocate and create the image
     vmaCreateImage(_allocator, &rimg_info, &rimg_allocinfo, &_drawImage.image, &_drawImage.allocation, nullptr);
 
-    //build a image-view for the draw image to use for rendering
     VkImageViewCreateInfo rview_info =
         vkinit::imageview_create_info(_drawImage.imageFormat, _drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
 
     VK_CHECK(vkCreateImageView(_device, &rview_info, nullptr, &_drawImage.imageView));
 
-    //create a depth image too
-    //hardcoding the draw format to 32 bit float
     _depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
 
     VkImageUsageFlags depthImageUsages{};
@@ -1481,10 +1445,8 @@ void VulkanEngine::create_render_targets()
 
     VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthImage.imageFormat, depthImageUsages, drawImageExtent);
 
-    //allocate and create the image
     vmaCreateImage(_allocator, &dimg_info, &rimg_allocinfo, &_depthImage.image, &_depthImage.allocation, nullptr);
 
-    //build a image-view for the draw image to use for rendering
     VkImageViewCreateInfo dview_info =
         vkinit::imageview_create_info(_depthImage.imageFormat, _depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
 
@@ -1581,8 +1543,7 @@ bool VulkanEngine::resize_swapchain()
 
 void VulkanEngine::init_commands()
 {
-    // create a command pool for commands submitted to the graphics queue.
-    // we also want the pool to allow for resetting of individual command buffers
+    // RESET_COMMAND_BUFFER_BIT so each frame's buffer can be reset individually.
     VkCommandPoolCreateInfo commandPoolInfo =
         vkinit::command_pool_create_info(_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
@@ -1590,7 +1551,6 @@ void VulkanEngine::init_commands()
 
         VK_CHECK(vkCreateCommandPool(_device, &commandPoolInfo, nullptr, &_frames[i]._commandPool));
 
-        // allocate the default command buffer that we will use for rendering
         VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_frames[i]._commandPool, 1);
 
         VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_frames[i]._mainCommandBuffer));
@@ -1600,7 +1560,7 @@ void VulkanEngine::init_commands()
 
     VK_CHECK(vkCreateCommandPool(_device, &commandPoolInfo, nullptr, &_immCommandPool));
 
-    // allocate the default command buffer that we will use for rendering
+    // Separate pool and buffer for immediate_submit's one-off uploads.
     VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_immCommandPool, 1);
 
     VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_immCommandBuffer));
@@ -1610,11 +1570,7 @@ void VulkanEngine::init_commands()
 
 void VulkanEngine::init_sync_structures()
 {
-    // create syncronization structures
-    // one fence to control when the gpu has finished rendering the frame,
-    // and 2 semaphores to syncronize rendering with swapchain
-    // we want the fence to start signalled so we can wait on it on the first
-    // frame
+    // Created signalled so the first frame's wait returns immediately.
     VkFenceCreateInfo fenceCreateInfo = vkinit::fence_create_info(VK_FENCE_CREATE_SIGNALED_BIT);
     VK_CHECK(vkCreateFence(_device, &fenceCreateInfo, nullptr, &_immFence));
 
@@ -1639,16 +1595,14 @@ void VulkanEngine::init_sync_structures()
 
 AllocatedImage VulkanEngine::load_image_from_file(std::string path)
 {
-    // Load image file
     int texWidth, texHeight, texChannels;
     stbi_uc* pixels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
     if (!pixels) {
         throw std::runtime_error("failed to load texture image!");
     }
 
-    VkDeviceSize imageSize = texWidth * texHeight * 4; // 4 for RGBA
+    VkDeviceSize imageSize = texWidth * texHeight * 4; // RGBA, forced by STBI_rgb_alpha
 
-    // Create a Vulkan image
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -1671,7 +1625,7 @@ AllocatedImage VulkanEngine::load_image_from_file(std::string path)
     VmaAllocation allocation;
     vmaCreateImage(_allocator, &imageInfo, &allocInfo, &image, &allocation, nullptr);
 
-    // Upload pixels to the Vulkan image
+    // The image is device-local, so pixels go via a host-visible staging buffer.
     VkBuffer stagingBuffer;
     VmaAllocation stagingBufferAllocation;
     VkBufferCreateInfo bufferInfo{};
@@ -1690,10 +1644,8 @@ AllocatedImage VulkanEngine::load_image_from_file(std::string path)
     memcpy(data, pixels, static_cast<size_t>(imageSize));
     vmaUnmapMemory(_allocator, stagingBufferAllocation);
 
-    // Clean up pixel array
     stbi_image_free(pixels);
 
-    // Transfer data to the image
     immediate_submit([&](VkCommandBuffer cmd) {
         vkutil::transition_image(cmd, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         vkutil::copy_buffer_to_image(cmd, stagingBuffer, image, static_cast<uint32_t>(texWidth),
@@ -1702,10 +1654,8 @@ AllocatedImage VulkanEngine::load_image_from_file(std::string path)
                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     });
 
-    // Clean up staging buffer
     vmaDestroyBuffer(_allocator, stagingBuffer, stagingBufferAllocation);
 
-    // Create image view
     VkImageView imageView;
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -1762,9 +1712,7 @@ void VulkanEngine::init_lights()
 
 void VulkanEngine::init_imgui()
 {
-    // 1: create descriptor pool for IMGUI
-    //  the size of the pool is very oversize, but it's copied from imgui demo
-    //  itself.
+    // Generously sized, per the ImGui demo. ImGui does not report its own needs.
     VkDescriptorPoolSize pool_sizes[] = {{VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
                                          {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
                                          {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
@@ -1787,15 +1735,10 @@ void VulkanEngine::init_imgui()
     VkDescriptorPool imguiPool;
     VK_CHECK(vkCreateDescriptorPool(_device, &pool_info, nullptr, &imguiPool));
 
-    // 2: initialize imgui library
-
-    // this initializes the core structures of imgui
     ImGui::CreateContext();
 
-    // this initializes imgui for SDL
     ImGui_ImplSDL2_InitForVulkan(_window);
 
-    // this initializes imgui for Vulkan
     ImGui_ImplVulkan_InitInfo init_info = {};
     init_info.Instance = _instance;
     init_info.PhysicalDevice = _chosenGPU;
@@ -1811,13 +1754,10 @@ void VulkanEngine::init_imgui()
 
     ImGui_ImplVulkan_Init(&init_info, VK_NULL_HANDLE);
 
-    // execute a gpu command to upload imgui font textures
     immediate_submit([&](VkCommandBuffer cmd) { ImGui_ImplVulkan_CreateFontsTexture(cmd); });
 
-    // clear font textures from cpu data
     ImGui_ImplVulkan_DestroyFontUploadObjects();
 
-    // add the destroy the imgui created structures
     _mainDeletionQueue.push_function([=]() {
         vkDestroyDescriptorPool(_device, imguiPool, nullptr);
         ImGui_ImplVulkan_Shutdown();
@@ -1962,8 +1902,6 @@ void GLTFMetallic_Roughness::build_pipelines(VulkanEngine* engine)
     opaquePipeline.layout = newLayout;
     transparentPipeline.layout = newLayout;
 
-    // build the stage-create-info for both vertex and fragment stages. This lets
-    // the pipeline know the shader modules per stage
     PipelineBuilder pipelineBuilder;
 
     pipelineBuilder.set_shaders(meshVertexShader, meshFragShader);
@@ -1980,17 +1918,14 @@ void GLTFMetallic_Roughness::build_pipelines(VulkanEngine* engine)
 
     pipelineBuilder.enable_depthtest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
 
-    //render format
     pipelineBuilder.set_color_attachment_format(engine->_drawImage.imageFormat);
     pipelineBuilder.set_depth_format(engine->_depthImage.imageFormat);
 
-    // use the triangle layout we created
     pipelineBuilder._pipelineLayout = newLayout;
 
-    // finally build the pipeline
     opaquePipeline.pipeline = pipelineBuilder.build_pipeline(engine->_device);
 
-    // create the transparent variant
+    // Transparent variant reuses the same layout with blending and depth writes off.
     pipelineBuilder.enable_blending_additive();
 
     pipelineBuilder.enable_depthtest(false, VK_COMPARE_OP_GREATER_OR_EQUAL);
@@ -2040,35 +1975,30 @@ MaterialInstance GLTFMetallic_Roughness::write_material(VkDevice device, Materia
     return matData;
 }
 
-// function to make buffers available on device
+// Backs an already-created VkBuffer with memory and binds the two together.
 AllocatedBuffer VulkanEngine::allocate_and_bind_buffer(VkBuffer buffer, VmaMemoryUsage memoryUsage)
 {
     if (_allocator == VK_NULL_HANDLE || buffer == VK_NULL_HANDLE) {
         throw std::runtime_error("Invalid allocator or buffer handle");
     }
 
-    // Get the buffer memory requirements
     VkMemoryRequirements memRequirements;
     vkGetBufferMemoryRequirements(_device, buffer, &memRequirements);
 
-    // Create the allocation information structure
     VmaAllocationCreateInfo allocInfo = {};
-    allocInfo.usage = memoryUsage; // Use CPU to GPU memory
+    allocInfo.usage = memoryUsage;
 
-    // Allocate memory for the buffer
     VmaAllocation allocation;
     VmaAllocationInfo allocationInfo;
     if (vmaAllocateMemoryForBuffer(_allocator, buffer, &allocInfo, &allocation, &allocationInfo) != VK_SUCCESS) {
         throw std::runtime_error("Failed to allocate memory for buffer");
     }
 
-    // Bind the buffer memory
     if (vmaBindBufferMemory(_allocator, allocation, buffer) != VK_SUCCESS) {
         vmaFreeMemory(_allocator, allocation);
         throw std::runtime_error("Failed to bind buffer memory");
     }
 
-    // Create an AllocatedBuffer struct to hold the buffer and its memory allocation
     AllocatedBuffer allocatedBuffer;
     allocatedBuffer.buffer = buffer;
     allocatedBuffer.allocation = allocation;
@@ -2106,7 +2036,6 @@ void MeshNode::draw(const glm::mat4& topMatrix, DrawContext& ctx)
         }
     }
 
-    // recurse down
     Node::draw(topMatrix, ctx);
 }
 
@@ -2119,14 +2048,13 @@ VkDeviceAddress VulkanEngine::get_buffer_device_address(VkDevice device, VkBuffe
     info.buffer = buffer;
     return vkGetBufferDeviceAddress(device, &info);
 }
-// Creates a buffer with data mapped in
+// Creates a device-local buffer and uploads data into it through a staging copy.
 AllocatedBuffer VulkanEngine::create_buffer_data(VkDeviceSize size, const void* data, VkBufferUsageFlags usage,
                                                  const VmaMemoryUsage memUsage)
 {
 
     AllocatedBuffer resultBuffer = create_buffer(size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, memUsage);
 
-    // Create a staging buffer
     VkBufferCreateInfo bufferInfo = {};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = size;
@@ -2139,15 +2067,13 @@ AllocatedBuffer VulkanEngine::create_buffer_data(VkDeviceSize size, const void* 
     VmaAllocation stagingAllocation;
     vmaCreateBuffer(_allocator, &bufferInfo, &allocInfo, &stagingBuffer, &stagingAllocation, nullptr);
 
-    // Map the buffer and copy the data
     void* mappedData;
     vmaMapMemory(_allocator, stagingAllocation, &mappedData);
     memcpy(mappedData, data, size);
     vmaUnmapMemory(_allocator, stagingAllocation);
 
-    // Record command to transfer data from staging buffer to the destination buffer
     VkBufferCopy copyRegion = {};
-    copyRegion.srcOffset = 0; // Assuming data starts at the beginning of the staging buffer
+    copyRegion.srcOffset = 0;
     copyRegion.dstOffset = 0;
     copyRegion.size = size;
     immediate_submit(

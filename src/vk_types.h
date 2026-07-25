@@ -1,4 +1,3 @@
-// or project specific include files.
 #pragma once
 
 #include <memory>
@@ -23,7 +22,7 @@
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
 
-// we will add our main reusable types here
+// Core types shared across the renderer.
 struct AllocatedImage
 {
     VkImage image{VK_NULL_HANDLE};
@@ -40,6 +39,8 @@ struct AllocatedBuffer
     VmaAllocationInfo info{};
 };
 
+// Padded to 256 bytes so instances index out of one uniform buffer at the
+// spec's guaranteed minimum offset alignment.
 struct GPUGLTFMaterial
 {
     glm::vec4 colorFactors{};
@@ -49,20 +50,23 @@ struct GPUGLTFMaterial
 
 static_assert(sizeof(GPUGLTFMaterial) == 256);
 
+// Mirrors RenderLight in shaders/raycommon.glsl. The w channels are packed
+// parameters, not padding.
 struct RenderLight
 {
-    glm::vec4 position{};
-    glm::vec4 color{};
-    glm::vec4 v0{};
+    glm::vec4 position{}; // xyz direction (directional) or third corner (area), w intensity
+    glm::vec4 color{};    // w type: 0 point, 1 ambient, 2 directional, 3 area
+    glm::vec4 v0{};       // remaining area-light corners, unused by other types
     glm::vec4 v1{};
 };
 
+// Mirrors SceneData in shaders/raycommon.glsl.
 struct GPUSceneData
 {
     glm::mat4 view{1.0f};
     glm::mat4 proj{1.0f};
     glm::mat4 viewproj{1.0f};
-    glm::vec4 data{};
+    glm::vec4 data{}; // x accumulated frame count, y sampling enable flag
 };
 enum class MaterialPass : uint8_t
 {
@@ -82,9 +86,10 @@ struct MaterialInstance
     VkDescriptorSet materialSet{VK_NULL_HANDLE};
     MaterialPass passType{MaterialPass::Other};
 };
+// UVs are split around the vec3s so each pair fills one 16-byte std430 slot
+// with no padding. Mirrored in shaders/mesh.vert and shaders/raycommon.glsl.
 struct Vertex
 {
-
     glm::vec3 position{};
     float uvX{0.0f};
     glm::vec3 normal{};
@@ -92,17 +97,16 @@ struct Vertex
     glm::vec4 color{};
 };
 
-// holds the resources needed for a mesh
+// GPU-side buffers backing a single mesh.
 struct GPUMeshBuffers
 {
-
     AllocatedBuffer indexBuffer;
     AllocatedBuffer vertexBuffer;
     VkDeviceAddress vertexBufferAddress{0};
     int vertexCount{0};
 };
 
-// push constants for our mesh object draws
+// Push constant block for mesh draws.
 struct GPUDrawPushConstants
 {
     glm::mat4 worldMatrix{1.0f};
@@ -112,26 +116,22 @@ struct GPUDrawPushConstants
 };
 struct DrawContext;
 
-// base class for a renderable dynamic object
+// Base class for anything that can submit draws.
 class IRenderable
 {
 
     virtual void draw(const glm::mat4& topMatrix, DrawContext& ctx) = 0;
 };
 
-// to declare that the engine class will exist
 class VulkanEngine;
 
-// implementation of a drawable scene node.
-// the scene node can hold children and will also keep a transform to propagate
-// to them
+// Scene graph node. Holds a local transform that is composed with its parent's
+// and propagated down to children.
 struct Node : public IRenderable
 {
-
-    // pointer to main engine
     VulkanEngine* engine{nullptr};
 
-    // parent pointer must be a weak pointer to avoid circular dependencies
+    // Weak, so a parent holding its children shared does not form a cycle.
     std::weak_ptr<Node> parent;
     std::vector<std::shared_ptr<Node>> children;
 
@@ -148,7 +148,6 @@ struct Node : public IRenderable
 
     virtual void draw(const glm::mat4& topMatrix, DrawContext& ctx)
     {
-        // draw children
         for (auto& c : children) {
             c->draw(topMatrix, ctx);
         }

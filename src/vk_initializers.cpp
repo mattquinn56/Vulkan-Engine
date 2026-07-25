@@ -248,10 +248,10 @@ VkImageCreateInfo vkinit::image_create_info(VkFormat format, VkImageUsageFlags u
     info.mipLevels = 1;
     info.arrayLayers = 1;
 
-    //for MSAA. we will not be using it by default, so default it to 1 sample per pixel.
+    // MSAA is off by default: one sample per pixel.
     info.samples = VK_SAMPLE_COUNT_1_BIT;
 
-    //optimal tiling, which means the image is stored on the best gpu format
+    // Optimal tiling: driver picks the most efficient in-memory layout.
     info.tiling = VK_IMAGE_TILING_OPTIMAL;
     info.usage = usageFlags;
 

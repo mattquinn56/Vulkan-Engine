@@ -80,7 +80,7 @@ void DescriptorWriter::write_image(int binding, VkImageView image, VkSampler sam
     VkWriteDescriptorSet write = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
 
     write.dstBinding = binding;
-    write.dstSet = VK_NULL_HANDLE; //left empty for now until we need to write it
+    write.dstSet = VK_NULL_HANDLE; // patched in by update_set
     write.descriptorCount = 1;
     write.descriptorType = type;
     write.pImageInfo = &info;
@@ -103,12 +103,12 @@ void DescriptorWriter::write_image_array(int binding, std::vector<VkImageView> i
     VkWriteDescriptorSet write = {};
     write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     write.dstBinding = binding;
-    write.dstSet = VK_NULL_HANDLE; // To be set later
+    write.dstSet = VK_NULL_HANDLE; // patched in by update_set
     write.descriptorCount = static_cast<uint32_t>(images.size());
     write.descriptorType = type;
 
-    // when resizing the vector, it may change where it is in memory.
-    // store indices to refer to this memory later
+    // Taking pImageInfo here would dangle once imageInfosArray reallocates.
+    // Record the index and resolve it in update_set.
     writeArrayIndices.push_back({(int)writes.size(), firstIndex});
 
     writes.push_back(write);
@@ -121,7 +121,7 @@ void DescriptorWriter::write_buffer(int binding, VkBuffer buffer, size_t size, s
     VkWriteDescriptorSet write = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
 
     write.dstBinding = binding;
-    write.dstSet = VK_NULL_HANDLE; //left empty for now until we need to write it
+    write.dstSet = VK_NULL_HANDLE; // patched in by update_set
     write.descriptorCount = 1;
     write.descriptorType = type;
     write.pBufferInfo = &info;
@@ -147,8 +147,7 @@ void DescriptorWriter::update_set(VkDevice device, VkDescriptorSet set)
         write.dstSet = set;
     }
 
-    // set the pImageInfo to the correct offset in the imageInfosArray for each write
-    // this is done later for vector resizing changing where it lies in memory
+    // Resolve the deferred array-write pointers now that imageInfosArray is stable.
     for (auto& [writeIndex, firstIndex] : writeArrayIndices) {
         writes[writeIndex].pImageInfo = &imageInfosArray[firstIndex];
     }
@@ -200,9 +199,10 @@ VkDescriptorPool DescriptorAllocatorGrowable::get_pool(VkDevice device)
         newPool = readyPools.back();
         readyPools.pop_back();
     } else {
-        //need to create a new pool
         newPool = create_pool(device, setsPerPool, ratios);
 
+        // Grow 1.5x per pool so repeated allocation settles into a few large
+        // pools rather than many small ones.
         setsPerPool += setsPerPool / 2;
         if (setsPerPool > 4092) {
             setsPerPool = 4092;
@@ -234,7 +234,6 @@ VkDescriptorPool DescriptorAllocatorGrowable::create_pool(VkDevice device, uint3
 }
 VkDescriptorSet DescriptorAllocatorGrowable::allocate(VkDevice device, VkDescriptorSetLayout layout)
 {
-    //get or create a pool to allocate from
     VkDescriptorPool poolToUse = get_pool(device);
 
     VkDescriptorSetAllocateInfo allocInfo = {};
@@ -247,7 +246,7 @@ VkDescriptorSet DescriptorAllocatorGrowable::allocate(VkDevice device, VkDescrip
     VkDescriptorSet ds;
     VkResult result = vkAllocateDescriptorSets(device, &allocInfo, &ds);
 
-    //allocation failed. Try again
+    // Retire the exhausted pool and retry once against a larger one.
     if (result == VK_ERROR_OUT_OF_POOL_MEMORY || result == VK_ERROR_FRAGMENTED_POOL) {
 
         fullPools.push_back(poolToUse);

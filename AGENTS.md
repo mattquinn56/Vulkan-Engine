@@ -17,6 +17,16 @@
 - Use `PascalCase` for types, `snake_case` for functions, `camelCase` for locals and data-struct fields, and
   `_camelCase` for class data members. Boolean names should describe a state or capability.
 
+## Comments
+
+- Keep comments short. One or two lines is the norm. Reserve three or more lines
+  for things that genuinely need it, such as a non-obvious invariant, a packed
+  GPU layout, or a docstring on a key function.
+- Comment the reason, not the mechanics. Do not restate what the next line does,
+  and do not narrate a function step by step.
+- Prefer no comment over a filler one. Deleting a redundant comment is an
+  improvement.
+
 ## Running and validation output
 
 - Run with `bin/Debug` as the working directory. Engine resource paths use `../../shaders` and `../../assets`; launching with the repository root as the working directory fails during initialization.

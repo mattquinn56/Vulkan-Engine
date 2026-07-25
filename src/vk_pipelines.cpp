@@ -99,20 +99,16 @@ void PipelineBuilder::set_cull_mode(VkCullModeFlags cullMode, VkFrontFace frontF
 void PipelineBuilder::set_multisampling_none()
 {
     _multisampling.sampleShadingEnable = VK_FALSE;
-    // multisampling defaulted to no multisampling (1 sample per pixel)
     _multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
     _multisampling.minSampleShading = 1.0f;
     _multisampling.pSampleMask = nullptr;
-    //no alpha to coverage either
     _multisampling.alphaToCoverageEnable = VK_FALSE;
     _multisampling.alphaToOneEnable = VK_FALSE;
 }
 void PipelineBuilder::disable_blending()
 {
-    //default write mask
     _colorBlendAttachment.colorWriteMask =
         VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    //no blending
     _colorBlendAttachment.blendEnable = VK_FALSE;
 }
 void PipelineBuilder::enable_blending_additive()
@@ -143,7 +139,6 @@ void PipelineBuilder::enable_blending_alphablend()
 void PipelineBuilder::set_color_attachment_format(VkFormat format)
 {
     _colorAttachmentformat = format;
-    //connect the format to the renderInfo  structure
     _renderInfo.colorAttachmentCount = 1;
     _renderInfo.pColorAttachmentFormats = &_colorAttachmentformat;
 }
@@ -178,40 +173,31 @@ void PipelineBuilder::enable_depthtest(bool depthWriteEnable, VkCompareOp op)
 }
 bool vkutil::load_shader_module(const char* filePath, VkDevice device, VkShaderModule* outShaderModule)
 {
-    // open the file. With cursor at the end
+    // Opening at the end lets tellg report the size directly.
     std::ifstream file(filePath, std::ios::ate | std::ios::binary);
 
     if (!file.is_open()) {
         return false;
     }
 
-    // find what the size of the file is by looking up the location of the cursor
-    // because the cursor is at the end, it gives the size directly in bytes
     size_t fileSize = (size_t)file.tellg();
 
-    // spirv expects the buffer to be on uint32, so make sure to reserve a int
-    // vector big enough for the entire file
+    // SPIR-V is consumed as 32-bit words, and the buffer must satisfy uint32_t
+    // alignment, so read into a uint32_t vector rather than a byte array.
     std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
 
-    // put file cursor at beginning
     file.seekg(0);
-
-    // load the entire file into the buffer
     file.read((char*)buffer.data(), fileSize);
-
-    // now that the file is loaded into the buffer, we can close it
     file.close();
 
-    // create a new shader module, using the buffer we loaded
     VkShaderModuleCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.pNext = nullptr;
 
-    // SPIR-V code size is measured in bytes, not uint32_t words.
+    // codeSize is in bytes even though pCode is a word pointer.
     createInfo.codeSize = buffer.size() * sizeof(uint32_t);
     createInfo.pCode = buffer.data();
 
-    // check that the creation goes well.
     VkShaderModule shaderModule;
     if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
         return false;

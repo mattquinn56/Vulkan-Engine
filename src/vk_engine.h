@@ -1,4 +1,3 @@
-// or project specific include files.
 
 #pragma once
 
@@ -37,9 +36,9 @@ struct DeletionQueue
 
     void flush()
     {
-        // reverse iterate the deletion queue to execute all the functions
+        // Reverse order, so resources are destroyed before what they depend on.
         for (auto it = callbacks.rbegin(); it != callbacks.rend(); it++) {
-            (*it)(); // call functors
+            (*it)();
         }
 
         callbacks.clear();
@@ -95,19 +94,19 @@ struct FrameData
 
 constexpr unsigned int FRAME_OVERLAP = 2;
 
+// Per-object buffer addresses, uploaded as _objectDescriptionBuffer so the
+// closest-hit shader can reach geometry the ray hit.
 struct ObjDesc
 {
-    // a buffer with a vector of these objects `_objectDescriptionBuffer` will be passed to the ray tracing closest hit shader
-    uint64_t vertexAddress;   // Address of the vertex buffer
-    uint64_t indexAddress;    // Address of the index buffer
-    uint64_t materialAddress; // Address of the material buffer
+    uint64_t vertexAddress;
+    uint64_t indexAddress;
+    uint64_t materialAddress;
 };
 
 struct DrawContext
 {
-    // Only drawing + using RT for opaque surfaces
     std::vector<RenderObject> opaqueSurfaces;
-    std::vector<ObjDesc> objectDescriptions; // Model descriptions for device access by opaque surfaces.
+    std::vector<ObjDesc> objectDescriptions; // parallel to opaqueSurfaces; ray tracing is opaque-only
     std::vector<RenderObject> TransparentSurfaces;
 };
 
@@ -130,8 +129,7 @@ struct GLTFMetallic_Roughness
     {
         glm::vec4 colorFactors{};
         glm::vec4 metalRoughFactors{};
-        //padding, we need it anyway for uniform buffers
-        glm::vec4 extra[14]{};
+        glm::vec4 extra[14]{}; // pads to 256 bytes for uniform buffer offset alignment
     };
 
     struct MaterialResources
@@ -159,8 +157,8 @@ struct MeshNode : public Node
     virtual void draw(const glm::mat4& topMatrix, DrawContext& ctx) override;
 };
 
-// volumetric additions
-// Medium parameters for a homogeneous base + settings controlling ray marching
+// Homogeneous medium coefficients plus ray-march settings. Mirrors the Medium
+// uniform block in shaders/raycommon.glsl.
 struct GPUMediumParams
 {
     glm::vec4 sigma_a_step{};       // xyz = sigma_a, w = stepSize
@@ -168,7 +166,7 @@ struct GPUMediumParams
     glm::vec4 g_emis_density_pad{}; // x = g, y = emission, z = densityScale, w = fogEnvFlag (1=affect env, 0=skip)
 };
 
-// Volume resources: optional 3D density + sampler + params buffer
+// Optional 3D density texture and its sampler, plus the medium params buffer.
 struct VolumeResources
 {
     AllocatedImage densityTex3D; // R16F or R8_UNORM or R32F depending on memory
@@ -191,8 +189,9 @@ class VulkanEngine
     int _msaaSamples{1};
     bool _debugEnabled{false};
 
-    int _lastMonteCarlo{-1};  // Not controlled by the UI.
-    int _lastMsaaSamples{-1}; // not controlled by UI
+    // Previous-frame values, used to detect setting changes. Not UI-controlled.
+    int _lastMonteCarlo{-1};
+    int _lastMsaaSamples{-1};
 
     VkExtent2D _windowExtent{1250, 800};
 
@@ -241,7 +240,7 @@ class VulkanEngine
 
     DeletionQueue _mainDeletionQueue;
 
-    VmaAllocator _allocator{VK_NULL_HANDLE}; // vma lib allocator
+    VmaAllocator _allocator{VK_NULL_HANDLE};
 
     VkDescriptorSetLayout _gpuSceneDataDescriptorLayout{VK_NULL_HANDLE};
     VkDescriptorSet _globalDescriptor{VK_NULL_HANDLE};
@@ -278,7 +277,7 @@ class VulkanEngine
 
     EngineStats _stats;
 
-    // some volumetric additions
+    // Volumetrics
     VkDescriptorSetLayout _volumeSetLayout{VK_NULL_HANDLE};
     VkDescriptorSet _volumeSet{VK_NULL_HANDLE};
     VolumeResources _volume{};
@@ -286,19 +285,16 @@ class VulkanEngine
     std::vector<ComputeEffect> _backgroundEffects;
     int _currentBackgroundEffect{0};
 
-    // singleton style getter.multiple engines is not supported
+    // Singleton accessor; multiple engine instances are not supported.
     static VulkanEngine& get();
 
-    // initializes everything in the engine
     void init();
 
-    // checks that the needed extensions are available (currently unused)
+    // Currently unused.
     void check_extensions();
 
-    // shuts down the engine
     void cleanup();
 
-    // draw loop
     void draw();
     void draw_main(VkCommandBuffer cmd);
     void draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView);
@@ -308,13 +304,11 @@ class VulkanEngine
     void update_global_descriptor();
     void draw_geometry(VkCommandBuffer cmd);
 
-    // run main loop
     void run();
 
     void update_scene();
 
-    // upload a mesh into a pair of gpu buffers. If descriptor allocator is not
-    // null, it will also create a descriptor that points to the vertex buffer
+    // Uploads a mesh into a device-local index/vertex buffer pair.
     GPUMeshBuffers upload_mesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
 
     FrameData& get_current_frame();
@@ -379,10 +373,10 @@ class VulkanEngine
     void create_taa_history_images();
     void destroy_taa_history_images();
 
-    // progressive mc things
-    bool _progressiveMonteCarlo{true}; // enable progressive MC accumulation
-    int _monteCarloSamplesPerFrame{5}; // Samples per pixel per frame.
-    int _monteCarloResetFrames{2};     // clear history this many frames after motion
+    // Progressive Monte Carlo accumulation
+    bool _progressiveMonteCarlo{true};
+    int _monteCarloSamplesPerFrame{5};
+    int _monteCarloResetFrames{2}; // frames of motion before history is cleared
 
     AllocatedImage _mcAccumColor; // rgba16f, running average
     AllocatedImage _mcAccumCount; // r32ui, sample counts
@@ -403,22 +397,22 @@ class VulkanEngine
     VkPipelineLayout _postPipeLayout{VK_NULL_HANDLE};
     VkPipeline _postPipeline{VK_NULL_HANDLE};
     VkDescriptorSet _postSet{VK_NULL_HANDLE};
-    bool _enableTonemap{true}; // default ON
-    bool _ldrNeedsInit{true};  // first-use transition
+    bool _enableTonemap{true};
+    bool _ldrNeedsInit{true}; // _ldrImage still needs its first layout transition
     float _exposure{1.0f};
 
     // LDR target copied to the swapchain after tonemapping.
     AllocatedImage _ldrImage;
     void create_postprocess_resources();
 
-    // Microfacet addition
+    // False falls back to the legacy BRDF; see useMicrofacet in the RT push constants.
     bool _useMicrofacetBrdf{true};
 
-    // Force reset of MC/TAA history on the next draw()
+    // Forces MC and TAA history to be discarded on the next draw().
     void request_accum_reset();
     bool _resetAccumNextFrame{false};
 
-    // volumetric additions
+    // Volumetrics
     void set_medium_params(const GPUMediumParams& p);
 
   private:

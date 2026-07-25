@@ -22,12 +22,10 @@ std::optional<AllocatedImage> load_image(VulkanEngine* engine, fastgltf::Asset& 
     std::visit(fastgltf::visitor{
                    [](auto& arg) {},
                    [&](fastgltf::sources::URI& filePath) {
-                       assert(filePath.fileByteOffset == 0); // We don't support offsets with stbi.
-                       assert(filePath.uri.isLocalPath());   // We're only capable of loading
-                                                             // local files.
+                       assert(filePath.fileByteOffset == 0); // stbi cannot start at an offset
+                       assert(filePath.uri.isLocalPath());   // only local files are supported
 
-                       const std::string path(filePath.uri.path().begin(),
-                                              filePath.uri.path().end()); // Thanks C++.
+                       const std::string path(filePath.uri.path().begin(), filePath.uri.path().end());
                        unsigned char* data = stbi_load(path.c_str(), &width, &height, &nrChannels, 4);
                        if (data) {
                            VkExtent3D imagesize;
@@ -61,9 +59,8 @@ std::optional<AllocatedImage> load_image(VulkanEngine* engine, fastgltf::Asset& 
                        auto& buffer = asset.buffers[bufferView.bufferIndex];
 
                        std::visit(fastgltf::visitor{
-                                      // We only care about VectorWithMime here, because we
-                                      // specify LoadExternalBuffers, meaning all buffers
-                                      // are already loaded into a vector.
+                                      // LoadExternalBuffers means every buffer is already
+                                      // resolved to a vector, so only that case matters.
                                       [](auto& arg) {},
                                       [&](fastgltf::sources::Vector& vector) {
                                           unsigned char* data = stbi_load_from_memory(
@@ -127,7 +124,6 @@ VkSamplerMipmapMode extract_mipmap_mode(fastgltf::Filter filter)
 
 std::vector<RenderLight> load_lights(std::string filePath)
 {
-    // Read json
     std::ifstream inFile(filePath);
     std::stringstream strStream;
 
@@ -136,17 +132,16 @@ std::vector<RenderLight> load_lights(std::string filePath)
         return {};
     }
 
-    strStream << inFile.rdbuf();            // Read the file
-    std::string jsonData = strStream.str(); // Convert stream to string
+    strStream << inFile.rdbuf();
+    std::string jsonData = strStream.str();
 
-    // Parse lights
     auto j = nlohmann::json::parse(jsonData);
     std::vector<RenderLight> lights = {};
 
     for (const auto& item : j["lights"]) {
         RenderLight light = {};
 
-        // Get type
+        // Type tag packs into color.a; see RenderLight in vk_types.h.
         if (item["type"] == "point") {
             light.color.a = 0.0f;
         } else if (item["type"] == "ambient") {
@@ -160,15 +155,12 @@ std::vector<RenderLight> load_lights(std::string filePath)
             light.color.a = -1.0f;
         }
 
-        // Get intensity
         light.position.a = item["intensity"];
 
-        // Get color
         light.color.r = item["color"][0] / 255.0f;
         light.color.g = item["color"][1] / 255.0f;
         light.color.b = item["color"][2] / 255.0f;
 
-        // Get position/direction
         if (item["type"] == "point") {
             light.position.x = item["position"][0];
             light.position.y = item["position"][1];
@@ -179,7 +171,6 @@ std::vector<RenderLight> load_lights(std::string filePath)
             light.position.z = item["direction"][2];
         }
 
-        // Get vertices
         if (item["type"] == "area") {
             light.v0.x = item["vertices"][0][0];
             light.v0.y = item["vertices"][0][1];
@@ -279,8 +270,7 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
             images.push_back(*img);
             file.images[image.name.c_str()] = *img;
         } else {
-            // we failed to load, so lets give the slot a default white texture to not
-            // completely break loading
+            // Fall back to a white texture so one bad image does not fail the load.
             images.push_back(engine->_errorCheckerboardImage);
             fmt::print(stderr, "glTF failed to load texture {}\n", image.name);
         }
@@ -456,7 +446,7 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
     for (fastgltf::Node& node : gltf.nodes) {
         std::shared_ptr<Node> newNode;
 
-        // find if the node has a mesh, and if it does hook it to the mesh pointer and allocate it with the meshnode class
+        // Nodes carrying geometry become MeshNodes; the rest are transform-only.
         if (node.meshIndex.has_value()) {
             newNode = std::make_shared<MeshNode>();
             static_cast<MeshNode*>(newNode.get())->mesh = meshes[*node.meshIndex];
@@ -465,7 +455,7 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
         }
         newNode->engine = engine;
 
-        // Generate unique node name based off of node.name
+        // glTF node names are not required to be unique; disambiguate with a suffix.
         std::pmr::string nodeName = node.name;
         while (file.nodeNames.find(newNode) != file.nodeNames.end()) {
             nodeName = fmt::format("{}_{}", node.name.c_str(), file.nodeNames.size());
