@@ -55,6 +55,9 @@ struct GPUFrameConstants
     glm::mat4 view{1.0f};
     glm::mat4 proj{1.0f};
     glm::mat4 viewproj{1.0f};
+    // Inverted once per frame on the CPU; the raygen shader needs them per ray.
+    glm::mat4 invView{1.0f};
+    glm::mat4 invProj{1.0f};
     glm::vec4 data{}; // x accumulated frame count, y sampling enable flag
 };
 // Alpha-blended surfaces are excluded from the traced scene, so this only

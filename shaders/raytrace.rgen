@@ -28,11 +28,9 @@ vec3 traceAt(vec2 jitter)
     vec2 uv = pixel / res;
     vec2 ndc = uv * 2.0 - 1.0;
 
-    mat4 invView = inverse(sceneData.view);
-    mat4 invProj = inverse(sceneData.proj);
-    vec4 o = invView * vec4(0,0,0,1);
-    vec4 t = invProj * vec4(ndc,1,1);
-    vec4 d = invView * vec4(normalize(t.xyz),0);
+    vec4 o = sceneData.invView * vec4(0,0,0,1);
+    vec4 t = sceneData.invProj * vec4(ndc,1,1);
+    vec4 d = sceneData.invView * vec4(normalize(t.xyz),0);
 
     prd.recursionDepth = 0;
     traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0,0,0, o.xyz, 0.001, d.xyz, 10000.0, 0);

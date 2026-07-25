@@ -10,6 +10,8 @@ layout(set = 1, binding = 0) uniform SceneData {
 	mat4 view;
 	mat4 proj;
 	mat4 viewproj;
+	mat4 invView;
+	mat4 invProj;
 	vec4 data; // x is num frames, y is enable sampling
 } sceneData;
 

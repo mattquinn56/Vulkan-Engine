@@ -100,6 +100,8 @@ void RtEngine::update_scene() {
     _sceneData.view = view;
     _sceneData.proj = projection;
     _sceneData.viewproj = projection * view;
+    _sceneData.invView = glm::inverse(view);
+    _sceneData.invProj = glm::inverse(projection);
     const float perFrameSpp = _progressiveMonteCarlo ? float(_monteCarloSamplesPerFrame) : float(_monteCarloSamples);
     _sceneData.data = glm::vec4(_frameNumber, perFrameSpp, _msaaSamples, (_aaMode == AAMode::TAA) ? 1.f : 0.f);
 
