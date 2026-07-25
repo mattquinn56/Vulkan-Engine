@@ -25,10 +25,6 @@ FrameContext& RtEngine::get_current_frame() {
     return _frames[_frameNumber % FRAME_OVERLAP];
 }
 
-FrameContext& RtEngine::get_last_frame() {
-    return _frames[(_frameNumber - 1) % FRAME_OVERLAP];
-}
-
 void RtEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function) {
     VK_CHECK(vkResetFences(_device, 1, &_immFence));
     VK_CHECK(vkResetCommandBuffer(_immCommandBuffer, 0));

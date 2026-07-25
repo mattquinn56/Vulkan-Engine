@@ -93,9 +93,6 @@ struct SceneDrawList
 struct EngineStats
 {
     float frameTime{0.0f};
-    int triangleCount{0};
-    int drawCallCount{0};
-    float meshDrawTime{0.0f};
 };
 
 struct MeshNode : public Node
@@ -175,17 +172,12 @@ class RtEngine
     VkSwapchainKHR _swapchain{VK_NULL_HANDLE};
     VkFormat _swapchainImageFormat{VK_FORMAT_UNDEFINED};
 
-    VkDescriptorPool _descriptorPool{VK_NULL_HANDLE};
-
     DescriptorAllocator _globalDescriptorAllocator;
 
     VulkanRayTracer* _rayTracer{nullptr};
 
     std::vector<VkImage> _swapchainImages;
     std::vector<VkImageView> _swapchainImageViews;
-
-    std::vector<VkSemaphore> _imageAcquireSems;
-    std::vector<VkSemaphore> _imageRenderSems;
 
     CleanupQueue _mainDeletionQueue;
 
@@ -230,9 +222,6 @@ class RtEngine
 
     void init();
 
-    // Currently unused.
-    void check_extensions();
-
     void cleanup();
 
     void draw();
@@ -247,8 +236,6 @@ class RtEngine
     void capture_swapchain(VkCommandBuffer cmd, uint32_t imageIndex, AllocatedBuffer& dst);
     void write_capture(const AllocatedBuffer& src);
 
-    void render_nodes();
-
     void update_global_descriptor();
 
     void run();
@@ -259,7 +246,6 @@ class RtEngine
     GPUMeshBuffers upload_mesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
 
     FrameContext& get_current_frame();
-    FrameContext& get_last_frame();
 
     AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
 
@@ -270,7 +256,6 @@ class RtEngine
     void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
 
     std::unordered_map<std::string, std::shared_ptr<GltfScene>> _loadedScenes;
-    std::vector<std::shared_ptr<GltfScene>> _brickadiaScene;
 
     void destroy_image(const AllocatedImage& img);
     void destroy_buffer(const AllocatedBuffer& buffer);

@@ -21,30 +21,6 @@
 
 #include <stb_image.h>
 
-void RtEngine::check_extensions() {
-    uint32_t extensionCount;
-    vkEnumerateDeviceExtensionProperties(_chosenGPU, nullptr, &extensionCount, nullptr);
-    std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-    vkEnumerateDeviceExtensionProperties(_chosenGPU, nullptr, &extensionCount, availableExtensions.data());
-
-    std::vector<bool> hasExtension(availableExtensions.size(), false);
-    for (const auto& extension : availableExtensions) {
-        for (int i = 0; i < _deviceExtensions.size(); i++) {
-            if (strcmp(extension.extensionName, _deviceExtensions[i]) == 0) {
-                hasExtension[i] = true;
-            }
-        }
-    }
-
-    for (int i = 0; i < _deviceExtensions.size(); i++) {
-        if (!hasExtension[i]) {
-            throw std::runtime_error("Missing device extension: " + std::string(_deviceExtensions[i]));
-        }
-    }
-
-    fmt::println("All required device extensions found");
-}
-
 void RtEngine::init_vulkan() {
     vkb::InstanceBuilder builder;
 
