@@ -29,6 +29,12 @@ file(GLOB_RECURSE GLSL_SOURCE_FILES
     "${PROJECT_SOURCE_DIR}/shaders/*.rgen"
     )
 
+# Shared .glsl files are #included by the shaders above. glslc resolves them at
+# compile time, but the build system cannot see them, so list them as
+# dependencies of every shader. Coarse — touching one rebuilds all — but a
+# stale SPIR-V that silently ignores an edit is far worse.
+file(GLOB GLSL_INCLUDE_FILES "${PROJECT_SOURCE_DIR}/shaders/*.glsl")
+
 foreach(GLSL ${GLSL_SOURCE_FILES})
   message(STATUS "BUILDING SHADER")
   get_filename_component(FILE_NAME ${GLSL} NAME)
@@ -41,7 +47,7 @@ foreach(GLSL ${GLSL_SOURCE_FILES})
   add_custom_command(
     OUTPUT ${SPIRV}
     COMMAND glslc  --target-env=vulkan1.2 ${GLSL} -o ${SPIRV}
-    DEPENDS ${GLSL})
+    DEPENDS ${GLSL} ${GLSL_INCLUDE_FILES})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach(GLSL)
 
