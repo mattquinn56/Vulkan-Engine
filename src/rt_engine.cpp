@@ -32,13 +32,21 @@ void RtEngine::init() {
 
     SDL_Init(SDL_INIT_VIDEO);
 
-    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+    // A capture run still needs a surface to present through, but the window
+    // stays hidden and does not take the mouse.
+    const bool capturing = !_screenshotPath.empty();
+    Uint32 window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
+    if (capturing) {
+        window_flags |= SDL_WINDOW_HIDDEN;
+    }
 
     _window = SDL_CreateWindow("Vulkan Engine", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, _windowExtent.width,
-                               _windowExtent.height, window_flags);
+                               _windowExtent.height, (SDL_WindowFlags)window_flags);
 
-    SDL_SetWindowGrab(_window, SDL_TRUE);
-    SDL_SetRelativeMouseMode(SDL_TRUE);
+    if (!capturing) {
+        SDL_SetWindowGrab(_window, SDL_TRUE);
+        SDL_SetRelativeMouseMode(SDL_TRUE);
+    }
 
     init_vulkan();
 
