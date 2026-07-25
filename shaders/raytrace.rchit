@@ -138,7 +138,7 @@ float legacy_specular(vec3 V, vec3 L, vec3 N, float roughness)
 vec3 brdf_legacy(vec3 N, vec3 V, vec3 L, vec3 albedo, float metallic, float roughness)
 {
     float NdotL = max(dot(N, L), 0.0);
-    // Mostly diffuse unless “metallic” is high (metal kills diffuse)
+    // Mostly diffuse unless ï¿½metallicï¿½ is high (metal kills diffuse)
     vec3  diff  = albedo * (1.0 - metallic) * (NdotL / PI);
     float spec  = legacy_specular(V, L, N, roughness) * NdotL;
     // Mildly tint the spec with albedo for metals
@@ -262,7 +262,11 @@ void main()
                 }
                 int samples = int(sceneData.data.y);
                 for (int j = 0; j < samples; j++) {
-                    vec2 rand = randomVec2(gl_WorldRayDirectionEXT.xy * float(j + 1));
+                    // Decorrelating on the frame is what lets progressive
+                    // accumulation converge: without it every frame draws the
+                    // same shadow samples and averaging changes nothing.
+                    vec2 rand = randomVec2(gl_WorldRayDirectionEXT.xy * float(j + 1) +
+                                           vec2(float(frameNumber) * 0.7548, float(frameNumber) * 0.5698));
                     if (rand.x + rand.y > 1.0) { rand = vec2(1.0) - rand; }
                     vec3 samplePoint = lv0 + (rand.x * (lv1 - lv0)) + (rand.y * (lv2 - lv0));
 
