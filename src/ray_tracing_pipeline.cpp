@@ -474,7 +474,18 @@ void VulkanRayTracer::create_material_descriptor_set() {
         materialDescriptorLayoutBuilder.build(_engine->_device, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
     _materialDescriptorSet = _materialDescriptorAllocator.allocate(_engine->_device, _materialDescriptorSetLayout);
 
-    // resize current arrays to TEX_MAX
+    // The descriptor array is fixed size, so a scene with more materials than
+    // this would be silently truncated here and then indexed out of bounds by
+    // the closest-hit shader. Fail loudly instead.
+    if (_colorTextures.size() > TEX_MAX) {
+        fmt::print(stderr,
+                   "Scene has {} materials but the ray tracing texture array holds {}. "
+                   "Raise TEX_MAX or move to a bindless descriptor heap.\n",
+                   _colorTextures.size(), TEX_MAX);
+        std::abort();
+    }
+
+    // Pad unused slots so every descriptor in the array is valid.
     _colorTextures.resize(TEX_MAX, _engine->_whiteImage.imageView);
     _colorSamplers.resize(TEX_MAX, _engine->_defaultSamplerLinear);
     _metalRoughTextures.resize(TEX_MAX, _engine->_whiteImage.imageView);
