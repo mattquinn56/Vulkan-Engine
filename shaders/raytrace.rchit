@@ -225,6 +225,9 @@ void main()
             if (type == POINT) {
                 float dist = length(lpos - worldPos);
                 vec3  L    = normalize(lpos - worldPos);
+                // Both BRDFs scale by saturate(dot(N,L)), so a light below the
+                // surface contributes nothing and its shadow ray is wasted.
+                if (dot(worldNrm, L) <= 0.0) continue;
                 bool  shadowed = isOccluded(worldPos, L, dist);
                 if (!shadowed) {
                     float invDist2 = 1.0 / max(dist * dist, 1e-4);
@@ -247,6 +250,7 @@ void main()
 
             } else if (type == DIRECTIONAL) {
                 vec3  L = normalize(lpos); // direction stored in position.xyz
+                if (dot(worldNrm, L) <= 0.0) continue;
                 bool  shadowed = isOccluded(worldPos, L, T_MAX);
                 if (!shadowed) {
                     vec3 radiance = lcolor * intensity;
@@ -268,6 +272,7 @@ void main()
 
                     float dist = length(samplePoint - worldPos);
                     vec3  L    = normalize(samplePoint - worldPos);
+                    if (dot(worldNrm, L) <= 0.0) continue;
                     bool  shadowed = isOccluded(worldPos, L, dist);
                     if (!shadowed) {
                         vec3 radiance = lcolor * intensity; // treat intensity as already scaled for area
