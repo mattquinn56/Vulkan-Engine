@@ -1,5 +1,6 @@
 #include "stb_image.h"
 #include <fstream>
+#include <unordered_set>
 #include <gltf_import.h>
 
 #include "rt_engine.h"
@@ -403,6 +404,7 @@ std::optional<std::shared_ptr<GltfScene>> load_gltf(RtEngine* engine, std::strin
         newmesh->meshBuffers = engine->upload_mesh(indices, vertices);
     }
     // load all nodes and their meshes
+    std::unordered_set<std::string> usedNodeNames;
     for (fastgltf::Node& node : gltf.nodes) {
         std::shared_ptr<Node> newNode;
 
@@ -415,10 +417,16 @@ std::optional<std::shared_ptr<GltfScene>> load_gltf(RtEngine* engine, std::strin
         }
         newNode->engine = engine;
 
-        // glTF node names are not required to be unique; disambiguate with a suffix.
-        std::pmr::string nodeName = node.name;
-        while (file.nodeNames.find(newNode) != file.nodeNames.end()) {
-            nodeName = fmt::format("{}_{}", node.name.c_str(), file.nodeNames.size());
+        // glTF node names are not required to be unique, but the hierarchy panel
+        // uses them as ImGui IDs, so duplicates would control each other.
+        std::string nodeName(node.name.begin(), node.name.end());
+        if (!usedNodeNames.insert(nodeName).second) {
+            std::string candidate;
+            int suffix = 1;
+            do {
+                candidate = fmt::format("{}_{}", nodeName, suffix++);
+            } while (!usedNodeNames.insert(candidate).second);
+            nodeName = std::move(candidate);
         }
 
         file.nodeNames[newNode] = nodeName;
