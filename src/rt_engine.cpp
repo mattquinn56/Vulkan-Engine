@@ -265,6 +265,11 @@ void RtEngine::run() {
 
         draw();
 
+        // A capture run is non-interactive: exit as soon as the shot is written.
+        if (_screenshotDone) {
+            bQuit = true;
+        }
+
         auto end = std::chrono::system_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 

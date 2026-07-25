@@ -4,6 +4,7 @@
 #include "gltf_import.h"
 #include "image_utils.h"
 #include "ray_tracing_pipeline.h"
+#include "screenshot.h"
 #include "shader_module.h"
 
 #include <SDL.h>
@@ -311,9 +312,16 @@ void RtEngine::draw() {
                              VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     draw_imgui(cmd, _swapchainImageViews[imageIndex]);
 
-    // Prepare for present
-    vk_img::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    // Diagnostic capture reads the presented image, so it runs after ImGui and
+    // before the present transition.
+    const bool capturing = !_screenshotPath.empty() && !_screenshotDone && _frameNumber >= _screenshotFrame;
+    AllocatedBuffer captureBuffer{};
+    if (capturing) {
+        capture_swapchain(cmd, imageIndex, captureBuffer);
+    } else {
+        vk_img::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                 VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    }
 
     VK_CHECK(vkEndCommandBuffer(cmd));
 
@@ -338,6 +346,14 @@ void RtEngine::draw() {
     VkResult present = vkQueuePresentKHR(_graphicsQueue, &presentInfo);
     if (present == VK_ERROR_OUT_OF_DATE_KHR || present == VK_SUBOPTIMAL_KHR) {
         _resizeRequested = true;
+    }
+
+    if (capturing) {
+        // Diagnostic path, so a full idle is acceptable to guarantee the copy landed.
+        VK_CHECK(vkDeviceWaitIdle(_device));
+        write_capture(captureBuffer);
+        destroy_buffer(captureBuffer);
+        _screenshotDone = true;
     }
 
     _frameNumber++;
@@ -380,5 +396,50 @@ void RtEngine::update_global_descriptor() {
         DescriptorWriter writer;
         writer.write_buffer(0, _objectDescriptionBuffer.buffer, VK_WHOLE_SIZE, 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
         writer.update_set(_device, _objDescSet);
+    }
+}
+
+// Copies the just-rendered swapchain image into a host-visible buffer and
+// leaves the image ready to present.
+void RtEngine::capture_swapchain(VkCommandBuffer cmd, uint32_t imageIndex, AllocatedBuffer& dst) {
+    const VkDeviceSize bytes = VkDeviceSize(_windowExtent.width) * _windowExtent.height * 4;
+    dst = create_buffer(bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_TO_CPU);
+
+    vk_img::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+    VkBufferImageCopy region{};
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.layerCount = 1;
+    region.imageExtent = {_windowExtent.width, _windowExtent.height, 1};
+    vkCmdCopyImageToBuffer(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst.buffer, 1,
+                           &region);
+
+    vk_img::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+}
+
+void RtEngine::write_capture(const AllocatedBuffer& src) {
+    const uint8_t* mapped = static_cast<const uint8_t*>(src.info.pMappedData);
+    if (mapped == nullptr) {
+        fmt::print(stderr, "Screenshot failed: capture buffer is not host-visible\n");
+        return;
+    }
+
+    // The swapchain is VK_FORMAT_B8G8R8A8_UNORM; PNG wants RGBA.
+    const size_t pixels = size_t(_windowExtent.width) * _windowExtent.height;
+    std::vector<uint8_t> rgba(pixels * 4);
+    for (size_t i = 0; i < pixels; i++) {
+        rgba[i * 4 + 0] = mapped[i * 4 + 2];
+        rgba[i * 4 + 1] = mapped[i * 4 + 1];
+        rgba[i * 4 + 2] = mapped[i * 4 + 0];
+        rgba[i * 4 + 3] = 255;
+    }
+
+    if (screenshot::write_png(_screenshotPath, _windowExtent.width, _windowExtent.height, rgba.data())) {
+        fmt::println("Screenshot written: {} ({}x{}, frame {})", _screenshotPath, _windowExtent.width,
+                     _windowExtent.height, _frameNumber);
+    } else {
+        fmt::print(stderr, "Screenshot failed: could not write {}\n", _screenshotPath);
     }
 }

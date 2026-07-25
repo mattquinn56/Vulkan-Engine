@@ -114,5 +114,20 @@ For deterministic diagnostic runs, `engine.exe` accepts `--aa=taa|adaptive` and
 `--tonemap=on|off`. Invalid options exit with status 2 before Vulkan starts.
 `--render-path` no longer exists: hardware ray tracing is the only render path.
 
+## Verifying a frame
+
+Prefer this over launching interactively — it needs no manual interaction and
+gives you an image to inspect:
+
+```powershell
+.\bin\Debug\engine.exe --screenshot=C:\path\to\shot.png --frames=45
+```
+
+It renders `--frames` frames, writes the presented swapchain image (ImGui
+overlay included) as a PNG, and exits 0 on its own. Raise `--frames` when the
+Monte Carlo accumulation needs longer to converge; the image is visibly noisy
+at low frame counts. Still opens a window briefly — this is a capture path, not
+true headless rendering.
+
 Phase 2 verification is recorded in `docs/validation-phase2.md`. Its raw logs are
 under ignored `out/validation-phase2/`.

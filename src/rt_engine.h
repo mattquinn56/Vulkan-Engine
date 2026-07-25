@@ -237,6 +237,14 @@ class RtEngine
     void draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView);
     void draw_ui();
 
+    // Diagnostic capture. When _screenshotPath is set, the frame numbered
+    // _screenshotFrame is written to disk and the engine then exits.
+    std::string _screenshotPath;
+    int _screenshotFrame{30};
+    bool _screenshotDone{false};
+    void capture_swapchain(VkCommandBuffer cmd, uint32_t imageIndex, AllocatedBuffer& dst);
+    void write_capture(const AllocatedBuffer& src);
+
     void render_nodes();
 
     void update_global_descriptor();
