@@ -1,5 +1,13 @@
 # Local Agent Notes
 
+## Version control
+
+- Commits carry the repository owner's name only. Do not add `Co-Authored-By`
+  trailers, agent attribution, or generated-with notices to commit messages.
+- Never push. Commit locally and leave publishing to the repository owner.
+- Keep each commit to one self-contained change so a bad one can be reverted
+  in isolation.
+
 ## Build
 
 - This is a Visual Studio multi-config CMake build. Build Debug from the repository root with:

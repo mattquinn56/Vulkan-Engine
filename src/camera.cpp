@@ -49,12 +49,18 @@ void Camera::update()
     }
 
     velocity = glm::vec3(0.f);
-    if (keystate[SDL_SCANCODE_W]) velocity.z = -currentSpeed;
-    if (keystate[SDL_SCANCODE_S]) velocity.z = currentSpeed;
-    if (keystate[SDL_SCANCODE_A]) velocity.x = -currentSpeed;
-    if (keystate[SDL_SCANCODE_D]) velocity.x = currentSpeed;
-    if (keystate[SDL_SCANCODE_E]) velocity.y = currentSpeed;
-    if (keystate[SDL_SCANCODE_Q]) velocity.y = -currentSpeed;
+    if (keystate[SDL_SCANCODE_W])
+        velocity.z = -currentSpeed;
+    if (keystate[SDL_SCANCODE_S])
+        velocity.z = currentSpeed;
+    if (keystate[SDL_SCANCODE_A])
+        velocity.x = -currentSpeed;
+    if (keystate[SDL_SCANCODE_D])
+        velocity.x = currentSpeed;
+    if (keystate[SDL_SCANCODE_E])
+        velocity.y = currentSpeed;
+    if (keystate[SDL_SCANCODE_Q])
+        velocity.y = -currentSpeed;
 
     // Horizontal movement is camera-relative; vertical is world-space up
     glm::mat4 cameraRotation = get_rotation_matrix();
