@@ -30,7 +30,7 @@ class VulkanRayTracer
 {
   public:
     // pointer to main engine
-    VulkanEngine* _engine{nullptr};
+    RtEngine* _engine{nullptr};
 
     // pointers to extension functions
     PFN_vkGetAccelerationStructureBuildSizesKHR _vkGetAccelerationStructureBuildSizes{nullptr};
@@ -49,11 +49,11 @@ class VulkanRayTracer
     std::vector<AccelKHR> _bottomLevelStructures; // Bottom-level acceleration structure
     AccelKHR _topLevelStructure;                  // Top-level acceleration structure
 
-    VulkanRayTracer(VulkanEngine* owner);
+    VulkanRayTracer(RtEngine* owner);
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR _rayTracingProperties{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
 
-    BlasInput object_to_vk_geometry(const RenderObject object);
+    BlasInput object_to_vk_geometry(const GeometryInstance object);
 
     void create_bottom_level_acceleration_structures();
 

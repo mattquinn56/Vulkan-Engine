@@ -50,7 +50,7 @@ struct RenderLight
 };
 
 // Mirrors SceneData in shaders/raycommon.glsl.
-struct GPUSceneData
+struct GPUFrameConstants
 {
     glm::mat4 view{1.0f};
     glm::mat4 proj{1.0f};
@@ -59,7 +59,7 @@ struct GPUSceneData
 };
 // Alpha-blended surfaces are excluded from the traced scene, so this only
 // distinguishes "blended" from everything else.
-enum class MaterialPass : uint8_t
+enum class SurfaceAlphaMode : uint8_t
 {
     MainColor,
     Transparent,
@@ -85,22 +85,22 @@ struct GPUMeshBuffers
     int vertexCount{0};
 };
 
-struct DrawContext;
+struct SceneDrawList;
 
 // Base class for anything that can submit draws.
 class IRenderable
 {
 
-    virtual void draw(const glm::mat4& topMatrix, DrawContext& ctx) = 0;
+    virtual void draw(const glm::mat4& topMatrix, SceneDrawList& ctx) = 0;
 };
 
-class VulkanEngine;
+class RtEngine;
 
 // Scene graph node. Holds a local transform that is composed with its parent's
 // and propagated down to children.
 struct Node : public IRenderable
 {
-    VulkanEngine* engine{nullptr};
+    RtEngine* engine{nullptr};
 
     // Weak, so a parent holding its children shared does not form a cycle.
     std::weak_ptr<Node> parent;
@@ -117,7 +117,7 @@ struct Node : public IRenderable
         }
     }
 
-    virtual void draw(const glm::mat4& topMatrix, DrawContext& ctx)
+    virtual void draw(const glm::mat4& topMatrix, SceneDrawList& ctx)
     {
         for (auto& c : children) {
             c->draw(topMatrix, ctx);

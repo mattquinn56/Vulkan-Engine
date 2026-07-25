@@ -13,7 +13,7 @@
 #include <fastgltf/tools.hpp>
 #include <fastgltf/util.hpp>
 #include <nlohmann/json.hpp>
-std::optional<AllocatedImage> load_image(VulkanEngine* engine, fastgltf::Asset& asset, fastgltf::Image& image)
+std::optional<AllocatedImage> load_image(RtEngine* engine, fastgltf::Asset& asset, fastgltf::Image& image)
 {
     AllocatedImage newImage{};
 
@@ -191,13 +191,13 @@ std::vector<RenderLight> load_lights(std::string filePath)
     return lights;
 }
 
-std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::string_view filePath)
+std::optional<std::shared_ptr<GltfScene>> load_gltf(RtEngine* engine, std::string_view filePath)
 {
     fmt::println("Loading GLTF: {}", filePath);
 
-    std::shared_ptr<LoadedGLTF> scene = std::make_shared<LoadedGLTF>();
+    std::shared_ptr<GltfScene> scene = std::make_shared<GltfScene>();
     scene->creator = engine;
-    LoadedGLTF& file = *scene.get();
+    GltfScene& file = *scene.get();
 
     fastgltf::Parser parser{};
 
@@ -250,10 +250,10 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
         file.samplers.push_back(newSampler);
     }
     // temporal arrays for all the objects to use while creating the GLTF data
-    std::vector<std::shared_ptr<MeshAsset>> meshes;
+    std::vector<std::shared_ptr<MeshResource>> meshes;
     std::vector<std::shared_ptr<Node>> nodes;
     std::vector<AllocatedImage> images;
-    std::vector<std::shared_ptr<GLTFMaterial>> materials;
+    std::vector<std::shared_ptr<SceneMaterial>> materials;
 
     // load all textures
     for (fastgltf::Image& image : gltf.images) {
@@ -274,12 +274,12 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
     engine->_rayTracer->_colorSamplers.clear();
     engine->_rayTracer->_metalRoughSamplers.clear();
     for (fastgltf::Material& mat : gltf.materials) {
-        std::shared_ptr<GLTFMaterial> newMat = std::make_shared<GLTFMaterial>();
+        std::shared_ptr<SceneMaterial> newMat = std::make_shared<SceneMaterial>();
         materials.push_back(newMat);
         file.materials[mat.name.c_str()] = newMat;
 
         newMat->passType =
-            (mat.alphaMode == fastgltf::AlphaMode::Blend) ? MaterialPass::Transparent : MaterialPass::MainColor;
+            (mat.alphaMode == fastgltf::AlphaMode::Blend) ? SurfaceAlphaMode::Transparent : SurfaceAlphaMode::MainColor;
 
         AllocatedImage colorImage = engine->_whiteImage;
         VkSampler colorSampler = engine->_defaultSamplerLinear;
@@ -315,7 +315,7 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
     std::vector<Vertex> vertices;
 
     for (fastgltf::Mesh& mesh : gltf.meshes) {
-        std::shared_ptr<MeshAsset> newmesh = std::make_shared<MeshAsset>();
+        std::shared_ptr<MeshResource> newmesh = std::make_shared<MeshResource>();
         meshes.push_back(newmesh);
         file.meshes[mesh.name.c_str()] = newmesh;
         newmesh->name = mesh.name;
@@ -325,7 +325,7 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
         vertices.clear();
 
         for (auto&& p : mesh.primitives) {
-            GeoSurface newSurface;
+            MeshPrimitive newSurface;
             newSurface.startIndex = (uint32_t)indices.size();
             newSurface.count = (uint32_t)gltf.accessors[p.indicesAccessor.value()].count;
 
@@ -468,7 +468,7 @@ std::optional<std::shared_ptr<LoadedGLTF>> load_gltf(VulkanEngine* engine, std::
     return scene;
 }
 
-void LoadedGLTF::draw(const glm::mat4& topMatrix, DrawContext& ctx)
+void GltfScene::draw(const glm::mat4& topMatrix, SceneDrawList& ctx)
 {
     // Create renderables from the scene nodes.
     for (auto& n : topNodes) {
@@ -476,7 +476,7 @@ void LoadedGLTF::draw(const glm::mat4& topMatrix, DrawContext& ctx)
     }
 }
 
-void LoadedGLTF::destroy_owned_resources()
+void GltfScene::destroy_owned_resources()
 {
     if (creator == nullptr) {
         return;

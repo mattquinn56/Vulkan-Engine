@@ -17,7 +17,7 @@
 #include <vk_loader.h>
 #include <vk_pipelines.h>
 
-struct MeshAsset;
+struct MeshResource;
 
 class VulkanRayTracer;
 
@@ -25,7 +25,7 @@ namespace fastgltf {
 struct Mesh;
 }
 
-struct DeletionQueue
+struct CleanupQueue
 {
     std::deque<std::function<void()>> callbacks;
 
@@ -45,7 +45,7 @@ struct DeletionQueue
     }
 };
 
-struct RenderObject
+struct GeometryInstance
 {
     uint32_t indexCount{0};
     uint32_t firstIndex{0};
@@ -60,14 +60,14 @@ struct RenderObject
     uint32_t blasIndex{0};
 };
 
-struct FrameData
+struct FrameContext
 {
     VkSemaphore _swapchainSemaphore{VK_NULL_HANDLE};
     VkSemaphore _renderSemaphore{VK_NULL_HANDLE};
     VkFence _renderFence{VK_NULL_HANDLE};
 
     DescriptorAllocatorGrowable _frameDescriptors;
-    DeletionQueue _deletionQueue;
+    CleanupQueue _deletionQueue;
 
     VkCommandPool _commandPool{VK_NULL_HANDLE};
     VkCommandBuffer _mainCommandBuffer{VK_NULL_HANDLE};
@@ -86,9 +86,9 @@ struct ObjDesc
 
 // Alpha-blended surfaces are excluded entirely; the ray tracer traces only
 // what lands in opaqueSurfaces, and objectDescriptions runs parallel to it.
-struct DrawContext
+struct SceneDrawList
 {
-    std::vector<RenderObject> opaqueSurfaces;
+    std::vector<GeometryInstance> opaqueSurfaces;
     std::vector<ObjDesc> objectDescriptions;
 };
 
@@ -103,9 +103,9 @@ struct EngineStats
 struct MeshNode : public Node
 {
 
-    std::shared_ptr<MeshAsset> mesh;
+    std::shared_ptr<MeshResource> mesh;
 
-    virtual void draw(const glm::mat4& topMatrix, DrawContext& ctx) override;
+    virtual void draw(const glm::mat4& topMatrix, SceneDrawList& ctx) override;
 };
 
 // Homogeneous medium coefficients plus ray-march settings. Mirrors the Medium
@@ -126,7 +126,7 @@ struct VolumeResources
     bool hasDensity{false};
 };
 
-class VulkanEngine
+class RtEngine
 {
   public:
     bool _isInitialized{false};
@@ -163,7 +163,7 @@ class VulkanEngine
     AllocatedBuffer _lightBuffer;
     int _lightCount{0};
 
-    FrameData _frames[FRAME_OVERLAP];
+    FrameContext _frames[FRAME_OVERLAP];
 
     VkSurfaceKHR _surface{VK_NULL_HANDLE};
     VkSwapchainKHR _swapchain{VK_NULL_HANDLE};
@@ -181,7 +181,7 @@ class VulkanEngine
     std::vector<VkSemaphore> _imageAcquireSems;
     std::vector<VkSemaphore> _imageRenderSems;
 
-    DeletionQueue _mainDeletionQueue;
+    CleanupQueue _mainDeletionQueue;
 
     VmaAllocator _allocator{VK_NULL_HANDLE};
 
@@ -209,9 +209,9 @@ class VulkanEngine
     VkSampler _defaultSamplerNearest{VK_NULL_HANDLE};
 
     GPUMeshBuffers _defaultRectangle;
-    DrawContext _drawContext;
+    SceneDrawList _drawContext;
 
-    GPUSceneData _sceneData;
+    GPUFrameConstants _sceneData;
 
     Camera _mainCamera;
 
@@ -223,7 +223,7 @@ class VulkanEngine
     VolumeResources _volume{};
 
     // Singleton accessor; multiple engine instances are not supported.
-    static VulkanEngine& get();
+    static RtEngine& get();
 
     void init();
 
@@ -246,8 +246,8 @@ class VulkanEngine
     // Uploads a mesh into a device-local index/vertex buffer pair.
     GPUMeshBuffers upload_mesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
 
-    FrameData& get_current_frame();
-    FrameData& get_last_frame();
+    FrameContext& get_current_frame();
+    FrameContext& get_last_frame();
 
     AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
 
@@ -257,8 +257,8 @@ class VulkanEngine
 
     void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
 
-    std::unordered_map<std::string, std::shared_ptr<LoadedGLTF>> _loadedScenes;
-    std::vector<std::shared_ptr<LoadedGLTF>> _brickadiaScene;
+    std::unordered_map<std::string, std::shared_ptr<GltfScene>> _loadedScenes;
+    std::vector<std::shared_ptr<GltfScene>> _brickadiaScene;
 
     void destroy_image(const AllocatedImage& img);
     void destroy_buffer(const AllocatedBuffer& buffer);
@@ -383,9 +383,9 @@ class VulkanEngine
 
     void init_default_data();
 
-    void render_loaded_gltf(std::shared_ptr<LoadedGLTF> scene);
+    void render_loaded_gltf(std::shared_ptr<GltfScene> scene);
 
-    void recursively_render_node(std::shared_ptr<LoadedGLTF> scene, std::shared_ptr<Node> node);
+    void recursively_render_node(std::shared_ptr<GltfScene> scene, std::shared_ptr<Node> node);
 
     // volumetric additions
     void create_volume_resources();

@@ -3,15 +3,15 @@
 #include <string_view>
 
 namespace {
-bool configure_engine(VulkanEngine& engine, int argc, char* argv[])
+bool configure_engine(RtEngine& engine, int argc, char* argv[])
 {
     for (int i = 1; i < argc; ++i) {
         const std::string_view argument = argv[i];
 
         if (argument == "--aa=taa") {
-            engine._aaMode = VulkanEngine::AAMode::TAA;
+            engine._aaMode = RtEngine::AAMode::TAA;
         } else if (argument == "--aa=adaptive") {
-            engine._aaMode = VulkanEngine::AAMode::AdaptiveMSAA;
+            engine._aaMode = RtEngine::AAMode::AdaptiveMSAA;
         } else if (argument == "--tonemap=on") {
             engine._enableTonemap = true;
         } else if (argument == "--tonemap=off") {
@@ -23,15 +23,14 @@ bool configure_engine(VulkanEngine& engine, int argc, char* argv[])
     }
 
     fmt::println("Startup configuration: aa={} tonemap={}",
-                 engine._aaMode == VulkanEngine::AAMode::TAA ? "taa" : "adaptive",
-                 engine._enableTonemap ? "on" : "off");
+                 engine._aaMode == RtEngine::AAMode::TAA ? "taa" : "adaptive", engine._enableTonemap ? "on" : "off");
     return true;
 }
 } // namespace
 
 int main(int argc, char* argv[])
 {
-    VulkanEngine engine;
+    RtEngine engine;
 
     if (!configure_engine(engine, argc, argv)) {
         return 2;

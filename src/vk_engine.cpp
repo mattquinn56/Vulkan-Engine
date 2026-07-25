@@ -31,16 +31,16 @@ using namespace std;
 
 #define CHAPTER_STAGE 1
 
-VulkanEngine* loadedEngine = nullptr;
+RtEngine* loadedEngine = nullptr;
 
-VulkanEngine& VulkanEngine::get()
+RtEngine& RtEngine::get()
 {
     return *loadedEngine;
 }
 
-void VulkanEngine::init()
+void RtEngine::init()
 {
-    // Backs the VulkanEngine::get() singleton, only one instance is supported.
+    // Backs the RtEngine::get() singleton, only one instance is supported.
     assert(loadedEngine == nullptr);
     loadedEngine = this;
 
@@ -87,7 +87,7 @@ void VulkanEngine::init()
     _mainCamera.yaw = .005f;
 }
 
-void VulkanEngine::init_default_data()
+void RtEngine::init_default_data()
 {
     std::array<Vertex, 4> rect_vertices;
 
@@ -176,7 +176,7 @@ void VulkanEngine::init_default_data()
     });
 }
 
-void VulkanEngine::cleanup()
+void RtEngine::cleanup()
 {
     if (_isInitialized) {
 
@@ -208,11 +208,11 @@ void VulkanEngine::cleanup()
     }
 }
 
-void VulkanEngine::draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView)
+void RtEngine::draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView)
 {
     VkRenderingAttachmentInfo colorAttachment =
-        vkinit::attachment_info(targetImageView, nullptr, VK_IMAGE_LAYOUT_GENERAL);
-    VkRenderingInfo renderInfo = vkinit::rendering_info(_windowExtent, &colorAttachment, nullptr);
+        vk_init::attachment_info(targetImageView, nullptr, VK_IMAGE_LAYOUT_GENERAL);
+    VkRenderingInfo renderInfo = vk_init::rendering_info(_windowExtent, &colorAttachment, nullptr);
 
     vkCmdBeginRendering(cmd, &renderInfo);
 
@@ -221,26 +221,26 @@ void VulkanEngine::draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView)
     vkCmdEndRendering(cmd);
 }
 
-void seed_taa_history(VulkanEngine* e, VkCommandBuffer cmd)
+void seed_taa_history(RtEngine* e, VkCommandBuffer cmd)
 {
     for (int i = 0; i < 2; ++i) {
-        vkutil::transition_image(cmd, e->_taaHistory[i].image, VK_IMAGE_LAYOUT_GENERAL,
+        vk_img::transition_image(cmd, e->_taaHistory[i].image, VK_IMAGE_LAYOUT_GENERAL,
                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        vkutil::transition_image(cmd, e->_drawImage.image, VK_IMAGE_LAYOUT_GENERAL,
+        vk_img::transition_image(cmd, e->_drawImage.image, VK_IMAGE_LAYOUT_GENERAL,
                                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        vkutil::copy_image_to_image(cmd, e->_drawImage.image, e->_taaHistory[i].image, e->_windowExtent,
+        vk_img::copy_image_to_image(cmd, e->_drawImage.image, e->_taaHistory[i].image, e->_windowExtent,
                                     e->_windowExtent);
-        vkutil::transition_image(cmd, e->_taaHistory[i].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        vk_img::transition_image(cmd, e->_taaHistory[i].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                  VK_IMAGE_LAYOUT_GENERAL);
-        vkutil::transition_image(cmd, e->_drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        vk_img::transition_image(cmd, e->_drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                  VK_IMAGE_LAYOUT_GENERAL);
     }
     e->_taaIndex = 0;
 }
 
-void VulkanEngine::draw()
+void RtEngine::draw()
 {
-    // Wait for the previous frame using this FrameData to finish
+    // Wait for the previous frame using this FrameContext to finish
     VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, VK_TRUE, UINT64_MAX));
 
     // Per-frame cleanup
@@ -266,11 +266,12 @@ void VulkanEngine::draw()
     VK_CHECK(vkResetCommandBuffer(get_current_frame()._mainCommandBuffer, 0));
     VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer;
 
-    VkCommandBufferBeginInfo beginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    VkCommandBufferBeginInfo beginInfo =
+        vk_init::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
     VK_CHECK(vkBeginCommandBuffer(cmd, &beginInfo));
 
     // Make draw/depth images writable for compute/graphics
-    vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    vk_img::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
     // Ray tracing writes _drawImage directly, in GENERAL layout.
     _rayTracer->raytrace(cmd);
@@ -406,13 +407,13 @@ void VulkanEngine::draw()
         dep.pImageMemoryBarriers = &histBarrier;
         vkCmdPipelineBarrier2(cmd, &dep);
 
-        vkutil::transition_image(cmd, _taaHistory[next].image, VK_IMAGE_LAYOUT_GENERAL,
+        vk_img::transition_image(cmd, _taaHistory[next].image, VK_IMAGE_LAYOUT_GENERAL,
                                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        vkutil::copy_image_to_image(cmd, _taaHistory[next].image, _drawImage.image, _windowExtent, _windowExtent);
-        vkutil::transition_image(cmd, _taaHistory[next].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        vk_img::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        vk_img::copy_image_to_image(cmd, _taaHistory[next].image, _drawImage.image, _windowExtent, _windowExtent);
+        vk_img::transition_image(cmd, _taaHistory[next].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                  VK_IMAGE_LAYOUT_GENERAL);
-        vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+        vk_img::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
 
         _taaIndex = next;
     }
@@ -492,11 +493,11 @@ void VulkanEngine::draw()
         }
 
         // Transition the swapchain image before copying the LDR result into it.
-        vkutil::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED,
+        vk_img::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED,
                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
         VkExtent2D extent{_windowExtent.width, _windowExtent.height};
-        vkutil::copy_image_to_image(cmd, _ldrImage.image, _swapchainImages[imageIndex], extent, extent);
+        vk_img::copy_image_to_image(cmd, _ldrImage.image, _swapchainImages[imageIndex], extent, extent);
     } else {
         // No tonemap: copy HDR directly (debug)
         {
@@ -516,36 +517,36 @@ void VulkanEngine::draw()
             vkCmdPipelineBarrier2(cmd, &dep);
         }
 
-        vkutil::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED,
+        vk_img::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED,
                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
         VkExtent2D extent{_windowExtent.width, _windowExtent.height};
-        vkutil::copy_image_to_image(cmd, _drawImage.image, _swapchainImages[imageIndex], extent, extent);
+        vk_img::copy_image_to_image(cmd, _drawImage.image, _swapchainImages[imageIndex], extent, extent);
     }
 
     // Draw ImGui on the swapchain image
-    vkutil::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    vk_img::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                              VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     draw_imgui(cmd, _swapchainImageViews[imageIndex]);
 
     // Prepare for present
-    vkutil::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    vk_img::transition_image(cmd, _swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                              VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
     VK_CHECK(vkEndCommandBuffer(cmd));
 
     // Submit: wait on image-available for this frame, signal render-finished for this frame
-    VkCommandBufferSubmitInfo cmdInfo = vkinit::command_buffer_submit_info(cmd);
-    VkSemaphoreSubmitInfo waitInfo = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-                                                                   get_current_frame()._swapchainSemaphore);
+    VkCommandBufferSubmitInfo cmdInfo = vk_init::command_buffer_submit_info(cmd);
+    VkSemaphoreSubmitInfo waitInfo = vk_init::semaphore_submit_info(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+                                                                    get_current_frame()._swapchainSemaphore);
     VkSemaphoreSubmitInfo signalInfo =
-        vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, get_current_frame()._renderSemaphore);
-    VkSubmitInfo2 submitInfo = vkinit::submit_info(&cmdInfo, &signalInfo, &waitInfo);
+        vk_init::semaphore_submit_info(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, get_current_frame()._renderSemaphore);
+    VkSubmitInfo2 submitInfo = vk_init::submit_info(&cmdInfo, &signalInfo, &waitInfo);
 
     VK_CHECK(vkQueueSubmit2(_graphicsQueue, 1, &submitInfo, get_current_frame()._renderFence));
 
     // Present: wait on this frame's render-finished semaphore
-    VkPresentInfoKHR presentInfo = vkinit::present_info();
+    VkPresentInfoKHR presentInfo = vk_init::present_info();
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &_swapchain;
     presentInfo.pImageIndices = &imageIndex;
@@ -559,24 +560,25 @@ void VulkanEngine::draw()
 
     _frameNumber++;
 }
-void VulkanEngine::update_global_descriptor()
+void RtEngine::update_global_descriptor()
 {
 
     // Allocated per frame rather than reused, so a frame in flight never has its
     // scene data overwritten. The frame's deletion queue reclaims it.
     AllocatedBuffer gpuSceneDataBuffer =
-        create_buffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+        create_buffer(sizeof(GPUFrameConstants), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
     get_current_frame()._deletionQueue.push_function([=, this]() { destroy_buffer(gpuSceneDataBuffer); });
 
-    GPUSceneData* sceneUniformData = (GPUSceneData*)gpuSceneDataBuffer.allocation->GetMappedData();
+    GPUFrameConstants* sceneUniformData = (GPUFrameConstants*)gpuSceneDataBuffer.allocation->GetMappedData();
     *sceneUniformData = _sceneData;
 
     _globalDescriptor = get_current_frame()._frameDescriptors.allocate(_device, _gpuSceneDataDescriptorLayout);
 
     {
         DescriptorWriter writer;
-        writer.write_buffer(0, gpuSceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        writer.write_buffer(0, gpuSceneDataBuffer.buffer, sizeof(GPUFrameConstants), 0,
+                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
         writer.update_set(_device, _globalDescriptor);
     }
 
@@ -599,7 +601,7 @@ void VulkanEngine::update_global_descriptor()
     }
 }
 
-void VulkanEngine::run()
+void RtEngine::run()
 {
     SDL_Event e;
     bool bQuit = false;
@@ -772,7 +774,7 @@ void VulkanEngine::run()
     }
 }
 
-void VulkanEngine::render_loaded_gltf(std::shared_ptr<LoadedGLTF> gltf)
+void RtEngine::render_loaded_gltf(std::shared_ptr<GltfScene> gltf)
 {
     auto topLevelNodes = gltf->topNodes;
 
@@ -781,7 +783,7 @@ void VulkanEngine::render_loaded_gltf(std::shared_ptr<LoadedGLTF> gltf)
     }
 }
 
-void VulkanEngine::recursively_render_node(std::shared_ptr<LoadedGLTF> gltf, std::shared_ptr<Node> node)
+void RtEngine::recursively_render_node(std::shared_ptr<GltfScene> gltf, std::shared_ptr<Node> node)
 {
     if (node->children.size() > 0) {
         if (ImGui::TreeNode(gltf->nodeNames[node].c_str())) {
@@ -795,7 +797,7 @@ void VulkanEngine::recursively_render_node(std::shared_ptr<LoadedGLTF> gltf, std
     }
 }
 
-void VulkanEngine::update_scene()
+void RtEngine::update_scene()
 {
     _mainCamera.update();
 
@@ -829,7 +831,7 @@ void VulkanEngine::update_scene()
     _loadedScenes["structure"]->draw(glm::mat4{1.f}, _drawContext);
 }
 
-AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
+AllocatedBuffer RtEngine::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
 {
     VkBufferCreateInfo bufferInfo = {};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -849,13 +851,13 @@ AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags
     return newBuffer;
 }
 
-AllocatedImage VulkanEngine::create_image(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+AllocatedImage RtEngine::create_image(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
 {
     AllocatedImage newImage;
     newImage.imageFormat = format;
     newImage.imageExtent = size;
 
-    VkImageCreateInfo img_info = vkinit::image_create_info(format, usage, size);
+    VkImageCreateInfo img_info = vk_init::image_create_info(format, usage, size);
 
     // treat 3D extents as 3D textures
     if (size.depth > 1) {
@@ -877,7 +879,7 @@ AllocatedImage VulkanEngine::create_image(VkExtent3D size, VkFormat format, VkIm
     VkImageAspectFlags aspectFlag =
         (format == VK_FORMAT_D32_SFLOAT) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
-    VkImageViewCreateInfo view_info = vkinit::imageview_create_info(format, newImage.image, aspectFlag);
+    VkImageViewCreateInfo view_info = vk_init::imageview_create_info(format, newImage.image, aspectFlag);
 
     // 3D view when needed
     if (size.depth > 1) {
@@ -889,8 +891,8 @@ AllocatedImage VulkanEngine::create_image(VkExtent3D size, VkFormat format, VkIm
     VK_CHECK(vkCreateImageView(_device, &view_info, nullptr, &newImage.imageView));
     return newImage;
 }
-AllocatedImage VulkanEngine::create_image(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage,
-                                          bool mipmapped)
+AllocatedImage RtEngine::create_image(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage,
+                                      bool mipmapped)
 {
     size_t data_size = size.depth * size.width * size.height * 4;
     AllocatedBuffer uploadbuffer =
@@ -902,7 +904,7 @@ AllocatedImage VulkanEngine::create_image(void* data, VkExtent3D size, VkFormat 
         size, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped);
 
     immediate_submit([&](VkCommandBuffer cmd) {
-        vkutil::transition_image(cmd, new_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        vk_img::transition_image(cmd, new_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
         VkBufferImageCopy copyRegion = {};
         copyRegion.bufferOffset = 0;
@@ -919,10 +921,10 @@ AllocatedImage VulkanEngine::create_image(void* data, VkExtent3D size, VkFormat 
                                &copyRegion);
 
         if (mipmapped) {
-            vkutil::generate_mipmaps(cmd, new_image.image,
+            vk_img::generate_mipmaps(cmd, new_image.image,
                                      VkExtent2D{new_image.imageExtent.width, new_image.imageExtent.height});
         } else {
-            vkutil::transition_image(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            vk_img::transition_image(cmd, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         }
     });
@@ -930,7 +932,7 @@ AllocatedImage VulkanEngine::create_image(void* data, VkExtent3D size, VkFormat 
     return new_image;
 }
 
-GPUMeshBuffers VulkanEngine::upload_mesh(std::span<uint32_t> indices, std::span<Vertex> vertices)
+GPUMeshBuffers RtEngine::upload_mesh(std::span<uint32_t> indices, std::span<Vertex> vertices)
 {
     const size_t vertexBufferSize = vertices.size() * sizeof(Vertex);
     const size_t indexBufferSize = indices.size() * sizeof(uint32_t);
@@ -987,24 +989,24 @@ GPUMeshBuffers VulkanEngine::upload_mesh(std::span<uint32_t> indices, std::span<
     return newSurface;
 }
 
-FrameData& VulkanEngine::get_current_frame()
+FrameContext& RtEngine::get_current_frame()
 {
     return _frames[_frameNumber % FRAME_OVERLAP];
 }
 
-FrameData& VulkanEngine::get_last_frame()
+FrameContext& RtEngine::get_last_frame()
 {
     return _frames[(_frameNumber - 1) % FRAME_OVERLAP];
 }
 
-void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function)
+void RtEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function)
 {
     VK_CHECK(vkResetFences(_device, 1, &_immFence));
     VK_CHECK(vkResetCommandBuffer(_immCommandBuffer, 0));
 
     VkCommandBuffer cmd = _immCommandBuffer;
     VkCommandBufferBeginInfo cmdBeginInfo =
-        vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+        vk_init::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 
@@ -1012,8 +1014,8 @@ void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& f
 
     VK_CHECK(vkEndCommandBuffer(cmd));
 
-    VkCommandBufferSubmitInfo cmdinfo = vkinit::command_buffer_submit_info(cmd);
-    VkSubmitInfo2 submit = vkinit::submit_info(&cmdinfo, nullptr, nullptr);
+    VkCommandBufferSubmitInfo cmdinfo = vk_init::command_buffer_submit_info(cmd);
+    VkSubmitInfo2 submit = vk_init::submit_info(&cmdinfo, nullptr, nullptr);
 
     // Blocking submit: the caller expects the work to be complete on return.
     VK_CHECK(vkQueueSubmit2(_graphicsQueue, 1, &submit, _immFence));
@@ -1021,7 +1023,7 @@ void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& f
     VK_CHECK(vkWaitForFences(_device, 1, &_immFence, true, std::numeric_limits<uint64_t>::max()));
 }
 
-void VulkanEngine::destroy_image(const AllocatedImage& img)
+void RtEngine::destroy_image(const AllocatedImage& img)
 {
     if (img.imageView != VK_NULL_HANDLE) {
         vkDestroyImageView(_device, img.imageView, nullptr);
@@ -1031,14 +1033,14 @@ void VulkanEngine::destroy_image(const AllocatedImage& img)
     }
 }
 
-void VulkanEngine::destroy_buffer(const AllocatedBuffer& buffer)
+void RtEngine::destroy_buffer(const AllocatedBuffer& buffer)
 {
     if (buffer.buffer != VK_NULL_HANDLE) {
         vmaDestroyBuffer(_allocator, buffer.buffer, buffer.allocation);
     }
 }
 
-void VulkanEngine::check_extensions()
+void RtEngine::check_extensions()
 {
     uint32_t extensionCount;
     vkEnumerateDeviceExtensionProperties(_chosenGPU, nullptr, &extensionCount, nullptr);
@@ -1063,7 +1065,7 @@ void VulkanEngine::check_extensions()
     fmt::println("All required device extensions found");
 }
 
-void VulkanEngine::init_vulkan()
+void RtEngine::init_vulkan()
 {
     vkb::InstanceBuilder builder;
 
@@ -1147,18 +1149,18 @@ void VulkanEngine::init_vulkan()
     vmaCreateAllocator(&allocatorInfo, &_allocator);
 }
 
-void VulkanEngine::init_raytracing()
+void RtEngine::init_raytracing()
 {
     _rayTracer = new VulkanRayTracer(this);
 }
 
-void VulkanEngine::init_swapchain()
+void RtEngine::init_swapchain()
 {
     create_swapchain(_windowExtent.width, _windowExtent.height);
     create_render_targets();
 }
 
-void VulkanEngine::create_render_targets()
+void RtEngine::create_render_targets()
 {
 
     VkExtent3D drawImageExtent = {_windowExtent.width, _windowExtent.height, 1};
@@ -1172,7 +1174,7 @@ void VulkanEngine::create_render_targets()
     drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
     drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-    VkImageCreateInfo rimg_info = vkinit::image_create_info(_drawImage.imageFormat, drawImageUsages, drawImageExtent);
+    VkImageCreateInfo rimg_info = vk_init::image_create_info(_drawImage.imageFormat, drawImageUsages, drawImageExtent);
 
     VmaAllocationCreateInfo rimg_allocinfo = {};
     rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
@@ -1181,7 +1183,7 @@ void VulkanEngine::create_render_targets()
     vmaCreateImage(_allocator, &rimg_info, &rimg_allocinfo, &_drawImage.image, &_drawImage.allocation, nullptr);
 
     VkImageViewCreateInfo rview_info =
-        vkinit::imageview_create_info(_drawImage.imageFormat, _drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
+        vk_init::imageview_create_info(_drawImage.imageFormat, _drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
 
     VK_CHECK(vkCreateImageView(_device, &rview_info, nullptr, &_drawImage.imageView));
 
@@ -1192,7 +1194,7 @@ void VulkanEngine::create_render_targets()
     _ldrNeedsInit = true;
 }
 
-void VulkanEngine::destroy_render_targets()
+void RtEngine::destroy_render_targets()
 {
     destroy_image(_drawImage);
     destroy_image(_ldrImage);
@@ -1200,7 +1202,7 @@ void VulkanEngine::destroy_render_targets()
     _ldrImage = {};
 }
 
-void VulkanEngine::create_swapchain(uint32_t width, uint32_t height)
+void RtEngine::create_swapchain(uint32_t width, uint32_t height)
 {
     vkb::SwapchainBuilder swapchainBuilder{_chosenGPU, _device, _surface};
 
@@ -1224,7 +1226,7 @@ void VulkanEngine::create_swapchain(uint32_t width, uint32_t height)
     _swapchainImageViews = vkbSwapchain.get_image_views().value();
     _windowExtent = vkbSwapchain.extent;
 }
-void VulkanEngine::destroy_swapchain()
+void RtEngine::destroy_swapchain()
 {
     for (VkImageView imageView : _swapchainImageViews) {
         vkDestroyImageView(_device, imageView, nullptr);
@@ -1238,7 +1240,7 @@ void VulkanEngine::destroy_swapchain()
     }
 }
 
-bool VulkanEngine::resize_swapchain()
+bool RtEngine::resize_swapchain()
 {
     int w, h;
     SDL_Vulkan_GetDrawableSize(_window, &w, &h);
@@ -1267,17 +1269,17 @@ bool VulkanEngine::resize_swapchain()
     return true;
 }
 
-void VulkanEngine::init_commands()
+void RtEngine::init_commands()
 {
     // RESET_COMMAND_BUFFER_BIT so each frame's buffer can be reset individually.
     VkCommandPoolCreateInfo commandPoolInfo =
-        vkinit::command_pool_create_info(_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+        vk_init::command_pool_create_info(_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
     for (int i = 0; i < FRAME_OVERLAP; i++) {
 
         VK_CHECK(vkCreateCommandPool(_device, &commandPoolInfo, nullptr, &_frames[i]._commandPool));
 
-        VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_frames[i]._commandPool, 1);
+        VkCommandBufferAllocateInfo cmdAllocInfo = vk_init::command_buffer_allocate_info(_frames[i]._commandPool, 1);
 
         VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_frames[i]._mainCommandBuffer));
 
@@ -1287,17 +1289,17 @@ void VulkanEngine::init_commands()
     VK_CHECK(vkCreateCommandPool(_device, &commandPoolInfo, nullptr, &_immCommandPool));
 
     // Separate pool and buffer for immediate_submit's one-off uploads.
-    VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_immCommandPool, 1);
+    VkCommandBufferAllocateInfo cmdAllocInfo = vk_init::command_buffer_allocate_info(_immCommandPool, 1);
 
     VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_immCommandBuffer));
 
     _mainDeletionQueue.push_function([=]() { vkDestroyCommandPool(_device, _immCommandPool, nullptr); });
 }
 
-void VulkanEngine::init_sync_structures()
+void RtEngine::init_sync_structures()
 {
     // Created signalled so the first frame's wait returns immediately.
-    VkFenceCreateInfo fenceCreateInfo = vkinit::fence_create_info(VK_FENCE_CREATE_SIGNALED_BIT);
+    VkFenceCreateInfo fenceCreateInfo = vk_init::fence_create_info(VK_FENCE_CREATE_SIGNALED_BIT);
     VK_CHECK(vkCreateFence(_device, &fenceCreateInfo, nullptr, &_immFence));
 
     _mainDeletionQueue.push_function([=]() { vkDestroyFence(_device, _immFence, nullptr); });
@@ -1306,7 +1308,7 @@ void VulkanEngine::init_sync_structures()
 
         VK_CHECK(vkCreateFence(_device, &fenceCreateInfo, nullptr, &_frames[i]._renderFence));
 
-        VkSemaphoreCreateInfo semaphoreCreateInfo = vkinit::semaphore_create_info();
+        VkSemaphoreCreateInfo semaphoreCreateInfo = vk_init::semaphore_create_info();
 
         VK_CHECK(vkCreateSemaphore(_device, &semaphoreCreateInfo, nullptr, &_frames[i]._swapchainSemaphore));
         VK_CHECK(vkCreateSemaphore(_device, &semaphoreCreateInfo, nullptr, &_frames[i]._renderSemaphore));
@@ -1319,7 +1321,7 @@ void VulkanEngine::init_sync_structures()
     }
 }
 
-AllocatedImage VulkanEngine::load_image_from_file(std::string path)
+AllocatedImage RtEngine::load_image_from_file(std::string path)
 {
     int texWidth, texHeight, texChannels;
     stbi_uc* pixels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
@@ -1373,10 +1375,10 @@ AllocatedImage VulkanEngine::load_image_from_file(std::string path)
     stbi_image_free(pixels);
 
     immediate_submit([&](VkCommandBuffer cmd) {
-        vkutil::transition_image(cmd, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        vkutil::copy_buffer_to_image(cmd, stagingBuffer, image, static_cast<uint32_t>(texWidth),
+        vk_img::transition_image(cmd, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        vk_img::copy_buffer_to_image(cmd, stagingBuffer, image, static_cast<uint32_t>(texWidth),
                                      static_cast<uint32_t>(texHeight));
-        vkutil::transition_image(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        vk_img::transition_image(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     });
 
@@ -1405,7 +1407,7 @@ AllocatedImage VulkanEngine::load_image_from_file(std::string path)
                           VK_FORMAT_R8G8B8A8_SRGB};
 }
 
-void VulkanEngine::init_renderables()
+void RtEngine::init_renderables()
 {
     _structurePath = {"..\\..\\assets\\livingroom_vkr.glb"};
     _lightPath = {"..\\..\\assets\\livingroom.json"};
@@ -1422,7 +1424,7 @@ void VulkanEngine::init_renderables()
     _mainDeletionQueue.push_function([this, loadedEnvironmentMap]() { destroy_image(loadedEnvironmentMap); });
 }
 
-void VulkanEngine::init_lights()
+void RtEngine::init_lights()
 {
     std::vector<RenderLight> parsedLights = load_lights(_lightPath);
     _lightCount = static_cast<int>(parsedLights.size());
@@ -1436,7 +1438,7 @@ void VulkanEngine::init_lights()
     _mainDeletionQueue.push_function([this, lightBuffer]() { destroy_buffer(lightBuffer); });
 }
 
-void VulkanEngine::init_imgui()
+void RtEngine::init_imgui()
 {
     // Generously sized, per the ImGui demo. ImGui does not report its own needs.
     VkDescriptorPoolSize pool_sizes[] = {{VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
@@ -1490,14 +1492,14 @@ void VulkanEngine::init_imgui()
     });
 }
 
-void VulkanEngine::init_pipelines()
+void RtEngine::init_pipelines()
 {
     create_monte_carlo_pipeline_resources();
 
     create_taa_pipeline_resources();
 }
 
-void VulkanEngine::init_descriptors()
+void RtEngine::init_descriptors()
 {
     // create a descriptor pool
     std::vector<DescriptorAllocator::PoolSizeRatio> sizes = {
@@ -1570,7 +1572,7 @@ void VulkanEngine::init_descriptors()
 }
 
 // Backs an already-created VkBuffer with memory and binds the two together.
-AllocatedBuffer VulkanEngine::allocate_and_bind_buffer(VkBuffer buffer, VmaMemoryUsage memoryUsage)
+AllocatedBuffer RtEngine::allocate_and_bind_buffer(VkBuffer buffer, VmaMemoryUsage memoryUsage)
 {
     if (_allocator == VK_NULL_HANDLE || buffer == VK_NULL_HANDLE) {
         throw std::runtime_error("Invalid allocator or buffer handle");
@@ -1601,17 +1603,17 @@ AllocatedBuffer VulkanEngine::allocate_and_bind_buffer(VkBuffer buffer, VmaMemor
     return allocatedBuffer;
 }
 
-void MeshNode::draw(const glm::mat4& topMatrix, DrawContext& ctx)
+void MeshNode::draw(const glm::mat4& topMatrix, SceneDrawList& ctx)
 {
     glm::mat4 nodeMatrix = topMatrix * worldTransform;
 
     for (auto& s : mesh->surfaces) {
         // Blended materials are not represented in the acceleration structure.
-        if (s.material->passType == MaterialPass::Transparent) {
+        if (s.material->passType == SurfaceAlphaMode::Transparent) {
             continue;
         }
 
-        RenderObject def;
+        GeometryInstance def;
         def.indexCount = s.count;
         def.firstIndex = s.startIndex;
         def.indexBuffer = mesh->meshBuffers.indexBuffer.buffer;
@@ -1633,7 +1635,7 @@ void MeshNode::draw(const glm::mat4& topMatrix, DrawContext& ctx)
     Node::draw(topMatrix, ctx);
 }
 
-VkDeviceAddress VulkanEngine::get_buffer_device_address(VkDevice device, VkBuffer buffer)
+VkDeviceAddress RtEngine::get_buffer_device_address(VkDevice device, VkBuffer buffer)
 {
     if (buffer == VK_NULL_HANDLE)
         return 0ULL;
@@ -1643,8 +1645,8 @@ VkDeviceAddress VulkanEngine::get_buffer_device_address(VkDevice device, VkBuffe
     return vkGetBufferDeviceAddress(device, &info);
 }
 // Creates a device-local buffer and uploads data into it through a staging copy.
-AllocatedBuffer VulkanEngine::create_buffer_data(VkDeviceSize size, const void* data, VkBufferUsageFlags usage,
-                                                 const VmaMemoryUsage memUsage)
+AllocatedBuffer RtEngine::create_buffer_data(VkDeviceSize size, const void* data, VkBufferUsageFlags usage,
+                                             const VmaMemoryUsage memUsage)
 {
 
     AllocatedBuffer resultBuffer = create_buffer(size, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT, memUsage);
@@ -1677,7 +1679,7 @@ AllocatedBuffer VulkanEngine::create_buffer_data(VkDeviceSize size, const void* 
     return resultBuffer;
 }
 
-void VulkanEngine::create_taa_pipeline_resources()
+void RtEngine::create_taa_pipeline_resources()
 {
     create_taa_history_images();
 
@@ -1711,7 +1713,7 @@ void VulkanEngine::create_taa_pipeline_resources()
         [this, taaPipelineLayout]() { vkDestroyPipelineLayout(_device, taaPipelineLayout, nullptr); });
 
     VkShaderModule taaCS;
-    if (!vkutil::load_shader_module("../../shaders/temporal_resolve.comp.spv", _device, &taaCS)) {
+    if (!vk_shader::load_shader_module("../../shaders/temporal_resolve.comp.spv", _device, &taaCS)) {
         throw std::runtime_error("failed to load temporal_resolve.comp.spv");
     }
     VkComputePipelineCreateInfo ci{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
@@ -1727,7 +1729,7 @@ void VulkanEngine::create_taa_pipeline_resources()
     _mainDeletionQueue.push_function([this, taaPipeline]() { vkDestroyPipeline(_device, taaPipeline, nullptr); });
 }
 
-void VulkanEngine::create_taa_history_images()
+void RtEngine::create_taa_history_images()
 {
     VkExtent3D ext{_windowExtent.width, _windowExtent.height, 1};
     auto make_history = [&](AllocatedImage& img) {
@@ -1735,14 +1737,14 @@ void VulkanEngine::create_taa_history_images()
                            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                                VK_IMAGE_USAGE_TRANSFER_DST_BIT);
         immediate_submit([&](VkCommandBuffer cmd) {
-            vkutil::transition_image(cmd, img.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+            vk_img::transition_image(cmd, img.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
         });
     };
     make_history(_taaHistory[0]);
     make_history(_taaHistory[1]);
 }
 
-void VulkanEngine::destroy_taa_history_images()
+void RtEngine::destroy_taa_history_images()
 {
     destroy_image(_taaHistory[0]);
     destroy_image(_taaHistory[1]);
@@ -1750,7 +1752,7 @@ void VulkanEngine::destroy_taa_history_images()
     _taaHistory[1] = {};
 }
 
-void VulkanEngine::create_monte_carlo_pipeline_resources()
+void RtEngine::create_monte_carlo_pipeline_resources()
 {
     create_monte_carlo_images();
 
@@ -1780,7 +1782,7 @@ void VulkanEngine::create_monte_carlo_pipeline_resources()
         [this, mcPipelineLayout]() { vkDestroyPipelineLayout(_device, mcPipelineLayout, nullptr); });
 
     VkShaderModule mcCS;
-    if (!vkutil::load_shader_module("../../shaders/mc_accum.comp.spv", _device, &mcCS)) {
+    if (!vk_shader::load_shader_module("../../shaders/mc_accum.comp.spv", _device, &mcCS)) {
         throw std::runtime_error("failed to load mc_accum.comp.spv");
     }
     VkComputePipelineCreateInfo ci{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
@@ -1796,7 +1798,7 @@ void VulkanEngine::create_monte_carlo_pipeline_resources()
     _mainDeletionQueue.push_function([this, mcPipeline]() { vkDestroyPipeline(_device, mcPipeline, nullptr); });
 }
 
-void VulkanEngine::create_monte_carlo_images()
+void RtEngine::create_monte_carlo_images()
 {
 
     VkExtent3D ext{_windowExtent.width, _windowExtent.height, 1};
@@ -1806,7 +1808,7 @@ void VulkanEngine::create_monte_carlo_images()
         create_image(ext, VK_FORMAT_R16G16B16A16_SFLOAT,
                      VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
     immediate_submit([&](VkCommandBuffer cmd) {
-        vkutil::transition_image(cmd, _mcAccumColor.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        vk_img::transition_image(cmd, _mcAccumColor.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
     });
 
     // Accum count: number of accumulated samples per pixel
@@ -1814,17 +1816,17 @@ void VulkanEngine::create_monte_carlo_images()
         create_image(ext, VK_FORMAT_R32_UINT,
                      VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
     immediate_submit([&](VkCommandBuffer cmd) {
-        vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        vk_img::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
         // zero it
-        vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_GENERAL,
+        vk_img::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_GENERAL,
                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        vkutil::clear_color_image_uint(cmd, _mcAccumCount.image, 0, 0, 0, 0); // helper: vkCmdClearColorImage for UINT
-        vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        vk_img::clear_color_image_uint(cmd, _mcAccumCount.image, 0, 0, 0, 0); // helper: vkCmdClearColorImage for UINT
+        vk_img::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                  VK_IMAGE_LAYOUT_GENERAL);
     });
 }
 
-void VulkanEngine::destroy_monte_carlo_images()
+void RtEngine::destroy_monte_carlo_images()
 {
     destroy_image(_mcAccumColor);
     destroy_image(_mcAccumCount);
@@ -1832,21 +1834,21 @@ void VulkanEngine::destroy_monte_carlo_images()
     _mcAccumCount = {};
 }
 
-void VulkanEngine::reset_monte_carlo_history(VkCommandBuffer cmd)
+void RtEngine::reset_monte_carlo_history(VkCommandBuffer cmd)
 {
     // Clear count=0 and copy current draw into accumColor so the first blend is stable
-    vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    vkutil::clear_color_image_uint(cmd, _mcAccumCount.image, 0, 0, 0, 0);
-    vkutil::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+    vk_img::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    vk_img::clear_color_image_uint(cmd, _mcAccumCount.image, 0, 0, 0, 0);
+    vk_img::transition_image(cmd, _mcAccumCount.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
 
-    vkutil::transition_image(cmd, _mcAccumColor.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    vkutil::copy_image_to_image(cmd, _drawImage.image, _mcAccumColor.image, _windowExtent, _windowExtent);
-    vkutil::transition_image(cmd, _mcAccumColor.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
-    vkutil::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+    vk_img::transition_image(cmd, _mcAccumColor.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    vk_img::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    vk_img::copy_image_to_image(cmd, _drawImage.image, _mcAccumColor.image, _windowExtent, _windowExtent);
+    vk_img::transition_image(cmd, _mcAccumColor.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+    vk_img::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
 }
 
-void VulkanEngine::create_postprocess_resources()
+void RtEngine::create_postprocess_resources()
 {
     // descriptor layout: hdrIn (0), ldrOut (1)
     DescriptorLayoutBuilder b;
@@ -1878,7 +1880,7 @@ void VulkanEngine::create_postprocess_resources()
     }
 
     VkShaderModule cs;
-    if (!vkutil::load_shader_module("../../shaders/post_tonemap.comp.spv", _device, &cs)) {
+    if (!vk_shader::load_shader_module("../../shaders/post_tonemap.comp.spv", _device, &cs)) {
         throw std::runtime_error("failed to load post_tonemap.comp.spv");
     }
     VkComputePipelineCreateInfo ci{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
@@ -1894,12 +1896,12 @@ void VulkanEngine::create_postprocess_resources()
     _mainDeletionQueue.push_function([this, postPipeline]() { vkDestroyPipeline(_device, postPipeline, nullptr); });
 }
 
-void VulkanEngine::request_accum_reset()
+void RtEngine::request_accum_reset()
 {
     _resetAccumNextFrame = true;
 }
 
-void VulkanEngine::create_volume_resources()
+void RtEngine::create_volume_resources()
 {
     // Create std140 medium UBO (persistently mapped CPU->GPU)
     if (_volume.mediumParams.buffer == VK_NULL_HANDLE) {
@@ -1931,7 +1933,7 @@ void VulkanEngine::create_volume_resources()
     }
 }
 
-void VulkanEngine::initialize_default_medium()
+void RtEngine::initialize_default_medium()
 {
     // No 3D density bound initially; homogeneous only.
     _volume.hasDensity = false;
@@ -1944,7 +1946,7 @@ void VulkanEngine::initialize_default_medium()
     set_medium_params(p);
 }
 
-void VulkanEngine::upload_volume_density(const void* voxels, VkExtent3D extent, VkFormat fmt)
+void RtEngine::upload_volume_density(const void* voxels, VkExtent3D extent, VkFormat fmt)
 {
     // Create a 3D image (R16_SFLOAT or R8_UNORM or R32_SFLOAT)
     VkImageUsageFlags usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
@@ -1959,7 +1961,7 @@ void VulkanEngine::upload_volume_density(const void* voxels, VkExtent3D extent, 
 
     immediate_submit([&](VkCommandBuffer cmd) {
         // Transition
-        vkutil::transition_image(cmd, _volume.densityTex3D.image, VK_IMAGE_LAYOUT_UNDEFINED,
+        vk_img::transition_image(cmd, _volume.densityTex3D.image, VK_IMAGE_LAYOUT_UNDEFINED,
                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
         VkBufferImageCopy copy{};
@@ -1972,7 +1974,7 @@ void VulkanEngine::upload_volume_density(const void* voxels, VkExtent3D extent, 
         vkCmdCopyBufferToImage(cmd, staging.buffer, _volume.densityTex3D.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
                                &copy);
 
-        vkutil::transition_image(cmd, _volume.densityTex3D.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        vk_img::transition_image(cmd, _volume.densityTex3D.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     });
 
@@ -1995,7 +1997,7 @@ void VulkanEngine::upload_volume_density(const void* voxels, VkExtent3D extent, 
     _mainDeletionQueue.push_function([this, densityImage]() { destroy_image(densityImage); });
 }
 
-void VulkanEngine::set_medium_params(const GPUMediumParams& p)
+void RtEngine::set_medium_params(const GPUMediumParams& p)
 {
     GPUMediumParams* dst = (GPUMediumParams*)_volume.mediumParams.allocation->GetMappedData();
     *dst = p;

@@ -7,7 +7,7 @@
 
 // Deliberately over-broad barrier scopes: correct everywhere, but hot paths
 // wanting real parallelism should emit their own barrier.
-void vkutil::transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout)
+void vk_img::transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout)
 {
     VkImageMemoryBarrier2 imageBarrier{.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
     imageBarrier.pNext = nullptr;
@@ -22,7 +22,7 @@ void vkutil::transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout 
 
     VkImageAspectFlags aspectMask =
         (newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-    imageBarrier.subresourceRange = vkinit::image_subresource_range(aspectMask);
+    imageBarrier.subresourceRange = vk_init::image_subresource_range(aspectMask);
     imageBarrier.image = image;
 
     VkDependencyInfo depInfo{};
@@ -34,7 +34,7 @@ void vkutil::transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout 
 
     vkCmdPipelineBarrier2(cmd, &depInfo);
 }
-void vkutil::copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize,
+void vk_img::copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize,
                                  VkExtent2D dstSize)
 {
     VkImageBlit2 blitRegion{.sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2, .pNext = nullptr};
@@ -69,7 +69,7 @@ void vkutil::copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage de
     vkCmdBlitImage2(cmd, &blitInfo);
 }
 
-void vkutil::copy_buffer_to_image(VkCommandBuffer cmd, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
+void vk_img::copy_buffer_to_image(VkCommandBuffer cmd, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
 {
     VkBufferImageCopy region{};
     region.bufferOffset = 0;
@@ -87,7 +87,7 @@ void vkutil::copy_buffer_to_image(VkCommandBuffer cmd, VkBuffer buffer, VkImage 
 
     vkCmdCopyBufferToImage(cmd, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 }
-void vkutil::generate_mipmaps(VkCommandBuffer cmd, VkImage image, VkExtent2D imageSize)
+void vk_img::generate_mipmaps(VkCommandBuffer cmd, VkImage image, VkExtent2D imageSize)
 {
     int mipLevels = int(std::floor(std::log2(std::max(imageSize.width, imageSize.height)))) + 1;
     for (int mip = 0; mip < mipLevels; mip++) {
@@ -107,7 +107,7 @@ void vkutil::generate_mipmaps(VkCommandBuffer cmd, VkImage image, VkExtent2D ima
         imageBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 
         VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        imageBarrier.subresourceRange = vkinit::image_subresource_range(aspectMask);
+        imageBarrier.subresourceRange = vk_init::image_subresource_range(aspectMask);
         imageBarrier.subresourceRange.levelCount = 1;
         imageBarrier.subresourceRange.baseMipLevel = mip;
         imageBarrier.image = image;
@@ -158,7 +158,7 @@ void vkutil::generate_mipmaps(VkCommandBuffer cmd, VkImage image, VkExtent2D ima
     transition_image(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
-void vkutil::clear_color_image_uint(VkCommandBuffer cmd, VkImage image, uint32_t r, uint32_t g, uint32_t b, uint32_t a)
+void vk_img::clear_color_image_uint(VkCommandBuffer cmd, VkImage image, uint32_t r, uint32_t g, uint32_t b, uint32_t a)
 {
     VkClearColorValue clearValue{};
     clearValue.uint32[0] = r;

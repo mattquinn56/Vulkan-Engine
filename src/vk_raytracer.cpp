@@ -1,6 +1,6 @@
 #include "vk_raytracer.h"
 
-VulkanRayTracer::VulkanRayTracer(VulkanEngine* owner)
+VulkanRayTracer::VulkanRayTracer(RtEngine* owner)
 {
     _engine = owner;
 
@@ -48,7 +48,7 @@ VulkanRayTracer::VulkanRayTracer(VulkanEngine* owner)
 }
 
 // Converts a render object into the geometry used to build its BLAS.
-BlasInput VulkanRayTracer::object_to_vk_geometry(const RenderObject object)
+BlasInput VulkanRayTracer::object_to_vk_geometry(const GeometryInstance object)
 {
     // BLAS builder requires raw device addresses.
     VkDeviceAddress vertexAddress = object.vertexBufferAddress;
@@ -90,7 +90,7 @@ void VulkanRayTracer::create_bottom_level_acceleration_structures()
     // faster but costs per-object instancing, which the scene relies on.
     std::vector<BlasInput> allBlas;
     allBlas.reserve(_engine->_drawContext.opaqueSurfaces.size());
-    for (RenderObject& obj : _engine->_drawContext.opaqueSurfaces) {
+    for (GeometryInstance& obj : _engine->_drawContext.opaqueSurfaces) {
         BlasInput blas = object_to_vk_geometry(obj);
         obj.blasIndex = static_cast<uint32_t>(allBlas.size());
         allBlas.emplace_back(blas);
@@ -288,7 +288,7 @@ void VulkanRayTracer::create_top_level_acceleration_structure()
 {
     std::vector<VkAccelerationStructureInstanceKHR> tlas;
     tlas.reserve(_engine->_drawContext.opaqueSurfaces.size());
-    for (const RenderObject& inst : _engine->_drawContext.opaqueSurfaces) {
+    for (const GeometryInstance& inst : _engine->_drawContext.opaqueSurfaces) {
         VkAccelerationStructureInstanceKHR rayInst{};
         rayInst.transform = to_transform_matrix(inst.transform);
         rayInst.instanceCustomIndex = inst.blasIndex; // read as gl_InstanceCustomIndexEXT
@@ -548,7 +548,7 @@ void VulkanRayTracer::create_pipeline()
         VkPipelineShaderStageCreateInfo s{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
         s.stage = stg;
         s.pName = "main";
-        if (!vkutil::load_shader_module(path, _engine->_device, &s.module)) {
+        if (!vk_shader::load_shader_module(path, _engine->_device, &s.module)) {
             throw std::runtime_error(std::string("Failed to load shader: ") + path);
         }
         return s;
