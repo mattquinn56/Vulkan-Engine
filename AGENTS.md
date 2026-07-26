@@ -13,6 +13,11 @@
 - Commits carry the repository owner's name only. Do not add `Co-Authored-By`
   trailers, agent attribution, or generated-with notices to commit messages.
 - Never push. Commit locally and leave publishing to the repository owner.
+- Stage files by name, only the ones your change touched. Never `git add -A`,
+  `git add -u`, or `git add .`. Anything already modified in the working tree
+  when you arrived was left that way deliberately, and sweeping it into a commit
+  publishes a decision that was not yours to make. Check `git status` before
+  staging and leave what you did not touch alone.
 - One self-contained change per commit, so a bad one can be reverted in
   isolation. Build and verify before each commit, not just at the end.
 - Commit messages are a subject line. Default to no body at all.
