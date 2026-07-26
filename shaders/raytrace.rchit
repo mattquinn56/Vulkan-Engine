@@ -261,9 +261,6 @@ void main()
                 }
 
             } else if (type == AREA) {
-                if (int(sceneData.data.y) == 0) {
-                    continue;
-                }
                 int samples = int(sceneData.data.y);
                 for (int j = 0; j < samples; j++) {
                     vec2 rand = randomVec2(gl_LaunchIDEXT.xy, uint(frameNumber), uint(i) * 64u + uint(j));

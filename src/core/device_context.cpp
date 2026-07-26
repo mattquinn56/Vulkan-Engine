@@ -212,7 +212,6 @@ bool RtEngine::resize_swapchain() {
     _taaIndex = 0;
     _taaInitialized = false;
     _resetAccumNextFrame = true;
-    _lastMonteCarlo = (_monteCarloSamples == 0);
     _resizeRequested = false;
     return true;
 }

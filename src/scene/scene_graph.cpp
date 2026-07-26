@@ -102,8 +102,9 @@ void RtEngine::update_scene() {
     _sceneData.viewproj = projection * view;
     _sceneData.invView = glm::inverse(view);
     _sceneData.invProj = glm::inverse(projection);
-    const float perFrameSpp = _progressiveMonteCarlo ? float(_monteCarloSamplesPerFrame) : float(_monteCarloSamples);
-    _sceneData.data = glm::vec4(_frameNumber, perFrameSpp, 0.f, 0.f);
+    // .y is the area light sample count in raytrace.rchit and the batch weight in
+    // mc_accum.comp: one frame contributes that many samples to the running mean.
+    _sceneData.data = glm::vec4(_frameNumber, float(_monteCarloSamplesPerFrame), 0.f, 0.f);
 
     _drawContext.opaqueSurfaces.clear();
     _drawContext.objectDescriptions.clear();

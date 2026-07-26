@@ -138,11 +138,7 @@ class RtEngine
                                                VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME};
     bool _accelerationStructuresCreated{false};
     int _frameNumber{0};
-    int _monteCarloSamples{0};
     bool _debugEnabled{false};
-
-    // Previous-frame values, used to detect setting changes. Not UI-controlled.
-    int _lastMonteCarlo{-1};
 
     VkExtent2D _windowExtent{1250, 800};
 
