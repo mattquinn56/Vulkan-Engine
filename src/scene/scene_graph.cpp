@@ -103,7 +103,7 @@ void RtEngine::update_scene() {
     _sceneData.invView = glm::inverse(view);
     _sceneData.invProj = glm::inverse(projection);
     const float perFrameSpp = _progressiveMonteCarlo ? float(_monteCarloSamplesPerFrame) : float(_monteCarloSamples);
-    _sceneData.data = glm::vec4(_frameNumber, perFrameSpp, _msaaSamples, (_aaMode == AAMode::TAA) ? 1.f : 0.f);
+    _sceneData.data = glm::vec4(_frameNumber, perFrameSpp, 0.f, 0.f);
 
     _drawContext.opaqueSurfaces.clear();
     _drawContext.objectDescriptions.clear();

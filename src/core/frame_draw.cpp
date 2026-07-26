@@ -65,14 +65,12 @@ void RtEngine::draw() {
         reset_monte_carlo_history(cmd);
 
         // Reset/seed TAA history from current frame so blending starts clean
-        if (_aaMode == AAMode::TAA) {
-            seed_taa_history(this, cmd);
-            _taaInitialized = true;
-        }
+        seed_taa_history(this, cmd);
+        _taaInitialized = true;
         _resetAccumNextFrame = false;
     }
 
-    bool doProgressive = _progressiveMonteCarlo && (_aaMode == AAMode::TAA ? !_cameraMoving : true);
+    bool doProgressive = _progressiveMonteCarlo && !_cameraMoving;
 
     // Bind descriptors for MC accumulation
     {
@@ -117,89 +115,85 @@ void RtEngine::draw() {
         reset_monte_carlo_history(cmd);
     }
 
-    if (_aaMode == AAMode::TAA) {
-        // Make RT writes visible to compute reads
-        VkImageMemoryBarrier2 imgBarrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
-        imgBarrier.srcStageMask =
-            VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR; // or COLOR_ATTACHMENT_OUTPUT if raster
-        imgBarrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
-        imgBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
-        imgBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
-        imgBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-        imgBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-        imgBarrier.image = _drawImage.image;
-        imgBarrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    // Make RT writes visible to compute reads
+    VkImageMemoryBarrier2 imgBarrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
+    imgBarrier.srcStageMask = VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR; // or COLOR_ATTACHMENT_OUTPUT if raster
+    imgBarrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+    imgBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+    imgBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+    imgBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+    imgBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    imgBarrier.image = _drawImage.image;
+    imgBarrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
-        VkDependencyInfo dep{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
-        dep.imageMemoryBarrierCount = 1;
-        dep.pImageMemoryBarriers = &imgBarrier;
-        vkCmdPipelineBarrier2(cmd, &dep);
+    VkDependencyInfo dep{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+    dep.imageMemoryBarrierCount = 1;
+    dep.pImageMemoryBarriers = &imgBarrier;
+    vkCmdPipelineBarrier2(cmd, &dep);
 
-        if (!_taaInitialized) {
-            seed_taa_history(this, cmd);
-            _taaInitialized = true;
-        }
-        int prev = _taaIndex;
-        int next = 1 - _taaIndex;
-
-        // seed history when we first switch to TAA or on strong movement with zero alpha
-        if (_cameraMoving && _taaMovingAlpha == 0.0f) {
-            seed_taa_history(this, cmd);
-            prev = _taaIndex;
-            next = 1 - _taaIndex;
-        }
-
-        {
-            DescriptorWriter w;
-            w.write_image(0, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
-                          VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-            w.write_image(1, _taaHistory[prev].imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
-                          VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-            w.write_image(2, _taaHistory[next].imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
-                          VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-            w.update_set(_device, _taaSet[next]);
-        }
-
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _taaPipeline);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _taaPipelineLayout, 0, 1, &_taaSet[next], 0,
-                                nullptr);
-
-        struct
-        {
-            float alpha;
-            float clampK;
-        } pc{_cameraMoving ? _taaMovingAlpha : _taaAlpha, _taaClamp};
-        vkCmdPushConstants(cmd, _taaPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
-
-        uint32_t gx = (_windowExtent.width + 7) / 8;
-        uint32_t gy = (_windowExtent.height + 7) / 8;
-        vkCmdDispatch(cmd, gx, gy, 1);
-
-        VkImageMemoryBarrier2 histBarrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
-        histBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
-        histBarrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
-        histBarrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-        histBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-        histBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-        histBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-        histBarrier.image = _taaHistory[next].image;
-        histBarrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-
-        dep = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
-        dep.imageMemoryBarrierCount = 1;
-        dep.pImageMemoryBarriers = &histBarrier;
-        vkCmdPipelineBarrier2(cmd, &dep);
-
-        vk_img::transition_image(cmd, _taaHistory[next].image, VK_IMAGE_LAYOUT_GENERAL,
-                                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        vk_img::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        vk_img::copy_image_to_image(cmd, _taaHistory[next].image, _drawImage.image, _windowExtent, _windowExtent);
-        vk_img::transition_image(cmd, _taaHistory[next].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                 VK_IMAGE_LAYOUT_GENERAL);
-        vk_img::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
-
-        _taaIndex = next;
+    if (!_taaInitialized) {
+        seed_taa_history(this, cmd);
+        _taaInitialized = true;
     }
+    int prev = _taaIndex;
+    int next = 1 - _taaIndex;
+
+    // Alpha of zero discards history outright, so reseed rather than blend against it.
+    if (_cameraMoving && _taaMovingAlpha == 0.0f) {
+        seed_taa_history(this, cmd);
+        prev = _taaIndex;
+        next = 1 - _taaIndex;
+    }
+
+    {
+        DescriptorWriter w;
+        w.write_image(0, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
+                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+        w.write_image(1, _taaHistory[prev].imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
+                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+        w.write_image(2, _taaHistory[next].imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
+                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+        w.update_set(_device, _taaSet[next]);
+    }
+
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _taaPipeline);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _taaPipelineLayout, 0, 1, &_taaSet[next], 0, nullptr);
+
+    struct
+    {
+        float alpha;
+        float clampK;
+    } pc{_cameraMoving ? _taaMovingAlpha : _taaAlpha, _taaClamp};
+    vkCmdPushConstants(cmd, _taaPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+
+    uint32_t gx = (_windowExtent.width + 7) / 8;
+    uint32_t gy = (_windowExtent.height + 7) / 8;
+    vkCmdDispatch(cmd, gx, gy, 1);
+
+    VkImageMemoryBarrier2 histBarrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
+    histBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+    histBarrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+    histBarrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+    histBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+    histBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+    histBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    histBarrier.image = _taaHistory[next].image;
+    histBarrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+
+    dep = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+    dep.imageMemoryBarrierCount = 1;
+    dep.pImageMemoryBarriers = &histBarrier;
+    vkCmdPipelineBarrier2(cmd, &dep);
+
+    vk_img::transition_image(cmd, _taaHistory[next].image, VK_IMAGE_LAYOUT_GENERAL,
+                             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    vk_img::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    vk_img::copy_image_to_image(cmd, _taaHistory[next].image, _drawImage.image, _windowExtent, _windowExtent);
+    vk_img::transition_image(cmd, _taaHistory[next].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                             VK_IMAGE_LAYOUT_GENERAL);
+    vk_img::transition_image(cmd, _drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+
+    _taaIndex = next;
 
     // --- POST: ACES + sRGB (optional) ---
     if (_enableTonemap) {

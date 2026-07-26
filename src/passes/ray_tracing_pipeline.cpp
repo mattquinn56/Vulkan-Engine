@@ -769,11 +769,9 @@ void VulkanRayTracer::raytrace(const VkCommandBuffer& cmdBuf) {
                        0, sizeof(PushConstantRay), &_pushConstants);
 
     // don't run shader multiple times if computing monte carlo
-    if (_engine->_monteCarloSamples == 0 || _engine->_lastMonteCarlo != _engine->_monteCarloSamples ||
-        _engine->_lastMsaaSamples != _engine->_msaaSamples) {
+    if (_engine->_monteCarloSamples == 0 || _engine->_lastMonteCarlo != _engine->_monteCarloSamples) {
         _vkCmdTraceRays(cmdBuf, &_rayGenerationRegion, &_missRegion, &_hitRegion, &_callableRegion,
                         _engine->_windowExtent.width, _engine->_windowExtent.height, 1);
     }
     _engine->_lastMonteCarlo = _engine->_monteCarloSamples;
-    _engine->_lastMsaaSamples = _engine->_msaaSamples;
 }

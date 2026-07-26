@@ -139,12 +139,10 @@ class RtEngine
     bool _accelerationStructuresCreated{false};
     int _frameNumber{0};
     int _monteCarloSamples{0};
-    int _msaaSamples{1};
     bool _debugEnabled{false};
 
     // Previous-frame values, used to detect setting changes. Not UI-controlled.
     int _lastMonteCarlo{-1};
-    int _lastMsaaSamples{-1};
 
     VkExtent2D _windowExtent{1250, 800};
 
@@ -272,12 +270,6 @@ class RtEngine
     AllocatedImage load_image_from_file(std::string path);
 
     // antialiasing
-    enum class AAMode : int
-    {
-        AdaptiveMSAA = 0,
-        TAA = 1
-    };
-    AAMode _aaMode{AAMode::TAA};
     float _taaAlpha{0.99f}; // history weight
     float _taaClamp{0.10f}; // neighborhood clamps
 

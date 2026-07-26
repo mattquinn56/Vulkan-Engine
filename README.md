@@ -77,7 +77,6 @@ list is gathered at configure time.
 ## Command line
 
 ```
---aa=taa|adaptive     antialiasing mode
 --tonemap=on|off      ACES + sRGB tonemapping
 --screenshot=<path>   render, write a PNG, and exit
 --frames=<n>          which frame to capture on (default 30)

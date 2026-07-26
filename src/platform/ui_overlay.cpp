@@ -111,36 +111,13 @@ void RtEngine::draw_ui() {
     ImGui::End();
 
     ImGui::Begin("Antialiasing");
-    int aa = (_aaMode == AAMode::TAA) ? 1 : 0;
-
-    bool rb0 = ImGui::RadioButton("Adaptive MSAA", aa == 0);
-    if (rb0) {
-        aa = 0;
-    }
-    ImGui::SameLine();
-    bool rb1 = ImGui::RadioButton("TAA", aa == 1);
-    if (rb1) {
-        aa = 1;
-    }
-
-    AAMode newMode = (aa == 1) ? AAMode::TAA : AAMode::AdaptiveMSAA;
-    if (newMode != _aaMode) {
-        _aaMode = newMode;
-        reset_accum = true;
-    }
-
     ImGui::BeginDisabled();
     reset_accum |= ImGui::Checkbox("Progressive Monte Carlo", &_progressiveMonteCarlo);
     ImGui::EndDisabled();
-    if (_aaMode == AAMode::TAA) {
-        reset_accum |= ImGui::SliderInt("MC per-frame spp", &_monteCarloSamplesPerFrame, 0, 20);
-        reset_accum |= ImGui::SliderInt("MC reset frames", &_monteCarloResetFrames, 0, 8);
-        reset_accum |= ImGui::SliderFloat("TAA alpha (still)", &_taaAlpha, 0.0f, 0.99f);
-        ImGui::Text("Camera moving: %s", _cameraMoving ? "yes" : "no");
-        _progressiveMonteCarlo = true;
-    } else {
-        _progressiveMonteCarlo = false;
-    }
+    reset_accum |= ImGui::SliderInt("MC per-frame spp", &_monteCarloSamplesPerFrame, 0, 20);
+    reset_accum |= ImGui::SliderInt("MC reset frames", &_monteCarloResetFrames, 0, 8);
+    reset_accum |= ImGui::SliderFloat("TAA alpha (still)", &_taaAlpha, 0.0f, 0.99f);
+    ImGui::Text("Camera moving: %s", _cameraMoving ? "yes" : "no");
     ImGui::End();
 
     ImGui::Begin("Medium");

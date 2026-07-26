@@ -12,7 +12,6 @@ bool parse_int(std::string_view text, int& out) {
 
 void print_usage() {
     fmt::print(stderr, "Options:\n"
-                       "  --aa=taa|adaptive     antialiasing mode\n"
                        "  --tonemap=on|off      ACES + sRGB tonemapping\n"
                        "  --screenshot=<path>   write a PNG of the presented frame, then exit\n"
                        "  --frames=<n>          frame to capture on (default 30)\n"
@@ -23,11 +22,7 @@ bool configure_engine(RtEngine& engine, int argc, char* argv[]) {
     for (int i = 1; i < argc; ++i) {
         const std::string_view argument = argv[i];
 
-        if (argument == "--aa=taa") {
-            engine._aaMode = RtEngine::AAMode::TAA;
-        } else if (argument == "--aa=adaptive") {
-            engine._aaMode = RtEngine::AAMode::AdaptiveMSAA;
-        } else if (argument == "--tonemap=on") {
+        if (argument == "--tonemap=on") {
             engine._enableTonemap = true;
         } else if (argument == "--tonemap=off") {
             engine._enableTonemap = false;
@@ -51,8 +46,7 @@ bool configure_engine(RtEngine& engine, int argc, char* argv[]) {
         }
     }
 
-    fmt::println("Startup configuration: aa={} tonemap={}",
-                 engine._aaMode == RtEngine::AAMode::TAA ? "taa" : "adaptive", engine._enableTonemap ? "on" : "off");
+    fmt::println("Startup configuration: tonemap={}", engine._enableTonemap ? "on" : "off");
     if (!engine._screenshotPath.empty()) {
         fmt::println("Screenshot: {} on frame {}", engine._screenshotPath, engine._screenshotFrame);
     }
