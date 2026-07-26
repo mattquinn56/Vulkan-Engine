@@ -123,6 +123,9 @@ void RtEngine::draw_ui() {
     reset_accum |= ImGui::SliderInt("MC per-frame spp", &_monteCarloSamplesPerFrame, 1, 20);
     reset_accum |= ImGui::SliderInt("MC reset frames", &_monteCarloResetFrames, 0, 8);
     reset_accum |= ImGui::SliderFloat("TAA alpha (still)", &_taaAlpha, 0.0f, 0.99f);
+    reset_accum |= ImGui::SliderFloat("TAA alpha (moving)", &_taaMovingAlpha, 0.0f, 0.99f);
+    reset_accum |= ImGui::SliderFloat("Reproject depth tol", &_taaDepthTolerance, 0.0f, 0.5f);
+    reset_accum |= ImGui::SliderFloat("Reproject normal tol", &_taaNormalTolerance, 0.0f, 1.0f);
     ImGui::Text("Camera moving: %s", _cameraMoving ? "yes" : "no");
     ImGui::End();
 

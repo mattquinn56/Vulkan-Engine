@@ -5,9 +5,9 @@
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
 layout(set = 0, binding = 1, rgba32f) uniform image2D image;
-// Two slices so the previous frame's geometry survives for reprojection.
-layout(set = 0, binding = 3, rgba32f) uniform image2D gbuffer[2];
-layout(set = 0, binding = 4, rg32f) uniform image2D motionImage;
+// Slice counts match RtEngine::kGbufferSlices and FRAME_OVERLAP.
+layout(set = 0, binding = 3, rgba16f) uniform image2D gbuffer[3];
+layout(set = 0, binding = 4, rgba16f) uniform image2D motionImage[2];
 
 layout(location = 0) rayPayloadEXT hitPayload prd;
 
@@ -48,7 +48,8 @@ void main()
     vec2 res = vec2(gl_LaunchSizeEXT.xy);
 
     // 1 spp with low-discrepancy jitter
-    vec2 uv = (vec2(pix) + halton2(frame) - 0.5) / res;
+    vec2 jitter = halton2(frame) - 0.5;
+    vec2 uv = (vec2(pix) + jitter) / res;
     vec2 ndc = uv * 2.0 - 1.0;
 
     vec4 o = sceneData.invView * vec4(0,0,0,1);
@@ -61,19 +62,21 @@ void main()
     prd.instanceID = -1;
     traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0,0,0, o.xyz, 0.001, d.xyz, 10000.0, 0);
 
-    // Where this surface sat in the previous frame's projection, in pixels.
-    // Measured against the unjittered pixel so the jitter does not leak in.
+    // How far this surface moved on screen since last frame, in pixels. The hit
+    // came from the jittered ray, so the jittered position is what gets subtracted;
+    // a static camera then gives exactly zero rather than the jitter offset. A miss
+    // is treated as a point at the far plane, which reprojects the environment map
+    // correctly under rotation and barely at all under translation.
     vec2 motion = vec2(0.0);
-    if (prd.hitT > 0.0) {
-        vec4 clipPrev = sceneData.prevViewProj * vec4(o.xyz + d.xyz * prd.hitT, 1.0);
-        if (clipPrev.w > 0.0) {
-            motion = (clipPrev.xy / clipPrev.w * 0.5 + 0.5) * res - vec2(pix);
-        }
+    float reprojectT = prd.hitT > 0.0 ? prd.hitT : 10000.0;
+    vec4 clipPrev = sceneData.prevViewProj * vec4(o.xyz + d.xyz * reprojectT, 1.0);
+    if (clipPrev.w > 0.0) {
+        motion = (clipPrev.xy / clipPrev.w * 0.5 + 0.5) * res - (vec2(pix) + jitter);
     }
 
     imageStore(gbuffer[int(sceneData.data.z)], pix,
                vec4(prd.hitT, oct_encode(prd.worldNormal), float(prd.instanceID)));
-    imageStore(motionImage, pix, vec4(motion, 0, 0));
+    imageStore(motionImage[int(sceneData.data.x) % 2], pix, vec4(motion, 0, 0));
 
     imageStore(image, pix, vec4(debug_color(int(sceneData.data.w), motion), 1));
 }

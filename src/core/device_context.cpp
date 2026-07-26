@@ -157,16 +157,30 @@ void RtEngine::destroy_render_targets() {
 // command pool, which init() sets up after the swapchain.
 void RtEngine::create_gbuffer_images() {
     const VkExtent3D extent{_windowExtent.width, _windowExtent.height, 1};
+    // Half floats: normals are octahedral, and hit distance only feeds a relative
+    // tolerance test. Instance IDs stay exact below 2048.
+    const VkImageUsageFlags usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     for (AllocatedImage& slice : _gbuffer) {
-        slice = create_image(extent, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT);
+        slice = create_image(extent, VK_FORMAT_R16G16B16A16_SFLOAT, usage);
     }
-    _motionImage = create_image(extent, VK_FORMAT_R32G32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT);
+    for (AllocatedImage& slice : _motion) {
+        slice = create_image(extent, VK_FORMAT_R16G16B16A16_SFLOAT, usage);
+    }
 
+    // Cleared so the first frames reproject against a defined slice. Hit distance
+    // zero reads as a miss, which the validity test rejects against any surface.
     immediate_submit([&](VkCommandBuffer cmd) {
+        auto clear = [&](const AllocatedImage& slice) {
+            vk_img::transition_image(cmd, slice.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            vk_img::clear_color_image_float(cmd, slice.image, 0.f, 0.f, 0.f, 0.f);
+            vk_img::transition_image(cmd, slice.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+        };
         for (const AllocatedImage& slice : _gbuffer) {
-            vk_img::transition_image(cmd, slice.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+            clear(slice);
         }
-        vk_img::transition_image(cmd, _motionImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        for (const AllocatedImage& slice : _motion) {
+            clear(slice);
+        }
     });
     _gbufferIndex = 0;
 }
@@ -176,8 +190,10 @@ void RtEngine::destroy_gbuffer_images() {
         destroy_image(slice);
         slice = {};
     }
-    destroy_image(_motionImage);
-    _motionImage = {};
+    for (AllocatedImage& slice : _motion) {
+        destroy_image(slice);
+        slice = {};
+    }
 }
 
 void RtEngine::create_swapchain(uint32_t width, uint32_t height) {

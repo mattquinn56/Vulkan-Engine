@@ -41,11 +41,11 @@ void seed_taa_history(RtEngine* e, VkCommandBuffer cmd) {
 void RtEngine::create_taa_pipeline_resources() {
     create_taa_history_images();
 
-    // Descriptor set layout: curr, prev, out = 3 storage images
+    // curr, prev, out, then this frame's and last frame's G-buffer and the motion vectors
     DescriptorLayoutBuilder b;
-    b.add_binding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-    b.add_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-    b.add_binding(2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    for (uint32_t binding = 0; binding < 6; ++binding) {
+        b.add_binding(binding, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    }
     _taaSetLayout = b.build(_device, VK_SHADER_STAGE_COMPUTE_BIT);
     const VkDescriptorSetLayout taaSetLayout = _taaSetLayout;
     _mainDeletionQueue.push_function(
@@ -60,7 +60,7 @@ void RtEngine::create_taa_pipeline_resources() {
     VkPushConstantRange pc{};
     pc.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
     pc.offset = 0;
-    pc.size = sizeof(float) * 2; // alpha, clampK
+    pc.size = sizeof(float) * 4; // alpha, clampK, depthTolerance, normalTolerance
     pli.pushConstantRangeCount = 1;
     pli.pPushConstantRanges = &pc;
     pli.setLayoutCount = 1;

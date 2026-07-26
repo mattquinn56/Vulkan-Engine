@@ -187,11 +187,23 @@ class RtEngine
     AllocatedImage _drawImage;
 
     // Primary-hit geometry, written by the raygen shader: hit distance,
-    // octahedral world normal, instance ID. Two slices alternating each frame so
-    // the previous frame stays readable for reprojection.
-    AllocatedImage _gbuffer[2];
-    AllocatedImage _motionImage;
+    // octahedral world normal, instance ID.
+    //
+    // Reprojection reads the slice written last frame, so a two-slice ping-pong
+    // would let frame N+1 overwrite what frame N is still reading — frames only
+    // wait on the fence from FRAME_OVERLAP submissions back. One more slice than
+    // that gives every in-flight frame an untouched history to read.
+    static constexpr int kGbufferSlices = int(FRAME_OVERLAP) + 1;
+    AllocatedImage _gbuffer[kGbufferSlices];
     int _gbufferIndex{0};
+
+    int previous_gbuffer_index() const {
+        return (_gbufferIndex + kGbufferSlices - 1) % kGbufferSlices;
+    }
+
+    // Consumed by the same frame that writes it, so one slice per frame in flight
+    // is enough.
+    AllocatedImage _motion[FRAME_OVERLAP];
 
     void create_gbuffer_images();
     void destroy_gbuffer_images();
@@ -283,7 +295,11 @@ class RtEngine
     float _taaAlpha{0.99f}; // history weight
     float _taaClamp{0.10f}; // neighborhood clamps
 
-    float _taaMovingAlpha{0.0f};          // alpha when moving (0 = full reset behavior)
+    // Reprojection keeps history usable through camera motion, so a moving frame
+    // no longer has to discard it outright.
+    float _taaMovingAlpha{0.9f};
+    float _taaDepthTolerance{0.05f};      // fraction of hit distance
+    float _taaNormalTolerance{0.9f};      // minimum dot product between normals
     float _taaVelocityThreshold{0.0001f}; // world units / frame
     float _taaRotationThreshold{0.1f};    // degrees / frame
     bool _taaInitialized{false};

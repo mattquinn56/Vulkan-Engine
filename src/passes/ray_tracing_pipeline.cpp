@@ -418,12 +418,14 @@ void VulkanRayTracer::create_descriptor_set() {
     descriptorLayoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR); // TLAS
     descriptorLayoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);              // Output image
     descriptorLayoutBuilder.add_binding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);     // Environment map
-    descriptorLayoutBuilder.add_binding(3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 2);           // G-buffer, both slices
-    descriptorLayoutBuilder.add_binding(4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);              // Motion vectors
+    descriptorLayoutBuilder.add_binding(3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                        RtEngine::kGbufferSlices); // G-buffer, every slice
+    descriptorLayoutBuilder.add_binding(4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                        FRAME_OVERLAP); // Motion vectors
 
     std::vector<DescriptorAllocator::PoolSizeRatio> rt_pool_sizes = {
         {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1},
-        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 4},
+        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 + RtEngine::kGbufferSlices + FRAME_OVERLAP},
         {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
     };
     _descriptorAllocator.init_pool(_engine->_device, 1, rt_pool_sizes);
@@ -452,11 +454,18 @@ void VulkanRayTracer::create_descriptor_set() {
                                   VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     _descriptorWriter.write_image(2, _engine->_environmentMap.imageView, _engine->_defaultSamplerLinear,
                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    _descriptorWriter.write_image_array(3, {_engine->_gbuffer[0].imageView, _engine->_gbuffer[1].imageView},
-                                        {VK_NULL_HANDLE, VK_NULL_HANDLE}, VK_IMAGE_LAYOUT_GENERAL,
-                                        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-    _descriptorWriter.write_image(4, _engine->_motionImage.imageView, {}, VK_IMAGE_LAYOUT_GENERAL,
-                                  VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    std::vector<VkImageView> gbufferViews;
+    for (const AllocatedImage& slice : _engine->_gbuffer) {
+        gbufferViews.push_back(slice.imageView);
+    }
+    std::vector<VkImageView> motionViews;
+    for (const AllocatedImage& slice : _engine->_motion) {
+        motionViews.push_back(slice.imageView);
+    }
+    _descriptorWriter.write_image_array(3, gbufferViews, std::vector<VkSampler>(gbufferViews.size(), VK_NULL_HANDLE),
+                                        VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    _descriptorWriter.write_image_array(4, motionViews, std::vector<VkSampler>(motionViews.size(), VK_NULL_HANDLE),
+                                        VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     _descriptorWriter.update_set(_engine->_device, _descriptorSet);
 
     // add all to deletion queue
@@ -521,24 +530,31 @@ void VulkanRayTracer::update_output_descriptor() {
     // Written directly rather than through DescriptorWriter so binding 0, the
     // acceleration structure, is left untouched.
     const VkDescriptorImageInfo drawInfo{{}, _engine->_drawImage.imageView, VK_IMAGE_LAYOUT_GENERAL};
-    const VkDescriptorImageInfo gbufferInfo[2]{{{}, _engine->_gbuffer[0].imageView, VK_IMAGE_LAYOUT_GENERAL},
-                                               {{}, _engine->_gbuffer[1].imageView, VK_IMAGE_LAYOUT_GENERAL}};
-    const VkDescriptorImageInfo motionInfo{{}, _engine->_motionImage.imageView, VK_IMAGE_LAYOUT_GENERAL};
+
+    VkDescriptorImageInfo gbufferInfo[RtEngine::kGbufferSlices]{};
+    for (int i = 0; i < RtEngine::kGbufferSlices; ++i) {
+        gbufferInfo[i] = {{}, _engine->_gbuffer[i].imageView, VK_IMAGE_LAYOUT_GENERAL};
+    }
+    VkDescriptorImageInfo motionInfo[FRAME_OVERLAP]{};
+    for (uint32_t i = 0; i < FRAME_OVERLAP; ++i) {
+        motionInfo[i] = {{}, _engine->_motion[i].imageView, VK_IMAGE_LAYOUT_GENERAL};
+    }
 
     VkWriteDescriptorSet wds[3]{};
     for (VkWriteDescriptorSet& write : wds) {
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.dstSet = _descriptorSet;
         write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        write.descriptorCount = 1;
     }
     wds[0].dstBinding = 1;
+    wds[0].descriptorCount = 1;
     wds[0].pImageInfo = &drawInfo;
     wds[1].dstBinding = 3;
-    wds[1].descriptorCount = 2;
+    wds[1].descriptorCount = RtEngine::kGbufferSlices;
     wds[1].pImageInfo = gbufferInfo;
     wds[2].dstBinding = 4;
-    wds[2].pImageInfo = &motionInfo;
+    wds[2].descriptorCount = FRAME_OVERLAP;
+    wds[2].pImageInfo = motionInfo;
 
     vkUpdateDescriptorSets(_engine->_device, 3, wds, 0, nullptr);
 }

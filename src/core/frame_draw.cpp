@@ -116,34 +116,32 @@ void RtEngine::draw() {
     }
 
     // Make RT writes visible to compute reads
-    VkImageMemoryBarrier2 imgBarrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
-    imgBarrier.srcStageMask = VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR; // or COLOR_ATTACHMENT_OUTPUT if raster
-    imgBarrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
-    imgBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
-    imgBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
-    imgBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-    imgBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-    imgBarrier.image = _drawImage.image;
-    imgBarrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    const VkImage rayTracedImages[]{_drawImage.image, _gbuffer[_gbufferIndex].image,
+                                    _motion[_frameNumber % FRAME_OVERLAP].image};
+    VkImageMemoryBarrier2 imgBarriers[std::size(rayTracedImages)]{};
+    for (size_t i = 0; i < std::size(rayTracedImages); ++i) {
+        imgBarriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+        imgBarriers[i].srcStageMask = VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
+        imgBarriers[i].srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+        imgBarriers[i].dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        imgBarriers[i].dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+        imgBarriers[i].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+        imgBarriers[i].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        imgBarriers[i].image = rayTracedImages[i];
+        imgBarriers[i].subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    }
 
     VkDependencyInfo dep{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
-    dep.imageMemoryBarrierCount = 1;
-    dep.pImageMemoryBarriers = &imgBarrier;
+    dep.imageMemoryBarrierCount = uint32_t(std::size(imgBarriers));
+    dep.pImageMemoryBarriers = imgBarriers;
     vkCmdPipelineBarrier2(cmd, &dep);
 
     if (!_taaInitialized) {
         seed_taa_history(this, cmd);
         _taaInitialized = true;
     }
-    int prev = _taaIndex;
-    int next = 1 - _taaIndex;
-
-    // Alpha of zero discards history outright, so reseed rather than blend against it.
-    if (_cameraMoving && _taaMovingAlpha == 0.0f) {
-        seed_taa_history(this, cmd);
-        prev = _taaIndex;
-        next = 1 - _taaIndex;
-    }
+    const int prev = _taaIndex;
+    const int next = 1 - _taaIndex;
 
     {
         DescriptorWriter w;
@@ -152,6 +150,12 @@ void RtEngine::draw() {
         w.write_image(1, _taaHistory[prev].imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
                       VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
         w.write_image(2, _taaHistory[next].imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
+                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+        w.write_image(3, _gbuffer[_gbufferIndex].imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
+                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+        w.write_image(4, _gbuffer[previous_gbuffer_index()].imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
+                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+        w.write_image(5, _motion[_frameNumber % FRAME_OVERLAP].imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
                       VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
         w.update_set(_device, _taaSet[next]);
     }
@@ -163,7 +167,9 @@ void RtEngine::draw() {
     {
         float alpha;
         float clampK;
-    } pc{_cameraMoving ? _taaMovingAlpha : _taaAlpha, _taaClamp};
+        float depthTolerance;
+        float normalTolerance;
+    } pc{_cameraMoving ? _taaMovingAlpha : _taaAlpha, _taaClamp, _taaDepthTolerance, _taaNormalTolerance};
     vkCmdPushConstants(cmd, _taaPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
 
     uint32_t gx = (_windowExtent.width + 7) / 8;
@@ -354,7 +360,7 @@ void RtEngine::draw() {
     }
 
     _frameNumber++;
-    _gbufferIndex = 1 - _gbufferIndex;
+    _gbufferIndex = (_gbufferIndex + 1) % kGbufferSlices;
 }
 
 void RtEngine::update_global_descriptor() {

@@ -173,3 +173,20 @@ void vk_img::clear_color_image_uint(VkCommandBuffer cmd, VkImage image, uint32_t
 
     vkCmdClearColorImage(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue, 1, &range);
 }
+
+void vk_img::clear_color_image_float(VkCommandBuffer cmd, VkImage image, float r, float g, float b, float a) {
+    VkClearColorValue clearValue{};
+    clearValue.float32[0] = r;
+    clearValue.float32[1] = g;
+    clearValue.float32[2] = b;
+    clearValue.float32[3] = a;
+
+    VkImageSubresourceRange range{};
+    range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    range.baseMipLevel = 0;
+    range.levelCount = 1;
+    range.baseArrayLayer = 0;
+    range.layerCount = 1;
+
+    vkCmdClearColorImage(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue, 1, &range);
+}
