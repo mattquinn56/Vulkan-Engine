@@ -10,6 +10,7 @@ project ("vulkan_hardware_rt")
 
 find_package(Vulkan REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(CLI11 CONFIG REQUIRED)
 
 add_subdirectory(third_party)
 

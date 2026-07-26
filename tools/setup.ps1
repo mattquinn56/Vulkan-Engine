@@ -89,7 +89,7 @@ if (-not (Test-Path $vcpkgExe)) {
 }
 
 Write-Host '  installing dependencies...'
-Invoke-Native $vcpkgExe @('install', 'vulkan', 'nlohmann-json', '--triplet', 'x64-windows') 'vcpkg install'
+Invoke-Native $vcpkgExe @('install', 'vulkan', 'nlohmann-json', 'cli11', '--triplet', 'x64-windows') 'vcpkg install'
 
 # The pinned vcpkg revision does not always lay down this SDK header, and the
 # engine includes it for readable VkResult names.
