@@ -129,15 +129,17 @@ Do not document anything about `GUIDE.md` here. Its conventions live in
 
 ## Current observed baseline
 
-As of 2026-07-25, a Debug run on an NVIDIA GeForce RTX 4080 SUPER loads
-`assets/livingroom_vkr.glb` with 11 lights and produces **no validation
-messages**, on startup, during rendering, across a burst of window resizes, or
-during shutdown. It exits with code 0.
+As of 2026-07-26, a Debug run on an NVIDIA GeForce RTX 4080 SUPER loads
+`assets/livingroom_vkr.glb` with 11 lights and exits with code 0.
 
-That is the bar to hold: any validation output is a regression introduced by the
-change under test, not pre-existing noise. Re-check after every change, and
-deduplicate before concluding, because later errors can be masked by earlier
-invalid state.
+One validation message repeats: `VUID-vkUpdateDescriptorSets-None-03047`, about
+360 times in a 60-frame `--no-ui --screenshot` run. `update_global_descriptor`
+and the Monte Carlo pass rewrite a single descriptor set every frame while the
+previous frame's command buffer may still be pending. It is not a regression —
+measure the count before and after your change and compare.
+
+Nothing else should appear. Re-check after every change, and deduplicate before
+concluding, because later errors can be masked by earlier invalid state.
 
 Use `tools/summarize-validation.ps1` to count validation message identifiers
 without double-counting the VUID repeated in each message's specification URL.
