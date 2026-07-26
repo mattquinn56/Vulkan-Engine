@@ -337,6 +337,7 @@ class RtEngine
 
     // helpers
     void create_monte_carlo_pipeline_resources();
+    void update_monte_carlo_descriptors();
     void create_monte_carlo_images();
     void destroy_monte_carlo_images();
     void reset_monte_carlo_history(VkCommandBuffer cmd);
@@ -353,6 +354,7 @@ class RtEngine
     // LDR target copied to the swapchain after tonemapping.
     AllocatedImage _ldrImage;
     void create_postprocess_resources();
+    void update_postprocess_descriptors();
 
     // False falls back to the legacy BRDF; see useMicrofacet in the RT push constants.
     bool _useMicrofacetBrdf{true};

@@ -253,6 +253,8 @@ bool RtEngine::resize_swapchain() {
     create_monte_carlo_images();
     create_taa_history_images();
     create_gbuffer_images();
+    update_monte_carlo_descriptors();
+    update_postprocess_descriptors();
 
     _taaIndex = 0;
     _taaInitialized = false;

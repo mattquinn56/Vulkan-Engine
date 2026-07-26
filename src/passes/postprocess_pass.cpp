@@ -67,4 +67,14 @@ void RtEngine::create_postprocess_resources() {
     vkDestroyShaderModule(_device, cs, nullptr);
     const VkPipeline postPipeline = _postPipeline;
     _mainDeletionQueue.push_function([this, postPipeline]() { vkDestroyPipeline(_device, postPipeline, nullptr); });
+
+    update_postprocess_descriptors();
+}
+
+// Only render targets, so this holds until one is recreated.
+void RtEngine::update_postprocess_descriptors() {
+    DescriptorWriter w;
+    w.write_image(0, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    w.write_image(1, _ldrImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    w.update_set(_device, _postSet);
 }

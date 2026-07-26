@@ -98,20 +98,6 @@ void RtEngine::draw() {
 
     bool doProgressive = _progressiveMonteCarlo && !_cameraMoving;
 
-    // Bind descriptors for MC accumulation
-    {
-        DescriptorWriter w;
-        w.write_image(0, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
-                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-        w.write_image(1, _mcAccumColor.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
-                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-        w.write_image(2, _mcAccumCount.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
-                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-        w.write_image(3, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
-                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-        w.update_set(_device, _mcSet);
-    }
-
     if (doProgressive) {
         // Optional: delay reset for a couple frames after movement ends
         static int resetCooldown = 0;
@@ -259,16 +245,6 @@ void RtEngine::draw() {
             dep.pImageMemoryBarriers = &b;
             vkCmdPipelineBarrier2(cmd, &dep);
             _ldrNeedsInit = false;
-        }
-
-        // Bind descriptors and dispatch post compute
-        {
-            DescriptorWriter w;
-            w.write_image(0, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
-                          VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-            w.write_image(1, _ldrImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
-                          VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-            w.update_set(_device, _postSet);
         }
 
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _postPipeline);

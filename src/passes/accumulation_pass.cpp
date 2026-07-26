@@ -65,6 +65,21 @@ void RtEngine::create_monte_carlo_pipeline_resources() {
     vkDestroyShaderModule(_device, mcCS, nullptr);
     const VkPipeline mcPipeline = _mcPipeline;
     _mainDeletionQueue.push_function([this, mcPipeline]() { vkDestroyPipeline(_device, mcPipeline, nullptr); });
+
+    update_monte_carlo_descriptors();
+}
+
+// The set names only render targets, so it stays valid until one is recreated.
+// Rewriting it per frame would touch a set the previous frame still has pending.
+void RtEngine::update_monte_carlo_descriptors() {
+    DescriptorWriter w;
+    w.write_image(0, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    w.write_image(1, _mcAccumColor.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
+                  VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    w.write_image(2, _mcAccumCount.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL,
+                  VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    w.write_image(3, _drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    w.update_set(_device, _mcSet);
 }
 
 void RtEngine::create_monte_carlo_images() {
