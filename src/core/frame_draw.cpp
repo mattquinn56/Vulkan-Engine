@@ -96,18 +96,11 @@ void RtEngine::draw() {
         _resetAccumNextFrame = false;
     }
 
-    bool doProgressive = _progressiveMonteCarlo && !_cameraMoving;
+    // The running mean is tied to the pose it started from, not to whether the
+    // camera moved between the last two frames.
+    const bool doProgressive = _progressiveMonteCarlo && !_cameraDriftedSinceAccum;
 
     if (doProgressive) {
-        // Optional: delay reset for a couple frames after movement ends
-        static int resetCooldown = 0;
-        if (_cameraMoving)
-            resetCooldown = _monteCarloResetFrames;
-        if (resetCooldown > 0) {
-            reset_monte_carlo_history(cmd);
-            resetCooldown--;
-        }
-
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _mcPipeline);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _mcPipeLayout, 0, 1, &_mcSet, 0, nullptr);
 

@@ -122,7 +122,7 @@ void RtEngine::draw_ui() {
     ImGui::Begin("Antialiasing");
     reset_accum |= ImGui::Checkbox("Progressive Monte Carlo", &_progressiveMonteCarlo);
     reset_accum |= ImGui::SliderInt("MC per-frame spp", &_monteCarloSamplesPerFrame, 1, 20);
-    reset_accum |= ImGui::SliderInt("MC reset frames", &_monteCarloResetFrames, 0, 8);
+    reset_accum |= ImGui::SliderInt("Camera settle frames", &_cameraSettleFrames, 0, 16);
     reset_accum |= ImGui::SliderFloat("TAA alpha (still)", &_taaAlpha, 0.0f, 0.99f);
     reset_accum |= ImGui::SliderFloat("TAA alpha (moving)", &_taaMovingAlpha, 0.0f, 0.99f);
     reset_accum |= ImGui::SliderFloat("Reproject depth tol", &_taaDepthTolerance, 0.0f, 0.5f);

@@ -87,18 +87,30 @@ void RtEngine::update_scene() {
     projection[1][1] *= -1;
 
     // motion detection
-    glm::vec3 camPos = _mainCamera.position;
-    glm::vec3 viewDir = _mainCamera.get_view_direction();
+    const glm::vec3 camPos = _mainCamera.position;
+    const glm::vec3 viewDir = glm::normalize(_mainCamera.get_view_direction());
 
-    float linDelta = _hasPrevCamera ? glm::length(camPos - _prevCamPos) : 0.f;
-    float angDelta =
-        _hasPrevCamera
-            ? glm::degrees(acos(glm::clamp(glm::dot(glm::normalize(viewDir), glm::normalize(_prevViewDir)), -1.f, 1.f)))
-            : 0.f;
-    _cameraMoving = _hasPrevCamera && (linDelta > _taaVelocityThreshold || angDelta > _taaRotationThreshold);
-    _prevCamPos = camPos;
-    _prevViewDir = viewDir;
-    _hasPrevCamera = true;
+    auto moved_from = [&](const glm::vec3& pos, const glm::vec3& dir) {
+        const float linDelta = glm::length(camPos - pos);
+        const float angDelta = glm::degrees(acos(glm::clamp(glm::dot(viewDir, dir), -1.f, 1.f)));
+        return linDelta > _cameraPositionTolerance || angDelta > _cameraRotationTolerance;
+    };
+
+    // Restarting from the current pose bounds how much camera motion any one mean
+    // can span by the tolerance, however slowly the camera drifts.
+    _cameraDriftedSinceAccum = !_hasAccumPose || moved_from(_accumCamPos, _accumViewDir);
+    if (_cameraDriftedSinceAccum) {
+        _accumCamPos = camPos;
+        _accumViewDir = viewDir;
+        _hasAccumPose = true;
+    }
+
+    if (_cameraDriftedSinceAccum) {
+        _framesSinceCameraMoved = 0;
+    } else if (_framesSinceCameraMoved < _cameraSettleFrames) {
+        _framesSinceCameraMoved++;
+    }
+    _cameraMoving = _framesSinceCameraMoved < _cameraSettleFrames;
 
     // Captured before viewproj is overwritten. The first frame has no history, so
     // it reprojects onto itself and every motion vector comes out zero.

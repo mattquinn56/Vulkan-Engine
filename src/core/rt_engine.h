@@ -308,16 +308,31 @@ class RtEngine
     // Reprojection keeps history usable through camera motion, so a moving frame
     // no longer has to discard it outright.
     float _taaMovingAlpha{0.9f};
-    float _taaDepthTolerance{0.05f};      // fraction of hit distance
-    float _taaNormalTolerance{0.9f};      // minimum dot product between normals
-    float _taaVelocityThreshold{0.0001f}; // world units / frame
-    float _taaRotationThreshold{0.1f};    // degrees / frame
+    float _taaDepthTolerance{0.05f}; // fraction of hit distance
+    float _taaNormalTolerance{0.9f}; // minimum dot product between normals
     bool _taaInitialized{false};
 
+    // Camera change below these is treated as no change at all.
+    float _cameraPositionTolerance{0.0001f}; // world units
+    float _cameraRotationTolerance{0.1f};    // degrees
+
+    // Selects the TAA history weight. Mouse motion is delivered at the device's
+    // polling rate, which is well below the frame rate, so a steady pan still
+    // produces frames carrying no camera delta. Holding the moving state across
+    // those keeps the weight from alternating mid-pan.
     bool _cameraMoving{false};
-    glm::vec3 _prevCamPos{};
-    glm::vec3 _prevViewDir{};
-    bool _hasPrevCamera{false};
+    int _cameraSettleFrames{6};
+    int _framesSinceCameraMoved{INT_MAX};
+
+    // Pose the accumulator was last reset at. Progressive accumulation has no
+    // reprojection, so its running mean is only valid for a fixed camera, and the
+    // pose it started from is what the current one has to be compared against.
+    // Comparing against the previous frame instead lets a drift smaller than the
+    // tolerance accumulate without bound, which smears the mean across poses.
+    glm::vec3 _accumCamPos{};
+    glm::vec3 _accumViewDir{};
+    bool _hasAccumPose{false};
+    bool _cameraDriftedSinceAccum{true};
 
     // TAA GPU resources. Sized like the G-buffer and for the same reason: the
     // resolve reads the slice written last frame, so a two-slice ping-pong lets
@@ -338,7 +353,6 @@ class RtEngine
     // Progressive Monte Carlo accumulation
     bool _progressiveMonteCarlo{true};
     int _monteCarloSamplesPerFrame{5};
-    int _monteCarloResetFrames{2}; // frames of motion before history is cleared
 
     AllocatedImage _mcAccumColor; // rgba16f, running average
     AllocatedImage _mcAccumCount; // r32ui, sample counts
