@@ -189,5 +189,11 @@ Golden cases must pass `--no-ui`. The overlay prints a frame time that changes
 every run, so a reference including it would fail against itself. Cases are
 declared in the root `CMakeLists.txt`.
 
+`livingroom` renders 60 frames, `livingroom_converged` renders 480. The long case
+exists to catch changes in how fast the image converges, not just what it
+converges to; a change that only slows accumulation passes the short case and
+fails the long one. Back-to-back runs are bit-identical on one GPU, so a
+non-trivial diff is a real change.
+
 Phase 2 verification is recorded in `docs/validation-phase2.md`. Its raw logs are
 under ignored `out/validation-phase2/`.

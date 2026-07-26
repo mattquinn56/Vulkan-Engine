@@ -61,8 +61,15 @@ enable_testing()
 # Each golden case renders with fixed settings and is compared against a stored
 # reference. --no-ui is mandatory: the overlay prints a frame time that changes
 # every run, so a reference including it would fail against itself.
-set(GOLDEN_CASES "livingroom")
+#
+# livingroom is the fast case: 60 frames is enough to be stable but still carries
+# visible sampling noise. livingroom_converged runs long enough that the
+# accumulator has settled, so it fails on anything that changes how quickly the
+# image converges rather than only what it converges to. Frames are cheap here;
+# startup dominates both cases.
+set(GOLDEN_CASES "livingroom" "livingroom_converged")
 set(GOLDEN_ARGS_livingroom "--no-ui;--frames=60")
+set(GOLDEN_ARGS_livingroom_converged "--no-ui;--frames=480")
 
 foreach(case ${GOLDEN_CASES})
     add_test(NAME golden.${case}

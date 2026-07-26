@@ -110,6 +110,9 @@ Each golden test renders a scene and compares it against a stored reference in
 `.actual.png` and a color-coded `.diff.png` into `build/golden-output/` so you
 can see exactly what moved.
 
+There are two cases: a 60-frame one and a 480-frame one. The long case catches
+changes in how fast the image converges, which the short one can miss.
+
 Regenerate the references after an intentional change to output:
 
 ```
