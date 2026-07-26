@@ -148,6 +148,16 @@ For deterministic diagnostic runs, `engine.exe` accepts `--tonemap=on|off` and
 `--debug-view=<n>`. Invalid options exit with status 2 before Vulkan starts.
 `--render-path` no longer exists: hardware ray tracing is the only render path.
 
+`--orbit=<deg>` yaws the camera that many degrees per rendered frame, and
+`--orbit-frames=<n>` stops it after n frames. Nothing else in the engine moves
+the camera without a mouse, so these are the only way to exercise reprojection
+in a capture run. Because the yaw is per frame rather than per second, a capture
+at frame N is identical between runs.
+
+Pair them to measure temporal filtering against ground truth: render the panned
+pose with `--orbit=X --orbit-frames=N --frames=N`, then render the same pose
+left to converge with `--frames=N+480`, and diff the two.
+
 ## Verifying a frame
 
 Prefer this over launching interactively — it needs no manual interaction and
@@ -192,8 +202,11 @@ declared in the root `CMakeLists.txt`.
 `livingroom` renders 60 frames, `livingroom_converged` renders 480. The long case
 exists to catch changes in how fast the image converges, not just what it
 converges to; a change that only slows accumulation passes the short case and
-fails the long one. Back-to-back runs are bit-identical on one GPU, so a
-non-trivial diff is a real change.
+fails the long one. `livingroom_panning` is the only case with a moving camera,
+so it is the only one where reprojection does any work; the still cases pass
+unchanged even when history is fetched from the wrong place, because a still
+camera reprojects every pixel onto itself. Back-to-back runs are bit-identical
+on one GPU, so a non-trivial diff is a real change.
 
 Phase 2 verification is recorded in `docs/validation-phase2.md`. Its raw logs are
 under ignored `out/validation-phase2/`.
