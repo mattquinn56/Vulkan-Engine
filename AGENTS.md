@@ -206,6 +206,15 @@ Golden cases must pass `--no-ui`. The overlay prints a frame time that changes
 every run, so a reference including it would fail against itself. Cases are
 declared in the root `CMakeLists.txt`.
 
+They must also pass `--resolution`. Without it the window is sized from the
+desktop, so the rendered extent — and therefore the image — depends on the
+display of whichever machine generated the reference. `GOLDEN_RESOLUTION` in the
+root `CMakeLists.txt` pins every case to 1250x800.
+
+Timings vary enormously with what else is using the GPU. A run that normally
+takes 6 s can take 150 s with another application holding the device, which looks
+exactly like a hang. Check `nvidia-smi` before concluding the engine stalled.
+
 `livingroom` renders 60 frames, `livingroom_converged` renders 480. The long case
 exists to catch changes in how fast the image converges, not just what it
 converges to; a change that only slows accumulation passes the short case and
