@@ -38,8 +38,8 @@ void RtEngine::create_monte_carlo_pipeline_resources() {
 
     _mcSet = _globalDescriptorAllocator.allocate(_device, _mcSetLayout);
 
-    // Pipeline + layout (push: resetFrames, movingFlag)
-    VkPushConstantRange pc{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float) * 2};
+    // Pipeline + layout (push: perFrameSpp)
+    VkPushConstantRange pc{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float)};
     VkPipelineLayoutCreateInfo pli{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     pli.pushConstantRangeCount = 1;
     pli.pPushConstantRanges = &pc;

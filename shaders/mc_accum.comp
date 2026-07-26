@@ -6,7 +6,7 @@ layout(rgba16f, binding = 1) uniform coherent image2D accumImg;  // running aver
 layout(r32ui,  binding = 2) uniform coherent uimage2D countImg;  // running count
 layout(rgba16f, binding = 3) uniform writeonly image2D outImg;   // resolved to draw
 
-layout(push_constant) uniform PC { float perFrameSpp; float movingFlag; } pc;
+layout(push_constant) uniform PC { float perFrameSpp; } pc;
 
 void main(){
     ivec2 p = ivec2(gl_GlobalInvocationID.xy);
@@ -16,12 +16,6 @@ void main(){
 
     uint n = imageLoad(countImg, p).x;
     vec3 avg = imageLoad(accumImg, p).rgb;
-
-    if (pc.movingFlag > 0.5) {
-        // when moving, just pass through current and don't increase count
-        imageStore(outImg, p, vec4(curr,1));
-        return;
-    }
 
     // accumulate perFrameSpp batches (integer)
     uint add = max(1u, uint(pc.perFrameSpp));

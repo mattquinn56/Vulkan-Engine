@@ -101,12 +101,8 @@ void RtEngine::draw() {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _mcPipeline);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _mcPipeLayout, 0, 1, &_mcSet, 0, nullptr);
 
-        struct
-        {
-            float perFrameSpp;
-            float movingFlag;
-        } pc{float(_monteCarloSamplesPerFrame), _cameraMoving ? 1.f : 0.f};
-        vkCmdPushConstants(cmd, _mcPipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+        const float perFrameSpp = float(_monteCarloSamplesPerFrame);
+        vkCmdPushConstants(cmd, _mcPipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(perFrameSpp), &perFrameSpp);
 
         uint32_t gx = (_windowExtent.width + 7) / 8;
         uint32_t gy = (_windowExtent.height + 7) / 8;
