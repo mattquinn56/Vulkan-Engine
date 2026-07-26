@@ -58,7 +58,7 @@ void RtEngine::create_taa_pipeline_resources() {
     VkPushConstantRange pc{};
     pc.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
     pc.offset = 0;
-    pc.size = sizeof(float) * 4; // alpha, clampK, depthTolerance, normalTolerance
+    pc.size = sizeof(float) * 4 + sizeof(int); // alpha, clampK, depthTolerance, normalTolerance, debugView
     pli.pushConstantRangeCount = 1;
     pli.pPushConstantRanges = &pc;
     pli.setLayoutCount = 1;

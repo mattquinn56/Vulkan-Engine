@@ -3,6 +3,7 @@
 
 #include "core/gpu_types.h"
 
+#include <climits>
 #include <deque>
 #include <functional>
 #include <span>
@@ -250,6 +251,13 @@ class RtEngine
     int _screenshotFrame{30};
     bool _screenshotDone{false};
     bool _showUi{true};
+    // Yaw applied per rendered frame, in degrees, for the first _orbitFrames
+    // frames. Advancing per frame rather than per second keeps a capture at frame
+    // N identical between runs, which is what makes reprojection testable at all.
+    // Stopping partway lets the same pose be rendered twice: once arrived at by
+    // panning, once left to converge, so the panned image has a reference.
+    float _orbitDegreesPerFrame{0.f};
+    int _orbitFrames{INT_MAX};
     void capture_swapchain(VkCommandBuffer cmd, uint32_t imageIndex, AllocatedBuffer& dst);
     void write_capture(const AllocatedBuffer& src);
 
@@ -287,9 +295,11 @@ class RtEngine
 
     AllocatedImage load_image_from_file(std::string path);
 
-    // 0 shaded, 1 normal, 2 hit distance, 3 motion vectors, 4 instance ID
+    // 0 shaded, 1 normal, 2 hit distance, 3 motion vectors, 4 instance ID,
+    // 5 history reuse. Views up to 4 are drawn by raygen; 5 by the temporal
+    // resolve, which is the only pass that knows how much history was reused.
     int _debugView{0};
-    static constexpr int kDebugViewCount = 5;
+    static constexpr int kDebugViewCount = 6;
 
     // antialiasing
     float _taaAlpha{0.99f}; // history weight

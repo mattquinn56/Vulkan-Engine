@@ -76,6 +76,9 @@ void RtEngine::recursively_render_node(std::shared_ptr<GltfScene> gltf, std::sha
 }
 
 void RtEngine::update_scene() {
+    if (int(_frameNumber) < _orbitFrames) {
+        _mainCamera.yaw += glm::radians(_orbitDegreesPerFrame);
+    }
     _mainCamera.update();
 
     glm::mat4 view = _mainCamera.get_view_matrix();

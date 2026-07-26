@@ -176,7 +176,8 @@ void RtEngine::draw() {
         float clampK;
         float depthTolerance;
         float normalTolerance;
-    } pc{_cameraMoving ? _taaMovingAlpha : _taaAlpha, _taaClamp, _taaDepthTolerance, _taaNormalTolerance};
+        int debugView;
+    } pc{_cameraMoving ? _taaMovingAlpha : _taaAlpha, _taaClamp, _taaDepthTolerance, _taaNormalTolerance, _debugView};
     vkCmdPushConstants(cmd, _taaPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
 
     uint32_t gx = (_windowExtent.width + 7) / 8;

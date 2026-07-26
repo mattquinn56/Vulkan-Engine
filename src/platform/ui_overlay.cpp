@@ -112,7 +112,8 @@ void RtEngine::draw_ui() {
 
     ImGui::Begin("G-buffer");
     {
-        static const char* const kViewNames[] = {"Shaded", "Normal", "Hit distance", "Motion vectors", "Instance ID"};
+        static const char* const kViewNames[] = {"Shaded",         "Normal",      "Hit distance",
+                                                 "Motion vectors", "Instance ID", "History reuse"};
         static_assert(IM_ARRAYSIZE(kViewNames) == RtEngine::kDebugViewCount);
         reset_accum |= ImGui::Combo("View", &_debugView, kViewNames, IM_ARRAYSIZE(kViewNames));
     }

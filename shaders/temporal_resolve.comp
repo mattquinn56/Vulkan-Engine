@@ -18,6 +18,7 @@ layout(push_constant) uniform PC {
     float clampK;
     float depthTolerance;  // fraction of hit distance
     float normalTolerance; // minimum dot product between normals
+    int debugView;         // 5 shows how much history each pixel reused
 } pc;
 
 // History at q describes the same surface as the current pixel's geometry.
@@ -60,5 +61,15 @@ void main()
 
     vec3 h = imageLoad(prevImg, onScreen ? q : p).rgb;
     vec3 hc = clamp(h, mn - pc.clampK, mx + pc.clampK);
+
+    // Red where the pixel threw its history away and fell back to this frame's
+    // single sample, over a dimmed copy of the scene for context. Reuse is decided
+    // by geometry alone, so overwriting the color here does not change which
+    // pixels light up on later frames.
+    if (pc.debugView == 5) {
+        imageStore(outImg, p, vec4(weight > 0.0 ? c * 0.25 : vec3(1, 0, 0), 1));
+        return;
+    }
+
     imageStore(outImg, p, vec4(mix(c, hc, weight), 1));
 }
