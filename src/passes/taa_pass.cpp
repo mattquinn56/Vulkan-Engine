@@ -23,15 +23,12 @@
 #include <stb_image.h>
 
 void seed_taa_history(RtEngine* e, VkCommandBuffer cmd) {
-    for (int i = 0; i < 2; ++i) {
-        vk_img::transition_image(cmd, e->_taaHistory[i].image, VK_IMAGE_LAYOUT_GENERAL,
-                                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    for (AllocatedImage& slice : e->_taaHistory) {
+        vk_img::transition_image(cmd, slice.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         vk_img::transition_image(cmd, e->_drawImage.image, VK_IMAGE_LAYOUT_GENERAL,
                                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        vk_img::copy_image_to_image(cmd, e->_drawImage.image, e->_taaHistory[i].image, e->_windowExtent,
-                                    e->_windowExtent);
-        vk_img::transition_image(cmd, e->_taaHistory[i].image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                 VK_IMAGE_LAYOUT_GENERAL);
+        vk_img::copy_image_to_image(cmd, e->_drawImage.image, slice.image, e->_windowExtent, e->_windowExtent);
+        vk_img::transition_image(cmd, slice.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
         vk_img::transition_image(cmd, e->_drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                  VK_IMAGE_LAYOUT_GENERAL);
     }
@@ -51,9 +48,10 @@ void RtEngine::create_taa_pipeline_resources() {
     _mainDeletionQueue.push_function(
         [this, taaSetLayout]() { vkDestroyDescriptorSetLayout(_device, taaSetLayout, nullptr); });
 
-    // Allocate two descriptor sets (we'll ping-pong prev/out between histories)
-    _taaSet[0] = _globalDescriptorAllocator.allocate(_device, _taaSetLayout);
-    _taaSet[1] = _globalDescriptorAllocator.allocate(_device, _taaSetLayout);
+    // One set per history slice, so the set in flight is never rewritten
+    for (VkDescriptorSet& set : _taaSet) {
+        set = _globalDescriptorAllocator.allocate(_device, _taaSetLayout);
+    }
 
     // Compute pipeline
     VkPipelineLayoutCreateInfo pli{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
@@ -97,13 +95,14 @@ void RtEngine::create_taa_history_images() {
             vk_img::transition_image(cmd, img.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
         });
     };
-    make_history(_taaHistory[0]);
-    make_history(_taaHistory[1]);
+    for (AllocatedImage& slice : _taaHistory) {
+        make_history(slice);
+    }
 }
 
 void RtEngine::destroy_taa_history_images() {
-    destroy_image(_taaHistory[0]);
-    destroy_image(_taaHistory[1]);
-    _taaHistory[0] = {};
-    _taaHistory[1] = {};
+    for (AllocatedImage& slice : _taaHistory) {
+        destroy_image(slice);
+        slice = {};
+    }
 }

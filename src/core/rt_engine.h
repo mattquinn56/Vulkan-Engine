@@ -309,13 +309,16 @@ class RtEngine
     glm::vec3 _prevViewDir{};
     bool _hasPrevCamera{false};
 
-    // TAA GPU resources
-    AllocatedImage _taaHistory[2];
-    int _taaIndex{0};
+    // TAA GPU resources. Sized like the G-buffer and for the same reason: the
+    // resolve reads the slice written last frame, so a two-slice ping-pong lets
+    // frame N+1 overwrite what frame N is still reading.
+    static constexpr int kTaaHistorySlices = int(FRAME_OVERLAP) + 1;
+    AllocatedImage _taaHistory[kTaaHistorySlices];
+    int _taaIndex{0}; // slice written last frame
     VkDescriptorSetLayout _taaSetLayout{VK_NULL_HANDLE};
     VkPipelineLayout _taaPipelineLayout{VK_NULL_HANDLE};
     VkPipeline _taaPipeline{VK_NULL_HANDLE};
-    VkDescriptorSet _taaSet[2]{}; // 2 sets for ping-pong
+    VkDescriptorSet _taaSet[kTaaHistorySlices]{}; // one per history slice
 
     // helpers
     void create_taa_pipeline_resources();

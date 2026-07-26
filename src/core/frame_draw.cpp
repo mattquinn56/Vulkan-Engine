@@ -148,7 +148,7 @@ void RtEngine::draw() {
         _taaInitialized = true;
     }
     const int prev = _taaIndex;
-    const int next = 1 - _taaIndex;
+    const int next = (_taaIndex + 1) % kTaaHistorySlices;
 
     {
         DescriptorWriter w;
