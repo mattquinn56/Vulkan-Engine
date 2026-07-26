@@ -4,6 +4,7 @@
 
 #include <map>
 #include <string>
+#include <utility>
 
 namespace {
 
@@ -22,6 +23,14 @@ void describe_options(CLI::App& app, RtEngine& engine, bool& noUi) {
     app.add_option("--orbit", engine._orbitDegreesPerFrame, "yaw the camera this many degrees every frame");
     app.add_option("--orbit-frames", engine._orbitFrames, "stop orbiting after n frames")
         ->check(CLI::NonNegativeNumber);
+    app.add_option_function<std::pair<uint32_t, uint32_t>>(
+           "--resolution",
+           [&engine](const std::pair<uint32_t, uint32_t>& size) {
+               engine._windowExtent = {size.first, size.second};
+               engine._resolutionPinned = true;
+           },
+           "window size as WIDTH HEIGHT, overriding the desktop-relative default")
+        ->type_name("WIDTH HEIGHT");
 }
 
 } // namespace

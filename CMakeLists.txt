@@ -71,10 +71,14 @@ enable_testing()
 #
 # livingroom_panning is the only case where reprojection does any work: a still
 # camera reprojects every pixel onto itself.
+#
+# --resolution is mandatory: without it the window is sized from the desktop, so
+# a reference would only match on the machine that generated it.
+set(GOLDEN_RESOLUTION "--resolution;1250;800")
 set(GOLDEN_CASES "livingroom" "livingroom_converged" "livingroom_panning")
-set(GOLDEN_ARGS_livingroom "--no-ui;--frames=60")
-set(GOLDEN_ARGS_livingroom_converged "--no-ui;--frames=480")
-set(GOLDEN_ARGS_livingroom_panning "--no-ui;--orbit=0.5;--orbit-frames=60;--frames=60")
+set(GOLDEN_ARGS_livingroom "--no-ui;${GOLDEN_RESOLUTION};--frames=60")
+set(GOLDEN_ARGS_livingroom_converged "--no-ui;${GOLDEN_RESOLUTION};--frames=480")
+set(GOLDEN_ARGS_livingroom_panning "--no-ui;${GOLDEN_RESOLUTION};--orbit=0.5;--orbit-frames=60;--frames=60")
 
 foreach(case ${GOLDEN_CASES})
     add_test(NAME golden.${case}

@@ -141,7 +141,9 @@ class RtEngine
     int _frameNumber{0};
     bool _debugEnabled{false};
 
+    // Replaced at init by 85% of the desktop unless --resolution pinned it.
     VkExtent2D _windowExtent{1250, 800};
+    bool _resolutionPinned{false};
 
     std::string _structurePath;
     std::string _lightPath;

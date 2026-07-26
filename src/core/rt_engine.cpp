@@ -32,6 +32,17 @@ void RtEngine::init() {
 
     SDL_Init(SDL_INIT_VIDEO);
 
+    // Sized against the desktop unless --resolution pinned it, so the window is
+    // proportionate on any display. Capture runs must pin it: the extent decides
+    // the rendered image, and a reference is only comparable at a fixed size.
+    if (!_resolutionPinned) {
+        SDL_DisplayMode desktop{};
+        if (SDL_GetDesktopDisplayMode(0, &desktop) == 0) {
+            _windowExtent.width = uint32_t(desktop.w * 0.85f);
+            _windowExtent.height = uint32_t(desktop.h * 0.85f);
+        }
+    }
+
     // A capture run still needs a surface to present through, but the window
     // stays hidden and does not take the mouse.
     const bool capturing = !_screenshotPath.empty();
