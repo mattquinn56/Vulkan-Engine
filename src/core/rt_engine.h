@@ -186,6 +186,16 @@ class RtEngine
     // draw resources
     AllocatedImage _drawImage;
 
+    // Primary-hit geometry, written by the raygen shader: hit distance,
+    // octahedral world normal, instance ID. Two slices alternating each frame so
+    // the previous frame stays readable for reprojection.
+    AllocatedImage _gbuffer[2];
+    AllocatedImage _motionImage;
+    int _gbufferIndex{0};
+
+    void create_gbuffer_images();
+    void destroy_gbuffer_images();
+
     // immediate submit structures
     VkFence _immFence{VK_NULL_HANDLE};
     VkCommandBuffer _immCommandBuffer{VK_NULL_HANDLE};
@@ -264,6 +274,10 @@ class RtEngine
                                        const VmaMemoryUsage memUsage);
 
     AllocatedImage load_image_from_file(std::string path);
+
+    // 0 shaded, 1 normal, 2 hit distance, 3 motion vectors, 4 instance ID
+    int _debugView{0};
+    static constexpr int kDebugViewCount = 5;
 
     // antialiasing
     float _taaAlpha{0.99f}; // history weight

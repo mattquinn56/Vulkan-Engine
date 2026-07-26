@@ -6,19 +6,26 @@ struct RenderLight {
 	vec4 v1;
 };
 
-layout(set = 1, binding = 0) uniform SceneData {   
+layout(set = 1, binding = 0) uniform SceneData {
 	mat4 view;
 	mat4 proj;
 	mat4 viewproj;
 	mat4 invView;
 	mat4 invProj;
-	vec4 data; // x is num frames, y is enable sampling
+	mat4 prevViewProj;
+	vec4 data; // x frame count, y area light samples, z gbuffer slice, w debug view
 } sceneData;
 
 struct hitPayload
 {
     vec3 hitValue;
     int recursionDepth;
+    // Primary-hit geometry for the G-buffer. The closest-hit shader writes these
+    // after its reflection ray returns, so the outermost hit is the one that
+    // survives. hitT stays negative on a miss.
+    vec3 worldNormal;
+    float hitT;
+    int instanceID;
 };
 
 struct Vertex
@@ -78,4 +85,20 @@ float uint_to_unit_float(uint x) {
 vec2 randomVec2(uvec2 pixel, uint frame, uint index) {
     uint h = pcg_hash(pixel.x + pcg_hash(pixel.y + pcg_hash(frame + pcg_hash(index))));
     return vec2(uint_to_unit_float(h), uint_to_unit_float(pcg_hash(h)));
+}
+
+// Octahedral normal encoding: https://jcgt.org/published/0003/02/01/
+vec2 oct_encode(vec3 n) {
+    n /= (abs(n.x) + abs(n.y) + abs(n.z) + 1e-8);
+    if (n.z < 0.0) {
+        n.xy = (1.0 - abs(n.yx)) * vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
+    }
+    return n.xy;
+}
+
+vec3 oct_decode(vec2 e) {
+    vec3 n = vec3(e.x, e.y, 1.0 - abs(e.x) - abs(e.y));
+    float t = max(-n.z, 0.0);
+    n.xy += vec2(n.x >= 0.0 ? -t : t, n.y >= 0.0 ? -t : t);
+    return normalize(n);
 }

@@ -418,10 +418,12 @@ void VulkanRayTracer::create_descriptor_set() {
     descriptorLayoutBuilder.add_binding(0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR); // TLAS
     descriptorLayoutBuilder.add_binding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);              // Output image
     descriptorLayoutBuilder.add_binding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);     // Environment map
+    descriptorLayoutBuilder.add_binding(3, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 2);           // G-buffer, both slices
+    descriptorLayoutBuilder.add_binding(4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);              // Motion vectors
 
     std::vector<DescriptorAllocator::PoolSizeRatio> rt_pool_sizes = {
         {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1},
-        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1},
+        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 4},
         {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
     };
     _descriptorAllocator.init_pool(_engine->_device, 1, rt_pool_sizes);
@@ -450,6 +452,11 @@ void VulkanRayTracer::create_descriptor_set() {
                                   VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     _descriptorWriter.write_image(2, _engine->_environmentMap.imageView, _engine->_defaultSamplerLinear,
                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    _descriptorWriter.write_image_array(3, {_engine->_gbuffer[0].imageView, _engine->_gbuffer[1].imageView},
+                                        {VK_NULL_HANDLE, VK_NULL_HANDLE}, VK_IMAGE_LAYOUT_GENERAL,
+                                        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    _descriptorWriter.write_image(4, _engine->_motionImage.imageView, {}, VK_IMAGE_LAYOUT_GENERAL,
+                                  VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     _descriptorWriter.update_set(_engine->_device, _descriptorSet);
 
     // add all to deletion queue
@@ -508,21 +515,32 @@ void VulkanRayTracer::create_material_descriptor_set() {
         vkDestroyDescriptorSetLayout(_engine->_device, materialDescriptorLayout, nullptr);
     });
 }
-// Writes the output image to the descriptor set
+// Writes the render targets to the descriptor set
 // - Required when changing resolution
 void VulkanRayTracer::update_output_descriptor() {
     // Written directly rather than through DescriptorWriter so binding 0, the
     // acceleration structure, is left untouched.
-    VkDescriptorImageInfo info{{}, _engine->_drawImage.imageView, VK_IMAGE_LAYOUT_GENERAL};
+    const VkDescriptorImageInfo drawInfo{{}, _engine->_drawImage.imageView, VK_IMAGE_LAYOUT_GENERAL};
+    const VkDescriptorImageInfo gbufferInfo[2]{{{}, _engine->_gbuffer[0].imageView, VK_IMAGE_LAYOUT_GENERAL},
+                                               {{}, _engine->_gbuffer[1].imageView, VK_IMAGE_LAYOUT_GENERAL}};
+    const VkDescriptorImageInfo motionInfo{{}, _engine->_motionImage.imageView, VK_IMAGE_LAYOUT_GENERAL};
 
-    VkWriteDescriptorSet wds{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-    wds.dstSet = _descriptorSet;
-    wds.descriptorCount = 1;
-    wds.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    wds.pImageInfo = &info;
-    wds.dstBinding = 1;
+    VkWriteDescriptorSet wds[3]{};
+    for (VkWriteDescriptorSet& write : wds) {
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = _descriptorSet;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        write.descriptorCount = 1;
+    }
+    wds[0].dstBinding = 1;
+    wds[0].pImageInfo = &drawInfo;
+    wds[1].dstBinding = 3;
+    wds[1].descriptorCount = 2;
+    wds[1].pImageInfo = gbufferInfo;
+    wds[2].dstBinding = 4;
+    wds[2].pImageInfo = &motionInfo;
 
-    vkUpdateDescriptorSets(_engine->_device, 1, &wds, 0, nullptr);
+    vkUpdateDescriptorSets(_engine->_device, 3, wds, 0, nullptr);
 }
 // Builds the ray tracing pipeline: raygen, both miss shaders, and closest hit.
 void VulkanRayTracer::create_pipeline() {

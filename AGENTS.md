@@ -142,9 +142,9 @@ invalid state.
 Use `tools/summarize-validation.ps1` to count validation message identifiers
 without double-counting the VUID repeated in each message's specification URL.
 
-For deterministic diagnostic runs, `engine.exe` accepts `--tonemap=on|off`.
-Invalid options exit with status 2 before Vulkan starts. `--render-path` no
-longer exists: hardware ray tracing is the only render path.
+For deterministic diagnostic runs, `engine.exe` accepts `--tonemap=on|off` and
+`--debug-view=<n>`. Invalid options exit with status 2 before Vulkan starts.
+`--render-path` no longer exists: hardware ray tracing is the only render path.
 
 ## Verifying a frame
 

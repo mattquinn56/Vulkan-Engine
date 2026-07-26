@@ -5,6 +5,9 @@
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
 layout(set = 0, binding = 1, rgba32f) uniform image2D image;
+// Two slices so the previous frame's geometry survives for reprojection.
+layout(set = 0, binding = 3, rgba32f) uniform image2D gbuffer[2];
+layout(set = 0, binding = 4, rg32f) uniform image2D motionImage;
 
 layout(location = 0) rayPayloadEXT hitPayload prd;
 
@@ -16,11 +19,36 @@ vec2 halton2(uint n){
     return vec2(h2,h3);
 }
 
-vec3 traceAt(vec2 jitter)
+vec3 debug_color(int mode, vec2 motion)
 {
+    if (mode == 1) {
+        return prd.hitT > 0.0 ? prd.worldNormal * 0.5 + 0.5 : vec3(0.0);
+    }
+    if (mode == 2) {
+        // Log scale so near geometry keeps contrast; white at 63 units out.
+        return prd.hitT > 0.0 ? vec3(log2(prd.hitT + 1.0) / 6.0) : vec3(0.0);
+    }
+    if (mode == 3) {
+        // Red is horizontal, green vertical; 16 pixels of motion saturates.
+        return vec3(motion / 16.0 * 0.5 + 0.5, 0.0);
+    }
+    if (mode == 4) {
+        uint h = pcg_hash(uint(prd.instanceID + 1));
+        return prd.hitT > 0.0
+            ? vec3(uint_to_unit_float(h), uint_to_unit_float(pcg_hash(h)), uint_to_unit_float(pcg_hash(h + 1u)))
+            : vec3(0.0);
+    }
+    return prd.hitValue;
+}
+
+void main()
+{
+    uint frame = uint(sceneData.data.x);
+    ivec2 pix = ivec2(gl_LaunchIDEXT.xy);
     vec2 res = vec2(gl_LaunchSizeEXT.xy);
-    vec2 pixel = vec2(gl_LaunchIDEXT.xy) + jitter;
-    vec2 uv = pixel / res;
+
+    // 1 spp with low-discrepancy jitter
+    vec2 uv = (vec2(pix) + halton2(frame) - 0.5) / res;
     vec2 ndc = uv * 2.0 - 1.0;
 
     vec4 o = sceneData.invView * vec4(0,0,0,1);
@@ -28,15 +56,24 @@ vec3 traceAt(vec2 jitter)
     vec4 d = sceneData.invView * vec4(normalize(t.xyz),0);
 
     prd.recursionDepth = 0;
+    prd.hitT = -1.0;
+    prd.worldNormal = vec3(0.0);
+    prd.instanceID = -1;
     traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0,0,0, o.xyz, 0.001, d.xyz, 10000.0, 0);
-    return prd.hitValue;
-}
 
-void main()
-{
-    // 1 spp with low-discrepancy jitter
-    uint frame = uint(sceneData.data.x);
-    vec3 color = traceAt(halton2(frame) - 0.5);
+    // Where this surface sat in the previous frame's projection, in pixels.
+    // Measured against the unjittered pixel so the jitter does not leak in.
+    vec2 motion = vec2(0.0);
+    if (prd.hitT > 0.0) {
+        vec4 clipPrev = sceneData.prevViewProj * vec4(o.xyz + d.xyz * prd.hitT, 1.0);
+        if (clipPrev.w > 0.0) {
+            motion = (clipPrev.xy / clipPrev.w * 0.5 + 0.5) * res - vec2(pix);
+        }
+    }
 
-    imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(color,1));
+    imageStore(gbuffer[int(sceneData.data.z)], pix,
+               vec4(prd.hitT, oct_encode(prd.worldNormal), float(prd.instanceID)));
+    imageStore(motionImage, pix, vec4(motion, 0, 0));
+
+    imageStore(image, pix, vec4(debug_color(int(sceneData.data.w), motion), 1));
 }

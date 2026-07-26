@@ -196,7 +196,8 @@ void RtEngine::draw() {
     _taaIndex = next;
 
     // --- POST: ACES + sRGB (optional) ---
-    if (_enableTonemap) {
+    // Debug views carry raw geometry, not radiance, so tonemapping would distort them.
+    if (_enableTonemap && _debugView == 0) {
         // Make sure _drawImage writes are visible to compute
         {
             VkImageMemoryBarrier2 b{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
@@ -353,6 +354,7 @@ void RtEngine::draw() {
     }
 
     _frameNumber++;
+    _gbufferIndex = 1 - _gbufferIndex;
 }
 
 void RtEngine::update_global_descriptor() {

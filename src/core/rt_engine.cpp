@@ -56,6 +56,8 @@ void RtEngine::init() {
 
     init_sync_structures();
 
+    create_gbuffer_images();
+
     init_descriptors();
 
     init_pipelines();
@@ -138,6 +140,7 @@ void RtEngine::cleanup() {
 
         destroy_taa_history_images();
         destroy_monte_carlo_images();
+        destroy_gbuffer_images();
         destroy_render_targets();
         destroy_swapchain();
 

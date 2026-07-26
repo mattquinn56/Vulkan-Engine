@@ -81,9 +81,13 @@ list is gathered at configure time.
 --screenshot=<path>   render, write a PNG, and exit
 --frames=<n>          which frame to capture on (default 30)
 --no-ui               render without the ImGui overlay
+--debug-view=<n>      0 shaded, 1 normal, 2 hit distance, 3 motion, 4 instance
 ```
 
 Unrecognized options exit with status 2 before Vulkan starts.
+
+The debug views render the G-buffer the raygen shader writes alongside color.
+They skip tonemapping, so what you see is the stored value.
 
 Capture runs keep their window hidden and exit on their own, which makes them
 usable for scripted checks:

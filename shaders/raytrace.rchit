@@ -303,6 +303,12 @@ void main()
     // Apply absorption to surface light, add emission along view path
     outColor = Tr * outColor + L_emis;
 
-    prd.hitValue = outColor;// + uMedium.sigma_a;
+    prd.hitValue = outColor;
+
+    // Written after the reflection ray above has returned, so a reflected hit's
+    // geometry never outlives the primary hit that spawned it.
+    prd.worldNormal = worldNrm;
+    prd.hitT = tHit;
+    prd.instanceID = gl_InstanceCustomIndexEXT;
 }
 

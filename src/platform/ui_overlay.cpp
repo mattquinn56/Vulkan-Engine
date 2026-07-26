@@ -110,6 +110,14 @@ void RtEngine::draw_ui() {
     }
     ImGui::End();
 
+    ImGui::Begin("G-buffer");
+    {
+        static const char* const kViewNames[] = {"Shaded", "Normal", "Hit distance", "Motion vectors", "Instance ID"};
+        static_assert(IM_ARRAYSIZE(kViewNames) == RtEngine::kDebugViewCount);
+        reset_accum |= ImGui::Combo("View", &_debugView, kViewNames, IM_ARRAYSIZE(kViewNames));
+    }
+    ImGui::End();
+
     ImGui::Begin("Antialiasing");
     reset_accum |= ImGui::Checkbox("Progressive Monte Carlo", &_progressiveMonteCarlo);
     reset_accum |= ImGui::SliderInt("MC per-frame spp", &_monteCarloSamplesPerFrame, 1, 20);

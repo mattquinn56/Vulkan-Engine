@@ -97,6 +97,10 @@ void RtEngine::update_scene() {
     _prevViewDir = viewDir;
     _hasPrevCamera = true;
 
+    // Captured before viewproj is overwritten. The first frame has no history, so
+    // it reprojects onto itself and every motion vector comes out zero.
+    _sceneData.prevViewProj = (_frameNumber == 0) ? projection * view : _sceneData.viewproj;
+
     _sceneData.view = view;
     _sceneData.proj = projection;
     _sceneData.viewproj = projection * view;
@@ -104,7 +108,8 @@ void RtEngine::update_scene() {
     _sceneData.invProj = glm::inverse(projection);
     // .y is the area light sample count in raytrace.rchit and the batch weight in
     // mc_accum.comp: one frame contributes that many samples to the running mean.
-    _sceneData.data = glm::vec4(_frameNumber, float(_monteCarloSamplesPerFrame), 0.f, 0.f);
+    _sceneData.data =
+        glm::vec4(_frameNumber, float(_monteCarloSamplesPerFrame), float(_gbufferIndex), float(_debugView));
 
     _drawContext.opaqueSurfaces.clear();
     _drawContext.objectDescriptions.clear();

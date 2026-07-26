@@ -153,6 +153,33 @@ void RtEngine::destroy_render_targets() {
     _ldrImage = {};
 }
 
+// Separate from create_render_targets because the layout transition needs the
+// command pool, which init() sets up after the swapchain.
+void RtEngine::create_gbuffer_images() {
+    const VkExtent3D extent{_windowExtent.width, _windowExtent.height, 1};
+    for (AllocatedImage& slice : _gbuffer) {
+        slice = create_image(extent, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT);
+    }
+    _motionImage = create_image(extent, VK_FORMAT_R32G32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT);
+
+    immediate_submit([&](VkCommandBuffer cmd) {
+        for (const AllocatedImage& slice : _gbuffer) {
+            vk_img::transition_image(cmd, slice.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        }
+        vk_img::transition_image(cmd, _motionImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    });
+    _gbufferIndex = 0;
+}
+
+void RtEngine::destroy_gbuffer_images() {
+    for (AllocatedImage& slice : _gbuffer) {
+        destroy_image(slice);
+        slice = {};
+    }
+    destroy_image(_motionImage);
+    _motionImage = {};
+}
+
 void RtEngine::create_swapchain(uint32_t width, uint32_t height) {
     vkb::SwapchainBuilder swapchainBuilder{_chosenGPU, _device, _surface};
 
@@ -201,6 +228,7 @@ bool RtEngine::resize_swapchain() {
 
     destroy_taa_history_images();
     destroy_monte_carlo_images();
+    destroy_gbuffer_images();
     destroy_render_targets();
     destroy_swapchain();
 
@@ -208,6 +236,7 @@ bool RtEngine::resize_swapchain() {
     create_render_targets();
     create_monte_carlo_images();
     create_taa_history_images();
+    create_gbuffer_images();
 
     _taaIndex = 0;
     _taaInitialized = false;

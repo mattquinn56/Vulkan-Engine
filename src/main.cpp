@@ -15,7 +15,8 @@ void print_usage() {
                        "  --tonemap=on|off      ACES + sRGB tonemapping\n"
                        "  --screenshot=<path>   write a PNG of the presented frame, then exit\n"
                        "  --frames=<n>          frame to capture on (default 30)\n"
-                       "  --no-ui               render without the ImGui overlay\n");
+                       "  --no-ui               render without the ImGui overlay\n"
+                       "  --debug-view=<n>      0 shaded, 1 normal, 2 hit distance, 3 motion, 4 instance\n");
 }
 
 bool configure_engine(RtEngine& engine, int argc, char* argv[]) {
@@ -34,6 +35,12 @@ bool configure_engine(RtEngine& engine, int argc, char* argv[]) {
             }
         } else if (argument == "--no-ui") {
             engine._showUi = false;
+        } else if (argument.starts_with("--debug-view=")) {
+            if (!parse_int(argument.substr(13), engine._debugView) || engine._debugView < 0 ||
+                engine._debugView >= RtEngine::kDebugViewCount) {
+                fmt::print(stderr, "--debug-view requires an integer in [0, {})\n", RtEngine::kDebugViewCount);
+                return false;
+            }
         } else if (argument.starts_with("--frames=")) {
             if (!parse_int(argument.substr(9), engine._screenshotFrame) || engine._screenshotFrame < 0) {
                 fmt::print(stderr, "--frames requires a non-negative integer\n");
