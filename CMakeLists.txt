@@ -67,9 +67,15 @@ enable_testing()
 # accumulator has settled, so it fails on anything that changes how quickly the
 # image converges rather than only what it converges to. Frames are cheap here;
 # startup dominates both cases.
-set(GOLDEN_CASES "livingroom" "livingroom_converged")
+#
+# livingroom_panning is the only case where reprojection does any work: the
+# camera yaws a fixed amount per frame, so history has to be fetched from a
+# moving position rather than from the same pixel. The orbit stops before the
+# captured frame, which makes the same pose reachable by rendering it still.
+set(GOLDEN_CASES "livingroom" "livingroom_converged" "livingroom_panning")
 set(GOLDEN_ARGS_livingroom "--no-ui;--frames=60")
 set(GOLDEN_ARGS_livingroom_converged "--no-ui;--frames=480")
+set(GOLDEN_ARGS_livingroom_panning "--no-ui;--orbit=0.5;--orbit-frames=60;--frames=60")
 
 foreach(case ${GOLDEN_CASES})
     add_test(NAME golden.${case}

@@ -303,7 +303,7 @@ class RtEngine
 
     // antialiasing
     float _taaAlpha{0.99f}; // history weight
-    float _taaClamp{0.10f}; // neighborhood clamps
+    float _taaClamp{1.0f};  // history bound, in neighborhood standard deviations
 
     // Reprojection keeps history usable through camera motion, so a moving frame
     // no longer has to discard it outright.
