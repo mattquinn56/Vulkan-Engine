@@ -145,7 +145,9 @@ Use `tools/summarize-validation.ps1` to count validation message identifiers
 without double-counting the VUID repeated in each message's specification URL.
 
 For deterministic diagnostic runs, `engine.exe` accepts `--tonemap=on|off` and
-`--debug-view=<n>`. Invalid options exit with status 2 before Vulkan starts.
+`--debug-view=<n>`. `--help` lists every option with its accepted range; CLI11
+parses them, so `--flag value` works as well as `--flag=value`. Invalid options
+exit with status 2 before Vulkan starts, and `--help` exits 0.
 `--render-path` no longer exists: hardware ray tracing is the only render path.
 
 `--orbit=<deg>` yaws the camera that many degrees per rendered frame, and
