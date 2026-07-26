@@ -72,10 +72,8 @@ void main()
     traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0,0,0, o.xyz, 0.001, d.xyz, 10000.0, 0);
 
     // How far this surface moved on screen since last frame, in pixels. The hit
-    // came from the jittered ray, so the jittered position is what gets subtracted;
-    // a static camera then gives exactly zero rather than the jitter offset. A miss
-    // is treated as a point at the far plane, which reprojects the environment map
-    // correctly under rotation and barely at all under translation.
+    // came from the jittered ray, so subtracting the jittered position is what
+    // makes a static camera give zero. A miss reprojects as a far-plane point.
     vec2 motion = vec2(0.0);
     float reprojectT = prd.hitT > 0.0 ? prd.hitT : 10000.0;
     vec4 clipPrev = sceneData.prevViewProj * vec4(o.xyz + d.xyz * reprojectT, 1.0);

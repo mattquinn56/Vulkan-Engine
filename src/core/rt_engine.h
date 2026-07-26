@@ -188,12 +188,9 @@ class RtEngine
     AllocatedImage _drawImage;
 
     // Primary-hit geometry, written by the raygen shader: hit distance,
-    // octahedral world normal, instance ID.
-    //
-    // Reprojection reads the slice written last frame, so a two-slice ping-pong
-    // would let frame N+1 overwrite what frame N is still reading — frames only
-    // wait on the fence from FRAME_OVERLAP submissions back. One more slice than
-    // that gives every in-flight frame an untouched history to read.
+    // octahedral world normal, instance ID. Reprojection reads the slice written
+    // last frame, and frames only wait on the fence from FRAME_OVERLAP
+    // submissions back, so one more slice than that keeps it untouched.
     static constexpr int kGbufferSlices = int(FRAME_OVERLAP) + 1;
     AllocatedImage _gbuffer[kGbufferSlices];
     int _gbufferIndex{0};
@@ -251,11 +248,8 @@ class RtEngine
     int _screenshotFrame{30};
     bool _screenshotDone{false};
     bool _showUi{true};
-    // Yaw applied per rendered frame, in degrees, for the first _orbitFrames
-    // frames. Advancing per frame rather than per second keeps a capture at frame
-    // N identical between runs, which is what makes reprojection testable at all.
-    // Stopping partway lets the same pose be rendered twice: once arrived at by
-    // panning, once left to converge, so the panned image has a reference.
+    // Yaw per rendered frame, in degrees, for the first _orbitFrames frames. Per
+    // frame rather than per second, so a capture at frame N repeats between runs.
     float _orbitDegreesPerFrame{0.f};
     int _orbitFrames{INT_MAX};
     void capture_swapchain(VkCommandBuffer cmd, uint32_t imageIndex, AllocatedBuffer& dst);
@@ -296,8 +290,7 @@ class RtEngine
     AllocatedImage load_image_from_file(std::string path);
 
     // 0 shaded, 1 normal, 2 hit distance, 3 motion vectors, 4 instance ID,
-    // 5 history reuse. Views up to 4 are drawn by raygen; 5 by the temporal
-    // resolve, which is the only pass that knows how much history was reused.
+    // 5 history reuse. Raygen draws all but 5, which only the resolve knows.
     int _debugView{0};
     static constexpr int kDebugViewCount = 6;
 
@@ -316,27 +309,22 @@ class RtEngine
     float _cameraPositionTolerance{0.0001f}; // world units
     float _cameraRotationTolerance{0.1f};    // degrees
 
-    // Selects the TAA history weight. Mouse motion is delivered at the device's
-    // polling rate, which is well below the frame rate, so a steady pan still
-    // produces frames carrying no camera delta. Holding the moving state across
-    // those keeps the weight from alternating mid-pan.
+    // Selects the TAA history weight. Held for _cameraSettleFrames because mouse
+    // polling is slower than the frame rate, so a steady pan leaves frames with
+    // no camera delta at all.
     bool _cameraMoving{false};
     int _cameraSettleFrames{6};
     int _framesSinceCameraMoved{INT_MAX};
 
     // Pose the accumulator was last reset at. Progressive accumulation has no
-    // reprojection, so its running mean is only valid for a fixed camera, and the
-    // pose it started from is what the current one has to be compared against.
-    // Comparing against the previous frame instead lets a drift smaller than the
-    // tolerance accumulate without bound, which smears the mean across poses.
+    // reprojection, so its mean is only valid while the camera stays there.
     glm::vec3 _accumCamPos{};
     glm::vec3 _accumViewDir{};
     bool _hasAccumPose{false};
     bool _cameraDriftedSinceAccum{true};
 
     // TAA GPU resources. Sized like the G-buffer and for the same reason: the
-    // resolve reads the slice written last frame, so a two-slice ping-pong lets
-    // frame N+1 overwrite what frame N is still reading.
+    // resolve reads the slice written last frame.
     static constexpr int kTaaHistorySlices = int(FRAME_OVERLAP) + 1;
     AllocatedImage _taaHistory[kTaaHistorySlices];
     int _taaIndex{0}; // slice written last frame

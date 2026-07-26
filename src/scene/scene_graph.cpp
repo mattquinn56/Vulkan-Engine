@@ -96,8 +96,8 @@ void RtEngine::update_scene() {
         return linDelta > _cameraPositionTolerance || angDelta > _cameraRotationTolerance;
     };
 
-    // Restarting from the current pose bounds how much camera motion any one mean
-    // can span by the tolerance, however slowly the camera drifts.
+    // Restarting here bounds how much camera motion one mean can span, however
+    // slowly the camera drifts.
     _cameraDriftedSinceAccum = !_hasAccumPose || moved_from(_accumCamPos, _accumViewDir);
     if (_cameraDriftedSinceAccum) {
         _accumCamPos = camPos;

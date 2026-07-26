@@ -68,10 +68,8 @@ enable_testing()
 # image converges rather than only what it converges to. Frames are cheap here;
 # startup dominates both cases.
 #
-# livingroom_panning is the only case where reprojection does any work: the
-# camera yaws a fixed amount per frame, so history has to be fetched from a
-# moving position rather than from the same pixel. The orbit stops before the
-# captured frame, which makes the same pose reachable by rendering it still.
+# livingroom_panning is the only case where reprojection does any work: a still
+# camera reprojects every pixel onto itself.
 set(GOLDEN_CASES "livingroom" "livingroom_converged" "livingroom_panning")
 set(GOLDEN_ARGS_livingroom "--no-ui;--frames=60")
 set(GOLDEN_ARGS_livingroom_converged "--no-ui;--frames=480")

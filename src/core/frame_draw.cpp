@@ -60,9 +60,7 @@ void RtEngine::draw() {
     _rayTracer->raytrace(cmd);
 
     // Accumulation, the temporal resolve, and the history copies all consume what
-    // ray tracing just wrote. Nothing orders them against it otherwise, and the
-    // passes are free to overlap: the traced image can land after the accumulator
-    // has already read and rewritten the same pixels, discarding the average.
+    // ray tracing just wrote, and nothing else orders them against it.
     {
         const VkImage rayTraced[]{_drawImage.image, _gbuffer[_gbufferIndex].image,
                                   _motion[_frameNumber % FRAME_OVERLAP].image};
@@ -96,8 +94,7 @@ void RtEngine::draw() {
         _resetAccumNextFrame = false;
     }
 
-    // The running mean is tied to the pose it started from, not to whether the
-    // camera moved between the last two frames.
+    // The running mean is only valid at the pose it started from.
     const bool doProgressive = _progressiveMonteCarlo && !_cameraDriftedSinceAccum;
 
     if (doProgressive) {
