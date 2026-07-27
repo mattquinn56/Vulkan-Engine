@@ -6,7 +6,24 @@
 #include <string>
 #include <utility>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 namespace {
+
+// Only safe when this process is the console's sole owner; a run started from an
+// existing terminal shares that window with the caller.
+void hide_console_if_owned() {
+#ifdef _WIN32
+    DWORD owners[2];
+    if (GetConsoleProcessList(owners, 2) == 1) {
+        ShowWindow(GetConsoleWindow(), SW_HIDE);
+    }
+#endif
+}
 
 void describe_options(CLI::App& app, RtEngine& engine, bool& noUi) {
     static const std::map<std::string, bool> onOff{{"on", true}, {"off", false}};
@@ -54,6 +71,7 @@ int main(int argc, char* argv[]) {
     fmt::println("Startup configuration: tonemap={}", engine._enableTonemap ? "on" : "off");
     if (!engine._screenshotPath.empty()) {
         fmt::println("Screenshot: {} on frame {}", engine._screenshotPath, engine._screenshotFrame);
+        hide_console_if_owned();
     }
 
     engine.init();

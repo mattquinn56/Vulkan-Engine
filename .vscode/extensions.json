@@ -1,0 +1,4 @@
+{
+  // Supplies the glsl grammar the associations above map to.
+  "recommendations": ["slevesque.shader"]
+}

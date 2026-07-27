@@ -1,0 +1,11 @@
+{
+  // Shader extensions claim .comp/.vert/.frag but not the ray tracing stages.
+  "files.associations": {
+    "*.rgen": "glsl",
+    "*.rchit": "glsl",
+    "*.rahit": "glsl",
+    "*.rmiss": "glsl",
+    "*.rint": "glsl",
+    "*.rcall": "glsl"
+  }
+}
