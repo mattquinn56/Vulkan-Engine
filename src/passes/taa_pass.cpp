@@ -32,7 +32,6 @@ void seed_taa_history(RtEngine* e, VkCommandBuffer cmd) {
         vk_img::transition_image(cmd, e->_drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                  VK_IMAGE_LAYOUT_GENERAL);
     }
-    e->_taaIndex = 0;
 }
 
 void RtEngine::create_taa_pipeline_resources() {
