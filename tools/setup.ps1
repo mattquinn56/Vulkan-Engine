@@ -6,6 +6,7 @@
 
 param(
     [switch] $Build,
+    [ValidateSet('Debug', 'Release')]
     [string] $Config = 'Debug'
 )
 
@@ -74,13 +75,35 @@ Write-Host "  Vulkan SDK: $env:VULKAN_SDK"
 
 Require-Command 'glslc' 'glslc ships with the Vulkan SDK; ensure its Bin directory is on PATH.'
 
+$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+if (-not (Test-Path $vswhere)) {
+    Write-Error 'Visual Studio 2022 was not found. Install it with the "Desktop development with C++" workload.'
+}
+$vswhereArguments =
+    @('-latest', '-version', '[17.0,18.0)', '-products', '*', '-requires',
+      'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath')
+$visualStudio = (& $vswhere @vswhereArguments | Out-String).Trim()
+if (-not $visualStudio) {
+    Write-Error 'Visual Studio is missing the "Desktop development with C++" workload.'
+}
+Write-Host "  Visual Studio: $visualStudio"
+
 Write-Host '== vcpkg ==' -ForegroundColor Cyan
 if (-not (Test-Path $vcpkgDir)) {
     Write-Host '  cloning...'
     Invoke-Native 'git' @('clone', 'https://github.com/microsoft/vcpkg.git', $vcpkgDir) 'git clone'
-    Invoke-Native 'git' @('-C', $vcpkgDir, 'checkout', $vcpkgCommit) 'git checkout'
 } else {
     Write-Host '  already present'
+}
+
+$currentVcpkgCommit = (& git -C $vcpkgDir rev-parse HEAD 2>$null | Out-String).Trim()
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "'$vcpkgDir' exists but is not a valid vcpkg Git checkout. Remove or rename it, then run setup again."
+}
+if ($currentVcpkgCommit -ne $vcpkgCommit) {
+    Write-Host '  selecting pinned revision...'
+    Invoke-Native 'git' @('-C', $vcpkgDir, 'fetch', 'origin', $vcpkgCommit, '--depth', '1') 'vcpkg fetch'
+    Invoke-Native 'git' @('-C', $vcpkgDir, 'checkout', '--detach', $vcpkgCommit) 'vcpkg checkout'
 }
 
 if (-not (Test-Path $vcpkgExe)) {
@@ -88,25 +111,37 @@ if (-not (Test-Path $vcpkgExe)) {
     Invoke-Native (Join-Path $vcpkgDir 'bootstrap-vcpkg.bat') @('-disableMetrics') 'vcpkg bootstrap'
 }
 
-Write-Host '  installing dependencies...'
-Invoke-Native $vcpkgExe @('install', 'vulkan', 'nlohmann-json', 'cli11', '--triplet', 'x64-windows') 'vcpkg install'
+Write-Host '== Configuring ==' -ForegroundColor Cyan
+$buildDir = Join-Path $repoRoot 'build'
+$configureArguments = @(
+    '-S', $repoRoot,
+    '-B', $buildDir,
+    '-G', 'Visual Studio 17 2022',
+    '-A', 'x64',
+    '-DVCPKG_MANIFEST_MODE=ON',
+    "-DVCPKG_MANIFEST_DIR=$repoRoot",
+    '-DVCPKG_TARGET_TRIPLET=x64-windows'
+)
 
-# The pinned vcpkg revision does not always lay down this SDK header, and the
-# engine includes it for readable VkResult names.
-$enumHelper = Join-Path $vcpkgDir 'installed\x64-windows\include\vulkan\vk_enum_string_helper.h'
-if (-not (Test-Path $enumHelper)) {
-    Write-Host '  patching missing vk_enum_string_helper.h'
-    $target = Split-Path -Parent $enumHelper
-    if (-not (Test-Path $target)) { New-Item -ItemType Directory -Force -Path $target | Out-Null }
-    Copy-Item (Join-Path $repoRoot 'third_party\vk_enum_string_helper.h') $enumHelper
+# vcpkg cannot switch an existing CMake cache from classic to manifest mode.
+# --fresh regenerates only CMake's configuration state and leaves outputs intact.
+$cache = Join-Path $buildDir 'CMakeCache.txt'
+if (Test-Path $cache) {
+    $legacyManifest = Select-String -Path $cache -Pattern '^(VCPKG_MANIFEST_MODE:BOOL|Z_VCPKG_CHECK_MANIFEST_MODE:INTERNAL)=OFF$' -Quiet
+    $implicitPlatform = Select-String -Path $cache -Pattern '^CMAKE_GENERATOR_PLATFORM:INTERNAL=$' -Quiet
+    $differentGenerator =
+        -not (Select-String -Path $cache -Pattern '^CMAKE_GENERATOR:INTERNAL=Visual Studio 17 2022$' -Quiet)
+    if ($legacyManifest -or $implicitPlatform -or $differentGenerator) {
+        Write-Host '  migrating the existing build to the portable configuration...'
+        $configureArguments = @('--fresh') + $configureArguments
+    }
 }
 
-Write-Host '== Configuring ==' -ForegroundColor Cyan
-Invoke-Native $cmake @('-S', $repoRoot, '-B', (Join-Path $repoRoot 'build')) 'cmake configure'
+Invoke-Native $cmake $configureArguments 'cmake configure'
 
 if ($Build) {
     Write-Host "== Building ($Config) ==" -ForegroundColor Cyan
-    Invoke-Native $cmake @('--build', (Join-Path $repoRoot 'build'), '--config', $Config, '--target', 'Shaders', 'engine') 'cmake build'
+    Invoke-Native $cmake @('--build', $buildDir, '--config', $Config, '--target', 'Shaders', 'engine') 'cmake build'
 }
 
 Write-Host ''

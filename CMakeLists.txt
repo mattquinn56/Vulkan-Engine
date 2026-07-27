@@ -1,7 +1,7 @@
 ﻿# CMakeList.txt : CMake project for vulkan_hardware_rt, include source and define
 # project specific logic here.
 #
-cmake_minimum_required (VERSION 3.15)
+cmake_minimum_required (VERSION 3.24)
 
 set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake"
   CACHE STRING "Vcpkg toolchain file")
@@ -11,6 +11,7 @@ project ("vulkan_hardware_rt")
 find_package(Vulkan REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(CLI11 CONFIG REQUIRED)
+find_program(GLSLC_EXECUTABLE NAMES glslc HINTS "$ENV{VULKAN_SDK}/Bin" REQUIRED)
 
 add_subdirectory(third_party)
 
@@ -47,7 +48,7 @@ foreach(GLSL ${GLSL_SOURCE_FILES})
 
   add_custom_command(
     OUTPUT ${SPIRV}
-    COMMAND glslc  --target-env=vulkan1.2 ${GLSL} -o ${SPIRV}
+    COMMAND "${GLSLC_EXECUTABLE}" --target-env=vulkan1.2 ${GLSL} -o ${SPIRV}
     DEPENDS ${GLSL} ${GLSL_INCLUDE_FILES})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach(GLSL)

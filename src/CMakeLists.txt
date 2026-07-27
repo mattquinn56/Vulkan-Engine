@@ -7,6 +7,7 @@ add_executable(engine ${MY_PROJECT_SOURCES} ${MY_PROJECT_HEADERS})
 set_property(TARGET engine PROPERTY CXX_STANDARD 20)
 target_compile_definitions(engine PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 target_include_directories(engine PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(engine PRIVATE "${PROJECT_SOURCE_DIR}/third_party")
 
 target_link_libraries(engine PUBLIC vma glm Vulkan::Vulkan fmt::fmt stb_image SDL2::SDL2 vkbootstrap imgui fastgltf::fastgltf nlohmann_json::nlohmann_json CLI11::CLI11)
 
