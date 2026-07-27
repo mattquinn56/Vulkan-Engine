@@ -46,6 +46,21 @@ void RtEngine::init_imgui() {
     VK_CHECK(vkCreateDescriptorPool(_device, &pool_info, nullptr, &imguiPool));
 
     ImGui::CreateContext();
+    ImGui::GetIO().IniFilename = nullptr;
+    ImGui::StyleColorsDark();
+
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.WindowRounding = 0.0f;
+    style.FrameRounding = 3.0f;
+    style.GrabRounding = 3.0f;
+    style.WindowPadding = ImVec2(16.0f, 16.0f);
+    style.ItemSpacing = ImVec2(8.0f, 8.0f);
+    style.Colors[ImGuiCol_CheckMark] = ImVec4(0.25f, 0.72f, 1.0f, 1.0f);
+    style.Colors[ImGuiCol_SliderGrab] = ImVec4(0.25f, 0.72f, 1.0f, 1.0f);
+    style.Colors[ImGuiCol_SliderGrabActive] = ImVec4(0.45f, 0.82f, 1.0f, 1.0f);
+    style.Colors[ImGuiCol_Header] = ImVec4(0.12f, 0.35f, 0.52f, 1.0f);
+    style.Colors[ImGuiCol_HeaderHovered] = ImVec4(0.16f, 0.45f, 0.66f, 1.0f);
+    style.Colors[ImGuiCol_HeaderActive] = ImVec4(0.20f, 0.55f, 0.78f, 1.0f);
 
     ImGui_ImplSDL2_InitForVulkan(_window);
 
@@ -92,85 +107,128 @@ void RtEngine::draw_ui() {
 
     ImGui::NewFrame();
 
-    bool reset_accum = false;
+    static const char* const kViewNames[] = {"Beauty",         "World normals", "Hit distance",
+                                             "Motion vectors", "Instance ID",   "History reuse"};
+    static_assert(IM_ARRAYSIZE(kViewNames) == RtEngine::kDebugViewCount);
 
-    ImGui::Begin("Main Control");
+    bool resetAccum = false;
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
-    reset_accum |= ImGui::Checkbox("Debug setting", &_debugEnabled);
-    reset_accum |= ImGui::Checkbox("Use Microfacet BRDF (GGX/Smith/Schlick)", &_useMicrofacetBrdf);
-    ImGui::Text("frameTime %f ms", _stats.frameTime);
-    glm::vec3 viewDir = _mainCamera.get_view_direction();
-    ImGui::Text("position: %f %f %f", _mainCamera.position.x, _mainCamera.position.y, _mainCamera.position.z);
-    ImGui::Text("view direction: %f %f %f", viewDir.x, viewDir.y, viewDir.z);
-    ImGui::Text("pitch and yaw: %f %f", _mainCamera.pitch, _mainCamera.yaw);
-    if (ImGui::CollapsingHeader("Color & Tone", ImGuiTreeNodeFlags_DefaultOpen)) {
-        reset_accum |= ImGui::Checkbox("ACES + sRGB tonemap", &_enableTonemap);
-        reset_accum |= ImGui::SliderFloat("Exposure", &_exposure, 0.1f, 4.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
-        ImGui::TextUnformatted(_enableTonemap ? "Output: tonemapped sRGB" : "Output: raw linear HDR (debug)");
-    }
-    ImGui::End();
+    if (_settingsOpen) {
+        const float panelWidth = viewport->WorkSize.x < 410.0f ? viewport->WorkSize.x : 410.0f;
+        ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(panelWidth, viewport->WorkSize.y), ImGuiCond_Always);
+        constexpr ImGuiWindowFlags panelFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
+                                                ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
+                                                ImGuiWindowFlags_NoSavedSettings;
 
-    ImGui::Begin("G-buffer");
-    {
-        static const char* const kViewNames[] = {"Shaded",         "Normal",      "Hit distance",
-                                                 "Motion vectors", "Instance ID", "History reuse"};
-        static_assert(IM_ARRAYSIZE(kViewNames) == RtEngine::kDebugViewCount);
-        reset_accum |= ImGui::Combo("View", &_debugView, kViewNames, IM_ARRAYSIZE(kViewNames));
-    }
-    ImGui::End();
+        ImGui::Begin("Renderer Settings", nullptr, panelFlags);
+        ImGui::TextUnformatted("RENDERER SETTINGS");
+        ImGui::SameLine();
+        ImGui::TextDisabled("Tab to close");
+        ImGui::Separator();
 
-    ImGui::Begin("Antialiasing");
-    reset_accum |= ImGui::Checkbox("Progressive Monte Carlo", &_progressiveMonteCarlo);
-    reset_accum |= ImGui::SliderInt("MC per-frame spp", &_monteCarloSamplesPerFrame, 1, 20);
-    reset_accum |= ImGui::SliderInt("Camera settle frames", &_cameraSettleFrames, 0, 16);
-    reset_accum |= ImGui::SliderFloat("TAA alpha (still)", &_taaAlpha, 0.0f, 0.99f);
-    reset_accum |= ImGui::SliderFloat("TAA alpha (moving)", &_taaMovingAlpha, 0.0f, 0.99f);
-    reset_accum |= ImGui::SliderFloat("Reproject depth tol", &_taaDepthTolerance, 0.0f, 0.5f);
-    reset_accum |= ImGui::SliderFloat("Reproject normal tol", &_taaNormalTolerance, 0.0f, 1.0f);
-    ImGui::Text("Camera moving: %s", _cameraMoving ? "yes" : "no");
-    ImGui::End();
+        if (ImGui::BeginTabBar("Settings pages")) {
+            if (ImGui::BeginTabItem("Essentials")) {
+                ImGui::Spacing();
+                ImGui::TextUnformatted("Output");
+                ImGui::TextDisabled("View");
+                ImGui::SetNextItemWidth(-1.0f);
+                resetAccum |= ImGui::Combo("##View", &_debugView, kViewNames, IM_ARRAYSIZE(kViewNames));
+                resetAccum |= ImGui::Checkbox("ACES tone mapping", &_enableTonemap);
+                ImGui::BeginDisabled(!_enableTonemap);
+                ImGui::TextDisabled("Exposure");
+                ImGui::SetNextItemWidth(-1.0f);
+                resetAccum |=
+                    ImGui::SliderFloat("##Exposure", &_exposure, 0.1f, 4.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+                ImGui::EndDisabled();
 
-    ImGui::Begin("Medium");
-    {
-        auto* mp = (GPUMediumParams*)_volume.mediumParams.info.pMappedData;
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+                ImGui::TextUnformatted("Image quality");
+                resetAccum |= ImGui::Checkbox("Progressive accumulation", &_progressiveMonteCarlo);
+                ImGui::TextDisabled("Area-light samples");
+                ImGui::SetNextItemWidth(-1.0f);
+                resetAccum |= ImGui::SliderInt("##Area-light samples", &_monteCarloSamplesPerFrame, 1, 20);
+                ImGui::TextDisabled("More samples reduce shadow noise but cost GPU time.");
 
-        auto& sigma_a = mp->sigma_a_step;     // xyz used, w = step
-        auto& sigma_s = mp->sigma_s_maxT;     // xyz used, w = maxT
-        auto& g_e_d = mp->g_emis_density_pad; // x=g, y=emission, z=densityScale
-
-        ImGui::Text("Homogeneous Medium");
-        reset_accum |= ImGui::DragFloat3("sigma_a (absorption)", &sigma_a.x, 0.001f, 0.0f, 5.0f);
-        reset_accum |= ImGui::DragFloat3("sigma_s (scattering)", &sigma_s.x, 0.001f, 0.0f, 5.0f);
-        reset_accum |= ImGui::DragFloat("stepSize", &sigma_a.w, 0.001f, 0.001f, 1.0f);
-        reset_accum |= ImGui::DragFloat("maxT", &sigma_s.w, 1.0f, 0.0f, 20000.0f);
-        reset_accum |= ImGui::DragFloat("g (anisotropy)", &g_e_d.x, 0.001f, -0.99f, 0.99f);
-        reset_accum |= ImGui::DragFloat("emission", &g_e_d.y, 0.001f, 0.0f, 10.0f);
-        reset_accum |= ImGui::DragFloat("densityScale", &g_e_d.z, 0.001f, 0.0f, 10.0f);
-
-        {
-            auto* mp = (GPUMediumParams*)_volume.mediumParams.info.pMappedData;
-            bool fogEnv = mp->g_emis_density_pad.w > 0.5f;
-            if (ImGui::Checkbox("Fog affects environment", &fogEnv)) {
-                mp->g_emis_density_pad.w = fogEnv ? 1.0f : 0.0f;
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+                ImGui::TextUnformatted("Controls");
+                ImGui::BulletText("W A S D    Move");
+                ImGui::BulletText("Mouse      Look");
+                ImGui::BulletText("Q / E      Down / up");
+                ImGui::BulletText("Shift/Ctrl Fast / slow");
+                ImGui::BulletText("Tab        Close settings");
+                ImGui::EndTabItem();
             }
+
+            if (ImGui::BeginTabItem("Advanced")) {
+                if (ImGui::CollapsingHeader("Temporal filtering", ImGuiTreeNodeFlags_DefaultOpen)) {
+                    resetAccum |= ImGui::SliderInt("Camera settle frames", &_cameraSettleFrames, 0, 16);
+                    resetAccum |= ImGui::SliderFloat("History weight (still)", &_taaAlpha, 0.0f, 0.99f);
+                    resetAccum |= ImGui::SliderFloat("History weight (moving)", &_taaMovingAlpha, 0.0f, 0.99f);
+                    resetAccum |= ImGui::SliderFloat("Depth tolerance", &_taaDepthTolerance, 0.0f, 0.5f);
+                    resetAccum |= ImGui::SliderFloat("Normal tolerance", &_taaNormalTolerance, 0.0f, 1.0f);
+                    ImGui::TextDisabled("Camera state: %s", _cameraMoving ? "moving" : "settled");
+                }
+
+                if (ImGui::CollapsingHeader("Homogeneous medium")) {
+                    auto* medium = static_cast<GPUMediumParams*>(_volume.mediumParams.info.pMappedData);
+                    resetAccum |= ImGui::DragFloat3("Absorption", &medium->sigma_a_step.x, 0.001f, 0.0f, 5.0f, "%.3f");
+                    resetAccum |=
+                        ImGui::DragFloat3("Out-scattering", &medium->sigma_s_maxT.x, 0.001f, 0.0f, 5.0f, "%.3f");
+                    resetAccum |=
+                        ImGui::DragFloat("Maximum distance", &medium->sigma_s_maxT.w, 1.0f, 0.0f, 20000.0f, "%.0f");
+                    resetAccum |= ImGui::DragFloat("Emission", &medium->g_emis_density_pad.y, 0.001f, 0.0f, 10.0f);
+
+                    bool affectsEnvironment = medium->g_emis_density_pad.w > 0.5f;
+                    if (ImGui::Checkbox("Affect environment", &affectsEnvironment)) {
+                        medium->g_emis_density_pad.w = affectsEnvironment ? 1.0f : 0.0f;
+                        resetAccum = true;
+                    }
+                }
+
+                if (ImGui::CollapsingHeader("Diagnostics")) {
+                    ImGui::Text("Frame time: %.2f ms", _stats.frameTime);
+                    ImGui::Text("Camera: %.2f, %.2f, %.2f", _mainCamera.position.x, _mainCamera.position.y,
+                                _mainCamera.position.z);
+                    for (auto& [name, scene] : _loadedScenes) {
+                        if (ImGui::TreeNode(name.c_str())) {
+                            render_loaded_gltf(scene);
+                            ImGui::TreePop();
+                        }
+                    }
+                }
+                ImGui::EndTabItem();
+            }
+            ImGui::EndTabBar();
         }
-    }
-    ImGui::End();
 
-    ImGui::Begin("Hierarchy");
-
-    for (auto& [name, scene] : _loadedScenes) {
-
-        if (ImGui::TreeNode(name.c_str())) {
-            render_loaded_gltf(scene);
-            ImGui::TreePop();
+        ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 42.0f);
+        if (ImGui::Button("Close settings  [Tab]", ImVec2(-1.0f, 0.0f))) {
+            set_settings_open(false);
         }
+        ImGui::End();
+    } else {
+        ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + 12.0f, viewport->WorkPos.y + 12.0f), ImGuiCond_Always);
+        ImGui::SetNextWindowBgAlpha(0.72f);
+        constexpr ImGuiWindowFlags hintFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                                               ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
+                                               ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove |
+                                               ImGuiWindowFlags_NoMouseInputs;
+        ImGui::Begin("Controls hint", nullptr, hintFlags);
+        ImGui::TextUnformatted("[Tab] Settings");
+        ImGui::SameLine();
+        ImGui::TextDisabled("  WASD move  |  Mouse look  |  Q/E vertical");
+        ImGui::End();
     }
-    ImGui::End();
 
     ImGui::Render();
 
-    if (reset_accum) {
+    if (resetAccum) {
         request_accum_reset();
     }
 }

@@ -83,6 +83,14 @@ picked up by a reconfigure.
 Do not document anything about `GUIDE.md` here. Its conventions live in
 `GUIDE.md` itself — read that file's header before editing it.
 
+## Settings UI
+
+- Keep commonly useful, visually interesting controls on the Essentials page.
+  Put diagnostic or expert tuning controls under Advanced.
+- Do not expose inert controls. If a future control provides useful roadmap
+  context, suffix its label with `(planned)`, render it disabled, and add one
+  short explanation. Otherwise, leave it out until the feature works.
+
 ## Comments
 
 - Keep comments short. One or two lines is the norm. Reserve three or more lines

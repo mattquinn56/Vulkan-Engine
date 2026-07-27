@@ -72,7 +72,7 @@ list is gathered at configure time.
 | `E` / `Q` | Move up / down |
 | `Shift` / `Ctrl` | Move faster / slower |
 | Mouse | Look |
-| `Alt` | Release the mouse to interact with the overlay |
+| `Tab` | Open/close renderer settings and release/capture the mouse |
 
 ## Command line
 

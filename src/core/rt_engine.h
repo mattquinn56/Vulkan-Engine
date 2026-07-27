@@ -139,7 +139,6 @@ class RtEngine
                                                VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME};
     bool _accelerationStructuresCreated{false};
     int _frameNumber{0};
-    bool _debugEnabled{false};
 
     // Replaced at init by 85% of the desktop unless --resolution pinned it.
     VkExtent2D _windowExtent{1250, 800};
@@ -250,6 +249,8 @@ class RtEngine
     int _screenshotFrame{30};
     bool _screenshotDone{false};
     bool _showUi{true};
+    bool _settingsOpen{false};
+    bool _cursorLocked{true};
     // Yaw per rendered frame, in degrees, for the first _orbitFrames frames. Per
     // frame rather than per second, so a capture at frame N repeats between runs.
     float _orbitDegreesPerFrame{0.f};
@@ -419,6 +420,8 @@ class RtEngine
     void render_loaded_gltf(std::shared_ptr<GltfScene> scene);
 
     void recursively_render_node(std::shared_ptr<GltfScene> scene, std::shared_ptr<Node> node);
+
+    void set_settings_open(bool open);
 
     // volumetric additions
     void create_volume_resources();

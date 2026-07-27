@@ -46,6 +46,7 @@ void RtEngine::init() {
     // A capture run still needs a surface to present through, but the window
     // stays hidden and does not take the mouse.
     const bool capturing = !_screenshotPath.empty();
+    _cursorLocked = !capturing;
     Uint32 window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
     if (capturing) {
         window_flags |= SDL_WINDOW_HIDDEN;
@@ -178,7 +179,6 @@ void RtEngine::init_pipelines() {
 void RtEngine::run() {
     SDL_Event e;
     bool bQuit = false;
-    bool cursorLocked = true;
     _renderingFrozen = false;
 
     while (!bQuit) {
@@ -201,13 +201,11 @@ void RtEngine::run() {
                 }
             }
 
-            if (e.type == SDL_KEYDOWN && e.key.keysym.scancode == SDL_SCANCODE_LALT) {
-                SDL_SetRelativeMouseMode(cursorLocked ? SDL_FALSE : SDL_TRUE);
-                SDL_WarpMouseInWindow(_window, _windowExtent.width / 2, _windowExtent.height / 2);
-                cursorLocked = !cursorLocked;
+            if (_showUi && e.type == SDL_KEYDOWN && e.key.repeat == 0 && e.key.keysym.scancode == SDL_SCANCODE_TAB) {
+                set_settings_open(!_settingsOpen);
             }
 
-            if (cursorLocked) {
+            if (_cursorLocked) {
                 _mainCamera.process_sdl_event(e);
             }
 
@@ -251,5 +249,16 @@ void RtEngine::run() {
         auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 
         _stats.frameTime = elapsed.count() / 1000.f;
+    }
+}
+
+void RtEngine::set_settings_open(bool open) {
+    _settingsOpen = open;
+    _cursorLocked = !open;
+
+    SDL_SetWindowGrab(_window, _cursorLocked ? SDL_TRUE : SDL_FALSE);
+    SDL_SetRelativeMouseMode(_cursorLocked ? SDL_TRUE : SDL_FALSE);
+    if (_cursorLocked) {
+        SDL_WarpMouseInWindow(_window, _windowExtent.width / 2, _windowExtent.height / 2);
     }
 }
